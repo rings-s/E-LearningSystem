@@ -1,0 +1,41 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+<div class="email-header" style="background: linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%);">
+    <h1>⚠️ Security Alert</h1>
+    <p style="margin: 10px 0 0 0; opacity: 0.9;">New Login Detected</p>
+</div>
+
+<div class="email-body">
+    <h2>New Login to Your Account</h2>
+    
+    <p>We detected a new login to your {{ company_name }} account. If this was you, you can safely ignore this email.</p>
+    
+    <div style="margin: 20px 0; padding: 20px; background-color: #fff3cd; border: 1px solid #ffecd1; border-radius: 5px;">
+        <h3 style="margin-top: 0; color: #856404;">Login Details:</h3>
+        <p style="margin: 5px 0;"><strong>Time:</strong> {{ login_time }}</p>
+        <p style="margin: 5px 0;"><strong>IP Address:</strong> {{ ip_address }}</p>
+        <p style="margin: 5px 0;"><strong>Location:</strong> {{ location }}</p>
+        <p style="margin: 5px 0;"><strong>Device:</strong> {{ device_info }}</p>
+    </div>
+    
+    <h3>Wasn't You?</h3>
+    <p>If you don't recognize this login, please take these steps immediately:</p>
+    
+    <ol>
+        <li>Change your password right away</li>
+        <li>Review your recent account activity</li>
+        <li>Enable two-factor authentication if available</li>
+        <li>Contact our support team if you need assistance</li>
+    </ol>
+    
+    <div style="text-align: center;">
+        <a href="{{ frontend_url }}/account/security" class="button" style="background-color: #dc3545;">Secure My Account</a>
+    </div>
+</div>
+
+<div class="email-footer">
+    <p>&copy; {{ current_year }} {{ company_name }}. All rights reserved.</p>
+    <p>Your security is our priority.</p>
+</div>
+{% endblock %}

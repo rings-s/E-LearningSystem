@@ -1,0 +1,22 @@
+{{ company_name }}
+===================
+
+Hello {% if user_name %}{{ user_name }}{% else %}there{% endif %}!
+
+Thank you for joining {{ company_name }}. To complete your registration and start learning, please verify your email address.
+
+Your verification code is: {{ verification_code }}
+
+Enter this code on the verification page to activate your account.
+
+{% if verification_url %}
+Or click this link: {{ verification_url }}
+{% endif %}
+
+This code will expire in {{ expiry_hours }} hours.
+
+If you didn't create an account on {{ company_name }}, please ignore this email.
+
+---
+© {{ current_year }} {{ company_name }}. All rights reserved.
+Empowering learners worldwide through quality education.

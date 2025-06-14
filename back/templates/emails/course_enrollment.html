@@ -1,0 +1,40 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+<div class="email-header">
+    <h1>Successfully Enrolled!</h1>
+    <p style="margin: 10px 0 0 0; opacity: 0.9;">{{ course_title }}</p>
+</div>
+
+<div class="email-body">
+    <h2>Congratulations {{ user_name }}!</h2>
+    
+    <p>You've successfully enrolled in <strong>{{ course_title }}</strong>.</p>
+    
+    <div style="margin: 20px 0; padding: 20px; background-color: #f8f9fa; border-radius: 5px;">
+        <p style="margin: 0 0 10px 0;"><strong>Course Details:</strong></p>
+        <p style="margin: 5px 0;">📚 <strong>Course:</strong> {{ course_title }}</p>
+        <p style="margin: 5px 0;">👨‍🏫 <strong>Instructor:</strong> {{ instructor_name }}</p>
+        <p style="margin: 5px 0;">📅 <strong>Enrolled on:</strong> {{ current_date }}</p>
+    </div>
+    
+    <div style="text-align: center;">
+        <a href="{{ course_url }}" class="button">Start Learning</a>
+    </div>
+    
+    <h3>What's Next?</h3>
+    <ol>
+        <li>Review the course syllabus and learning objectives</li>
+        <li>Watch the introduction video</li>
+        <li>Join the course discussion forum</li>
+        <li>Set a learning schedule that works for you</li>
+    </ol>
+    
+    <p>Remember, learning is a journey. Take your time and enjoy the process!</p>
+</div>
+
+<div class="email-footer">
+    <p>&copy; {{ current_year }} {{ company_name }}. All rights reserved.</p>
+    <p>Happy Learning! 🎓</p>
+</div>
+{% endblock %}

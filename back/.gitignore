@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv
+
+# Django
+*.log
+*.pot
+*.pyc
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+/media/*
+!/media/.gitkeep
+/staticfiles/*
+!/staticfiles/.gitkeep
+/logs/*
+!/logs/.gitkeep
+
+# Environment variables
+.env
+.env.local
+.env.production
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.sqlite3
+celerybeat-schedule
+celerybeat.pid

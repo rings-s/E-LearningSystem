@@ -1,0 +1,46 @@
+{% extends "emails/base_email.html" %}
+
+{% block content %}
+<div class="email-header" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+    <h1>🎉 Congratulations!</h1>
+    <p style="margin: 10px 0 0 0; opacity: 0.9;">You've Earned a Certificate</p>
+</div>
+
+<div class="email-body">
+    <h2>Outstanding Achievement, {{ user_name }}!</h2>
+    
+    <p>We're thrilled to inform you that you've successfully completed <strong>{{ course_title }}</strong> and earned your certificate!</p>
+    
+    <div style="margin: 30px 0; padding: 25px; background-color: #f8f9fa; border-radius: 5px; text-align: center;">
+        <p style="font-size: 20px; margin: 0 0 10px 0;">🏆</p>
+        <p style="margin: 0; font-size: 18px; font-weight: 600;">Certificate of Completion</p>
+        <p style="margin: 10px 0 0 0; color: #6c757d;">Certificate Number: {{ certificate_number }}</p>
+    </div>
+    
+    <div style="text-align: center;">
+        <a href="{{ certificate_url }}" class="button" style="background-color: #f5576c;">View Certificate</a>
+    </div>
+    
+    <h3>Share Your Achievement</h3>
+    <p>You can now:</p>
+    <ul>
+        <li>Download your certificate as a PDF</li>
+        <li>Share it on LinkedIn or other professional networks</li>
+        <li>Add it to your resume or portfolio</li>
+        <li>Verify its authenticity using the certificate number</li>
+    </ul>
+    
+    <p>Your dedication and hard work have paid off. Keep up the excellent work!</p>
+    
+    <div style="margin-top: 30px; padding: 20px; background-color: #e8f5e9; border-radius: 5px;">
+        <h4 style="margin-top: 0; color: #2e7d32;">Ready for Your Next Challenge?</h4>
+        <p style="margin-bottom: 10px;">Continue your learning journey with our other courses.</p>
+        <a href="{{ frontend_url }}/courses" style="color: #2e7d32; font-weight: 600;">Browse More Courses →</a>
+    </div>
+</div>
+
+<div class="email-footer">
+    <p>&copy; {{ current_year }} {{ company_name }}. All rights reserved.</p>
+    <p>Celebrating your success! 🎓</p>
+</div>
+{% endblock %}
