@@ -1,0 +1,118 @@
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+/.svelte-kit
+/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Node.js
+node_modules/
+.pnp
+.pnp.js
+npm-debug.log*
+.npm
+.npmrc
+
+# Frontend Node.js dependencies
+front/node_modules/
+
+# Build output
+/dist
+/build
+/public/build
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# OS generated files
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Database files
+*.sqlite3
+*.db
+*.sqlite
+
+# Database migrations
+migrations/
+migrations/*
+*.sql
+*.migration
+
+# SvelteKit specific
+.svelte-kit/
+.svelte-check
+.svelte-cache
+
+# Testing
+coverage/
+
+# Error tracking
+errors.md
+
+# Local development files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Django static files
+staticfiles/
+
+# PostgreSQL data directory
+postgres_data/
+
+*errors.md
+
+
+
+*.sqlite3
+
+# If using PostgreSQL dump or backups
+*.sql
+*.dump
+
+# Ignore media and static files
+/media/
+/static/
+/staticfiles/
+static/
+media/
+
