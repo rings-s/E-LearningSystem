@@ -37,7 +37,10 @@ uvicorn==0.34.2
 vine==5.1.0
 wcwidth==0.2.13
 whitenoise==6.9.0
-
+plotly==5.18.0
+pandas==2.1.4
+numpy==1.26.2
+kaleido==0.2.1  # For static image export
 
 
 
