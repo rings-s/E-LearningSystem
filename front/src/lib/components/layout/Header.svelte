@@ -4,8 +4,8 @@
     import { authService } from '$lib/services/auth.service.js';
     import { t } from '$lib/i18n/index.js';
     import { goto } from '$app/navigation';
-    import NotificationBell from '$lib/components/common/NotificationBell.svelte';
-    import UserMenu from '$lib/components/common/UserMenu.svelte';
+    import NotificationBell from '../common/NotificationBell.svelte';
+    import UserMenu from '../common/UserMenu.svelte';
   
     let { minimal = false } = $props();
     

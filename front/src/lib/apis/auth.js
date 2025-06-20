@@ -1,4 +1,3 @@
-// front/src/lib/apis/auth.js
 import { api } from './index.js';
 
 export const authApi = {

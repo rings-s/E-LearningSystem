@@ -1,18 +1,14 @@
-// front/src/lib/i18n/index.js
 import { derived, writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import en from './en.js';
 import ar from './ar.js';
 
-const translations = {
-    en,
-    ar
-};
+const translations = { en, ar };
 
 function createI18n() {
     const locale = writable('en');
     
-    const translate = derived(locale, ($locale) => {
+    const t = derived(locale, ($locale) => {
         const translation = translations[$locale] || translations.en;
         
         return (key, params = {}) => {
@@ -20,16 +16,24 @@ function createI18n() {
             
             // Replace parameters
             Object.keys(params).forEach(param => {
-                text = text.replace(`{${param}}`, params[param]);
+                text = text.replace(new RegExp(`{${param}}`, 'g'), params[param]);
             });
             
             return text;
         };
     });
 
+    // Initialize from localStorage
+    if (browser) {
+        const savedLocale = localStorage.getItem('language') || 'en';
+        locale.set(savedLocale);
+        document.documentElement.lang = savedLocale;
+        document.documentElement.dir = savedLocale === 'ar' ? 'rtl' : 'ltr';
+    }
+
     return {
         locale,
-        t: translate,
+        t,
         setLocale: (newLocale) => {
             if (translations[newLocale]) {
                 locale.set(newLocale);

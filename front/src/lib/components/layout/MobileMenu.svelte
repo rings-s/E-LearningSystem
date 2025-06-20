@@ -3,7 +3,7 @@
   import { slide } from 'svelte/transition';
   import { page } from '$app/stores';
   import { uiStore } from '$lib/stores/ui.store.js';
-  import { currentUser, userRole } from '$lib/services/auth.service.js';
+  import { currentUser, userRole } from '$lib/stores/auth.store.js';
   import { t } from '$lib/i18n/index.js';
   import { classNames, clickOutside } from '$lib/utils/helpers.js';
 
