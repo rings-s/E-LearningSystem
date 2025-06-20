@@ -1,247 +1,110 @@
 // front/src/lib/stores/auth.store.js
 import { writable, derived } from 'svelte/store';
-import { authApi } from '$lib/apis/auth.js';
-import { authService } from '$lib/services/auth.service.js';
+import { browser } from '$app/environment';
+import { authApi } from '../apis/auth.js';
 
-function createUserStore() {
+function createAuthStore() {
     const { subscribe, set, update } = writable({
-        profile: null,
-        preferences: {
-            language: 'en',
-            theme: 'light',
-            notifications: {
-                email: true,
-                push: true,
-                sms: false
-            },
-            privacy: {
-                showProfile: true,
-                showActivity: true,
-                showProgress: true
-            }
-        },
-        stats: {
-            coursesEnrolled: 0,
-            coursesCompleted: 0,
-            totalStudyHours: 0,
-            certificatesEarned: 0,
-            currentStreak: 0,
-            longestStreak: 0
-        },
-        achievements: [],
-        loading: false,
-        error: null
+        user: null,
+        token: null,
+        refreshToken: null,
+        isLoading: true,
+        isAuthenticated: false
     });
 
     return {
         subscribe,
         
-        async loadProfile() {
-            update(state => ({ ...state, loading: true, error: null }));
+        async init() {
+            if (!browser) return;
             
-            try {
-                const user = await authService.getCurrentUser();
-                update(state => ({
-                    ...state,
-                    profile: user,
-                    loading: false
-                }));
-                
-                // Load preferences from localStorage
-                this.loadPreferences();
-                
-                return user;
-            } catch (error) {
-                update(state => ({
-                    ...state,
-                    loading: false,
-                    error: error.message
-                }));
-                throw error;
-            }
-        },
-
-        async updateProfile(data) {
-            update(state => ({ ...state, loading: true, error: null }));
+            const token = localStorage.getItem('access_token');
+            const refreshToken = localStorage.getItem('refresh_token');
             
-            try {
-                const result = await authService.updateProfile(data);
-                if (result.success) {
+            if (token) {
+                try {
+                    const userData = await authApi.getCurrentUser();
                     update(state => ({
                         ...state,
-                        profile: { ...state.profile, ...result.user },
-                        loading: false
+                        user: userData.data || userData,
+                        token,
+                        refreshToken,
+                        isAuthenticated: true,
+                        isLoading: false
                     }));
+                } catch (error) {
+                    this.logout();
                 }
-                return result;
-            } catch (error) {
-                update(state => ({
-                    ...state,
-                    loading: false,
-                    error: error.message
-                }));
-                throw error;
+            } else {
+                update(state => ({ ...state, isLoading: false }));
             }
         },
 
-        async uploadAvatar(file) {
+        async login(credentials) {
             try {
-                const response = await authApi.uploadAvatar(file);
-                update(state => ({
-                    ...state,
-                    profile: {
-                        ...state.profile,
-                        avatar: response.avatar
-                    }
-                }));
-                return { success: true };
+                const response = await authApi.login(credentials);
+                const { access, refresh, user } = response;
+                
+                if (browser) {
+                    localStorage.setItem('access_token', access);
+                    localStorage.setItem('refresh_token', refresh);
+                }
+                
+                set({
+                    user,
+                    token: access,
+                    refreshToken: refresh,
+                    isAuthenticated: true,
+                    isLoading: false
+                });
+                
+                return { success: true, user };
             } catch (error) {
                 return { success: false, error: error.message };
             }
         },
 
-        updatePreferences(preferences) {
-            update(state => {
-                const newState = {
-                    ...state,
-                    preferences: {
-                        ...state.preferences,
-                        ...preferences
-                    }
-                };
-                
-                // Save to localStorage
-                if (typeof window !== 'undefined') {
-                    localStorage.setItem('user_preferences', 
-                        JSON.stringify(newState.preferences)
-                    );
-                }
-                
-                return newState;
-            });
-        },
-
-        loadPreferences() {
-            if (typeof window === 'undefined') return;
-            
-            const saved = localStorage.getItem('user_preferences');
-            if (saved) {
-                try {
-                    const preferences = JSON.parse(saved);
-                    update(state => ({
-                        ...state,
-                        preferences: {
-                            ...state.preferences,
-                            ...preferences
-                        }
-                    }));
-                } catch (error) {
-                    console.error('Failed to load preferences:', error);
-                }
+        async register(userData) {
+            try {
+                const response = await authApi.register(userData);
+                return { success: true, data: response };
+            } catch (error) {
+                return { success: false, error: error.message };
             }
         },
 
-        updateStats(stats) {
-            update(state => ({
-                ...state,
-                stats: {
-                    ...state.stats,
-                    ...stats
-                }
-            }));
+        async updateProfile(data) {
+            try {
+                const response = await authApi.updateProfile(data);
+                update(state => ({
+                    ...state,
+                    user: { ...state.user, ...response.data }
+                }));
+                return { success: true, data: response.data };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
         },
 
-        addAchievement(achievement) {
-            update(state => ({
-                ...state,
-                achievements: [...state.achievements, achievement]
-            }));
-        },
-
-        reset() {
+        logout() {
+            if (browser) {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+            }
             set({
-                profile: null,
-                preferences: {
-                    language: 'en',
-                    theme: 'light',
-                    notifications: {
-                        email: true,
-                        push: true,
-                        sms: false
-                    },
-                    privacy: {
-                        showProfile: true,
-                        showActivity: true,
-                        showProgress: true
-                    }
-                },
-                stats: {
-                    coursesEnrolled: 0,
-                    coursesCompleted: 0,
-                    totalStudyHours: 0,
-                    certificatesEarned: 0,
-                    currentStreak: 0,
-                    longestStreak: 0
-                },
-                achievements: [],
-                loading: false,
-                error: null
+                user: null,
+                token: null,
+                refreshToken: null,
+                isAuthenticated: false,
+                isLoading: false
             });
         }
     };
 }
 
-export const authStore = createUserStore();
+export const authStore = createAuthStore();
 
 // Derived stores
-export const userProfile = derived(authStore, $user => $user.profile);
-export const userPreferences = derived(authStore, $user => $user.preferences);
-export const userStats = derived(authStore, $user => $user.stats);
-export const userAchievements = derived(authStore, $user => $user.achievements);// Derived stores
-export const userProfile = derived(authStore, $user => $user.profile);
-export const userPreferences = derived(authStore, $user => $user.preferences);
-export const userStats = derived(authStore, $user => $user.stats);
-export const userAchievements = derived(authStore, $user => $user.achievements);
-export const userPreferences = derived(authStore, $user => $user.preferences);
-export const userStats = derived(authStore, $user => $user.stats);
-export const userAchievements = derived(authStore, $user => $user.achievements);
-// Derived stores
-export const userProfile = derived(authStore, $user => $user.profile);
-export const userPreferences = derived(authStore, $user => $user.preferences);
-export const userStats = derived(authStore, $user => $user.stats);
-export const userAchievements = derived(authStore, $user => $user.achievements);
-export const userPreferences = derived(authStore, $user => $user.preferences);
-export const userStats = derived(authStore, $user => $user.stats);
-export const userAchievements = derived(authStore, $user => $user.achievements);
-                    totalStudyHours: 0,
-                    certificatesEarned: 0,
-                    currentStreak: 0,
-                    longestStreak: 0
-                },
-                achievements: [],
-                loading: false,
-                error: null
-            });
-        }
-    };
-}
-
-export const authStore = createUserStore();
-
-// Derived stores
-export const userProfile = derived(authStore, $user => $user.profile);
-export const userPreferences = derived(authStore, $user => $user.preferences);
-export const userStats = derived(authStore, $user => $user.stats);
-export const userAchievements = derived(authStore, $user => $user.achievements);
-            });
-        }
-    };
-}
-
-export const authStore = createUserStore();
-
-// Derived stores
-export const userProfile = derived(userStore, $user => $user.profile);
-export const userPreferences = derived(userStore, $user => $user.preferences);
-export const userStats = derived(userStore, $user => $user.stats);
-export const userAchievements = derived(userStore, $user => $user.achievements);
+export const isAuthenticated = derived(authStore, $auth => $auth.isAuthenticated);
+export const currentUser = derived(authStore, $auth => $auth.user);
+export const userRole = derived(authStore, $auth => $auth.user?.role || 'guest');

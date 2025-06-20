@@ -1,7 +1,6 @@
 // front/src/lib/services/auth.service.js
-import { authApi } from '$lib/apis/auth.js';
+import { authApi } from '../apis/auth.js';
 import { browser } from '$app/environment';
-import { writable, derived } from 'svelte/store';
 
 class AuthService {
     constructor() {
@@ -28,24 +27,44 @@ class AuthService {
     }
 
     getRefreshToken() {
-        return tokenManager.getRefreshToken();
+        if (!browser) return null;
+        return localStorage.getItem(this.refreshKey);
     }
 
-    async refreshToken() {
-        const refreshToken = this.getRefreshToken();
-        if (!refreshToken) {
-            this.logout();
-            throw new Error('No refresh token available');
-        }
+    clearTokens() {
+        if (!browser) return;
+        localStorage.removeItem(this.tokenKey);
+        localStorage.removeItem(this.refreshKey);
+        localStorage.removeItem(this.userKey);
+    }
 
+    // User Data Management
+    setUserData(user) {
+        if (!browser) return;
+        localStorage.setItem(this.userKey, JSON.stringify(user));
+    }
+
+    getUserData() {
+        if (!browser) return null;
+        const data = localStorage.getItem(this.userKey);
+        return data ? JSON.parse(data) : null;
+    }
+
+    // Authentication Methods
+    async login(credentials) {
         try {
-            const { access } = await authApi.refreshToken(refreshToken);
-            tokenManager.setTokens(access);
-            return access;
+            const response = await authApi.login(credentials);
+            const { access, refresh, user } = response;
+            
+            this.setTokens({ access, refresh });
+            this.setUserData(user);
+            
+            return { success: true, user };
         } catch (error) {
-            console.error('Token refresh failed:', error);
-            this.logout();
-            throw error;
+            return { 
+                success: false, 
+                error: error.message || 'Login failed' 
+            };
         }
     }
 
@@ -73,9 +92,8 @@ class AuthService {
             });
             
             if (response.tokens) {
-                tokenManager.setTokens(response.tokens.access, response.tokens.refresh);
-                const user = await this.getCurrentUser();
-                currentUser.set(user);
+                this.setTokens(response.tokens);
+                this.setUserData(response.user);
             }
             
             return { success: true, user: response.user };
@@ -87,6 +105,27 @@ class AuthService {
         }
     }
 
+    async refreshAccessToken() {
+        const refreshToken = this.getRefreshToken();
+        if (!refreshToken) {
+            throw new Error('No refresh token available');
+        }
+
+        try {
+            const response = await authApi.refreshToken(refreshToken);
+            this.setTokens({ access: response.access });
+            return response.access;
+        } catch (error) {
+            this.clearTokens();
+            throw error;
+        }
+    }
+
+    async getCurrentUser() {
+        try {
+            const response = await authApi.getCurrentUser();
+            const user = response.data || response;
+            this.setUserData(user);
             return user;
         } catch (error) {
             if (error.message === 'Unauthorized') {
@@ -135,7 +174,9 @@ class AuthService {
 
     logout() {
         this.clearTokens();
-        currentUser.set(null);
+        if (browser) {
+            window.location.href = '/login';
+        }
     }
 
     // Helper Methods
@@ -197,6 +238,3 @@ class AuthService {
 }
 
 export const authService = new AuthService();
-export const currentUser = writable(authService.getUserData());
-export const userRole = derived(currentUser, $currentUser => $currentUser?.role);
-export const isAuthenticated = derived(currentUser, $currentUser => !!$currentUser);

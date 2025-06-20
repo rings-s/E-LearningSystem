@@ -1,28 +1,19 @@
 // front/src/lib/apis/index.js
 import { browser } from '$app/environment';
-import { tokenManager } from '$lib/utils/token.js';
+import { goto } from '$app/navigation';
+import { authStore } from '../stores/auth.store.js';
+import { get } from 'svelte/store';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-
-/**
- * @typedef {Object} RequestOptions
- * @property {string} [method]
- * @property {Object<string, string>} [headers]
- * @property {any} [body]
- * @property {boolean} [skipAuth]
- */
 
 class ApiClient {
     constructor() {
         this.baseURL = API_BASE_URL;
     }
 
-    /**
-     * @param {string} endpoint
-     * @param {RequestOptions} [options]
-     */
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
+        const auth = get(authStore);
         
         const config = {
             ...options,
@@ -33,16 +24,17 @@ class ApiClient {
         };
 
         // Add auth token if available
-        const token = tokenManager.getAccessToken();
-        if (token && !options.skipAuth) {
-            config.headers.Authorization = `Bearer ${token}`;
+        if (auth.token && !options.skipAuth) {
+            config.headers.Authorization = `Bearer ${auth.token}`;
         }
 
         try {
             const response = await fetch(url, config);
             
+            // Handle auth errors
             if (response.status === 401 && browser) {
-                // Let the caller handle auth errors
+                authStore.logout();
+                goto('/login');
                 throw new Error('Unauthorized');
             }
 
@@ -59,19 +51,10 @@ class ApiClient {
         }
     }
 
-    /**
-     * @param {string} endpoint
-     * @param {RequestOptions} [options]
-     */
     get(endpoint, options = {}) {
         return this.request(endpoint, { ...options, method: 'GET' });
     }
 
-    /**
-     * @param {string} endpoint
-     * @param {any} data
-     * @param {RequestOptions} [options]
-     */
     post(endpoint, data, options = {}) {
         return this.request(endpoint, {
             ...options,
@@ -80,11 +63,6 @@ class ApiClient {
         });
     }
 
-    /**
-     * @param {string} endpoint
-     * @param {any} data
-     * @param {RequestOptions} [options]
-     */
     put(endpoint, data, options = {}) {
         return this.request(endpoint, {
             ...options,
@@ -93,11 +71,6 @@ class ApiClient {
         });
     }
 
-    /**
-     * @param {string} endpoint
-     * @param {any} data
-     * @param {RequestOptions} [options]
-     */
     patch(endpoint, data, options = {}) {
         return this.request(endpoint, {
             ...options,
@@ -106,19 +79,10 @@ class ApiClient {
         });
     }
 
-    /**
-     * @param {string} endpoint
-     * @param {RequestOptions} [options]
-     */
     delete(endpoint, options = {}) {
         return this.request(endpoint, { ...options, method: 'DELETE' });
     }
 
-    /**
-     * @param {string} endpoint
-     * @param {FormData} formData
-     * @param {RequestOptions} [options]
-     */
     upload(endpoint, formData, options = {}) {
         const config = {
             ...options,

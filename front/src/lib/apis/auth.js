@@ -1,5 +1,5 @@
 // front/src/lib/apis/auth.js
-import { api } from '$lib/apis/index.js';
+import { api } from './index.js';
 
 export const authApi = {
     async register(userData) {
