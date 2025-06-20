@@ -5,7 +5,7 @@
     let {
       name = '',
       label = '',
-      value = '',
+      value = $bindable(''),
       options = [],
       placeholder = 'Select an option',
       error = '',
@@ -36,7 +36,7 @@
       <select
         {id}
         {name}
-        {value}
+        bind:value
         {disabled}
         {required}
         class={classNames(
@@ -50,10 +50,7 @@
           disabled && 'opacity-50 cursor-not-allowed',
           'px-3 py-2 pr-8'
         )}
-        onchange={(e) => {
-          value = e.target.value;
-          onchange(e);
-        }}
+        onchange={onchange}
         {...rest}
       >
         {#if placeholder}

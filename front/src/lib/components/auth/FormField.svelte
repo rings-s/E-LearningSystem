@@ -7,7 +7,7 @@
     type = 'text',
     name = '',
     label = '',
-    value = '',
+    value = $bindable(''),
     error = '',
     required = false,
     options = [],

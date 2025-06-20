@@ -7,7 +7,7 @@
     name = '',
     label = '',
     placeholder = '',
-    value = '',
+    value = $bindable(''),
     error = '',
     disabled = false,
     required = false,
@@ -29,10 +29,7 @@
     onblur(e);
   };
 
-  const handleInput = (e) => {
-    value = e.target.value;
-    oninput(e);
-  };
+
 
   // Only show error if field has been touched or has a value
   const shouldShowError = $derived(error && (touched || value));
@@ -65,7 +62,7 @@
       {id}
       {type}
       {name}
-      {value}
+      bind:value
       {placeholder}
       {disabled}
       {required}
@@ -82,7 +79,7 @@
         disabled && 'opacity-50 cursor-not-allowed',
         'px-3 py-2'
       )}
-      oninput={handleInput}
+      oninput={oninput}
       onblur={handleBlur}
       {...rest}
     />

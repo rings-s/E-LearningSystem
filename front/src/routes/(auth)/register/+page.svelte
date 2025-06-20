@@ -1,4 +1,4 @@
-<!-- front/src/routes/register/+page.svelte -->
+<!-- front/src/routes/(auth)/register/+page.svelte -->
 <script>
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth.store.js';
@@ -31,10 +31,9 @@
   let errors = $state({});
   let touched = $state({});
 
-  // Convert from $: to $derived for Svelte 5 runes mode
-  const passwordStrength = $derived(getPasswordStrength(formData.password));
-
-  function getPasswordStrength(password) {
+  // Fix the derived state issue by using functions instead of direct references
+  const getPasswordStrength = () => {
+    const password = formData.password;
     if (!password) return { score: 0, text: '', color: 'gray' };
     
     let score = 0;
@@ -58,7 +57,9 @@
     ];
     
     return levels[score] || levels[0];
-  }
+  };
+
+  const passwordStrength = $derived(getPasswordStrength());
 
   const roleOptions = [
     { 
@@ -75,23 +76,26 @@
     }
   ];
 
-  const steps = [
+  // Create steps as a function to avoid the state_referenced_locally warning
+  const getSteps = () => [
     {
       title: 'Account Type',
       description: 'Choose your role',
-      completed: currentStep > 0 || !!formData.role
+      completed: $derived(currentStep > 0 || !!formData.role)
     },
     {
       title: 'Personal Information',
       description: 'Tell us about yourself',
-      completed: currentStep > 1
+      completed: $derived(currentStep > 1)
     },
     {
       title: 'Security',
       description: 'Secure your account',
-      completed: currentStep > 2
+      completed: $derived(currentStep > 2)
     }
   ];
+
+  const steps = getSteps();
 
   const validationRules = {
     role: [
@@ -131,12 +135,6 @@
     validateField(fieldName);
   };
 
-  const handleFieldInput = (fieldName) => {
-    if (touched[fieldName]) {
-      validateField(fieldName);
-    }
-  };
-
   const validateField = (fieldName) => {
     const fieldValue = formData[fieldName];
     const rules = validationRules[fieldName] || [];
@@ -161,23 +159,34 @@
       : step === 1 ? ['first_name', 'last_name', 'email']
       : ['password', 'confirm_password'];
     
-    // Mark fields as touched
-    fieldsToValidate.forEach(field => {
-      touched[field] = true;
-    });
+    let isValid = true;
+    
+    // Check each field but don't mark as touched yet
+    for (const field of fieldsToValidate) {
+      if (!validateStepField(field)) {
+        isValid = false;
+      }
+    }
+    
+    return isValid;
+  };
 
-    const stepData = Object.fromEntries(
-      fieldsToValidate.map(field => [field, formData[field]])
-    );
+  const validateStepField = (fieldName) => {
+    const fieldValue = formData[fieldName];
+    const rules = validationRules[fieldName] || [];
     
-    const stepRules = Object.fromEntries(
-      fieldsToValidate.map(field => [field, validationRules[field]])
-    );
+    // Only require fields if they are truly required for this step
+    if (fieldName === 'phone_number' || fieldName === 'date_of_birth') {
+      return true; // These are optional
+    }
     
-    const validation = validateForm(stepData, stepRules);
-    errors = { ...errors, ...validation.errors };
+    for (const rule of rules) {
+      if (!rule.validator(fieldValue, formData)) {
+        return false;
+      }
+    }
     
-    return validation.isValid;
+    return true;
   };
 
   const nextStep = () => {
@@ -185,6 +194,16 @@
       if (currentStep < 2) {
         currentStep++;
       }
+    } else {
+      // Mark fields as touched if validation fails
+      const fieldsToValidate = currentStep === 0 ? ['role'] 
+        : currentStep === 1 ? ['first_name', 'last_name', 'email']
+        : ['password', 'confirm_password'];
+      
+      fieldsToValidate.forEach(field => {
+        touched[field] = true;
+        validateField(field);
+      });
     }
   };
 
@@ -194,7 +213,7 @@
     }
   };
 
-  const canProceed = $derived(() => {
+  const canProceed = $derived.by(() => {
     if (currentStep === 0) return !!formData.role;
     if (currentStep === 1) return formData.first_name && formData.last_name && formData.email;
     if (currentStep === 2) return formData.password && formData.confirm_password && formData.password === formData.confirm_password;
@@ -203,7 +222,14 @@
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
-    if (!validateStep(2)) return;
+    if (!validateStep(2)) {
+      // Mark all final step fields as touched
+      ['password', 'confirm_password'].forEach(field => {
+        touched[field] = true;
+        validateField(field);
+      });
+      return;
+    }
 
     loading = true;
     const result = await authStore.register(formData);
@@ -230,6 +256,47 @@
 <title>Register - {$t('common.appName')}</title>
 </svelte:head>
 
+<!-- Include Header -->
+<header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex justify-between items-center h-16">
+      <!-- Logo -->
+      <a href="/" class="flex items-center space-x-3">
+        <div class="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center text-white font-bold">
+          E
+        </div>
+        <span class="text-lg font-semibold text-gray-900 dark:text-white">
+          {$t('common.appName')}
+        </span>
+      </a>
+      
+      <!-- Right side controls -->
+      <div class="flex items-center space-x-4">
+        <!-- Theme Toggle -->
+        <button
+          onclick={() => uiStore.toggleTheme()}
+          class="p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:bg-gray-700 transition-colors"
+          aria-label="Toggle theme"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+          </svg>
+        </button>
+
+        <!-- Auth Links -->
+        <div class="flex items-center space-x-4">
+          <a href="/login" class="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
+            {$t('auth.login')}
+          </a>
+          <a href="/courses" class="text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400">
+            Courses
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
 <div class="min-h-screen bg-gray-50 dark:bg-gray-900 py-12">
 <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
   <!-- Header -->
@@ -246,7 +313,7 @@
   </div>
 
   <Card variant="bordered" padding="large">
-    <!-- Custom Steps Component -->
+    <!-- Progress Steps -->
     <div class="mb-8">
       <nav aria-label="Progress">
         <ol class="flex items-center">
@@ -255,13 +322,13 @@
               <!-- Step indicator -->
               <div class="flex items-center">
                 <div class="flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 {
-                  index < currentStep || step.completed
+                  index < currentStep
                     ? 'bg-primary-600 text-white'
                     : index === currentStep
                     ? 'border-2 border-primary-600 bg-white text-primary-600 dark:bg-gray-800'
                     : 'border-2 border-gray-300 bg-white text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400'
                 }">
-                  {#if index < currentStep || step.completed}
+                  {#if index < currentStep}
                     <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                     </svg>
@@ -357,7 +424,6 @@
                 bind:value={formData.first_name}
                 error={getFieldError('first_name')}
                 onblur={() => handleFieldBlur('first_name')}
-                oninput={() => handleFieldInput('first_name')}
                 required
                 icon='<path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />'
               />
@@ -368,7 +434,6 @@
                 bind:value={formData.last_name}
                 error={getFieldError('last_name')}
                 onblur={() => handleFieldBlur('last_name')}
-                oninput={() => handleFieldInput('last_name')}
                 required
               />
             </div>
@@ -380,7 +445,6 @@
               bind:value={formData.email}
               error={getFieldError('email')}
               onblur={() => handleFieldBlur('email')}
-              oninput={() => handleFieldInput('email')}
               required
               icon='<path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />'
             />
@@ -388,11 +452,10 @@
             <FormField
               type="tel"
               name="phone_number"
-              label={$t('auth.phoneNumber')}
+              label="{$t('auth.phoneNumber')} (Optional)"
               bind:value={formData.phone_number}
               error={getFieldError('phone_number')}
               onblur={() => handleFieldBlur('phone_number')}
-              oninput={() => handleFieldInput('phone_number')}
               placeholder="+1234567890"
               icon='<path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />'
             />
@@ -400,11 +463,10 @@
             <FormField
               type="date"
               name="date_of_birth"
-              label={$t('auth.dateOfBirth')}
+              label="{$t('auth.dateOfBirth')} (Optional)"
               bind:value={formData.date_of_birth}
               error={getFieldError('date_of_birth')}
               onblur={() => handleFieldBlur('date_of_birth')}
-              oninput={() => handleFieldInput('date_of_birth')}
               icon='<path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />'
             />
           </div>
@@ -424,7 +486,6 @@
               bind:value={formData.password}
               error={getFieldError('password')}
               onblur={() => handleFieldBlur('password')}
-              oninput={() => handleFieldInput('password')}
               required
               icon='<path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />'
             />
@@ -433,19 +494,14 @@
               <div class="space-y-2">
                 <div class="flex justify-between items-center">
                   <span class="text-sm text-gray-600 dark:text-gray-400">Password strength:</span>
-                  <span class="text-sm font-medium" class:text-red-600={passwordStrength.color === 'red'} class:text-orange-600={passwordStrength.color === 'orange'} class:text-yellow-600={passwordStrength.color === 'yellow'} class:text-blue-600={passwordStrength.color === 'blue'} class:text-green-600={passwordStrength.color === 'green'}>
+                  <span class="text-sm font-medium" style="color: {passwordStrength.color === 'red' ? '#ef4444' : passwordStrength.color === 'orange' ? '#f97316' : passwordStrength.color === 'yellow' ? '#eab308' : passwordStrength.color === 'blue' ? '#3b82f6' : passwordStrength.color === 'green' ? '#22c55e' : '#6b7280'}">
                     {passwordStrength.text}
                   </span>
                 </div>
                 <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                   <div 
                     class="h-2 rounded-full transition-all duration-300"
-                    class:bg-red-500={passwordStrength.color === 'red'}
-                    class:bg-orange-500={passwordStrength.color === 'orange'}
-                    class:bg-yellow-500={passwordStrength.color === 'yellow'}
-                    class:bg-blue-500={passwordStrength.color === 'blue'}
-                    class:bg-green-500={passwordStrength.color === 'green'}
-                    style="width: {(passwordStrength.score / 5) * 100}%"
+                    style="width: {(passwordStrength.score / 5) * 100}%; background-color: {passwordStrength.color === 'red' ? '#ef4444' : passwordStrength.color === 'orange' ? '#f97316' : passwordStrength.color === 'yellow' ? '#eab308' : passwordStrength.color === 'blue' ? '#3b82f6' : passwordStrength.color === 'green' ? '#22c55e' : '#6b7280'}"
                   ></div>
                 </div>
               </div>
@@ -458,7 +514,6 @@
               bind:value={formData.confirm_password}
               error={getFieldError('confirm_password')}
               onblur={() => handleFieldBlur('confirm_password')}
-              oninput={() => handleFieldInput('confirm_password')}
               required
               icon='<path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />'
             />
