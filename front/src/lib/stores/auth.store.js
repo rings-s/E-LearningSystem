@@ -1,7 +1,7 @@
-// front/src/lib/stores/user.store.js
+// front/src/lib/stores/auth.store.js
 import { writable, derived } from 'svelte/store';
-import { authApi } from '../apis/auth.js';
-import { authService } from '../services/auth.service.js';
+import { authApi } from '$lib/apis/auth.js';
+import { authService } from '$lib/services/auth.service.js';
 
 function createUserStore() {
     const { subscribe, set, update } = writable({
@@ -191,7 +191,54 @@ function createUserStore() {
     };
 }
 
-export const userStore = createUserStore();
+export const authStore = createUserStore();
+
+// Derived stores
+export const userProfile = derived(authStore, $user => $user.profile);
+export const userPreferences = derived(authStore, $user => $user.preferences);
+export const userStats = derived(authStore, $user => $user.stats);
+export const userAchievements = derived(authStore, $user => $user.achievements);// Derived stores
+export const userProfile = derived(authStore, $user => $user.profile);
+export const userPreferences = derived(authStore, $user => $user.preferences);
+export const userStats = derived(authStore, $user => $user.stats);
+export const userAchievements = derived(authStore, $user => $user.achievements);
+export const userPreferences = derived(authStore, $user => $user.preferences);
+export const userStats = derived(authStore, $user => $user.stats);
+export const userAchievements = derived(authStore, $user => $user.achievements);
+// Derived stores
+export const userProfile = derived(authStore, $user => $user.profile);
+export const userPreferences = derived(authStore, $user => $user.preferences);
+export const userStats = derived(authStore, $user => $user.stats);
+export const userAchievements = derived(authStore, $user => $user.achievements);
+export const userPreferences = derived(authStore, $user => $user.preferences);
+export const userStats = derived(authStore, $user => $user.stats);
+export const userAchievements = derived(authStore, $user => $user.achievements);
+                    totalStudyHours: 0,
+                    certificatesEarned: 0,
+                    currentStreak: 0,
+                    longestStreak: 0
+                },
+                achievements: [],
+                loading: false,
+                error: null
+            });
+        }
+    };
+}
+
+export const authStore = createUserStore();
+
+// Derived stores
+export const userProfile = derived(authStore, $user => $user.profile);
+export const userPreferences = derived(authStore, $user => $user.preferences);
+export const userStats = derived(authStore, $user => $user.stats);
+export const userAchievements = derived(authStore, $user => $user.achievements);
+            });
+        }
+    };
+}
+
+export const authStore = createUserStore();
 
 // Derived stores
 export const userProfile = derived(userStore, $user => $user.profile);

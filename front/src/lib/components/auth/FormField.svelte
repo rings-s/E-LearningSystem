@@ -1,7 +1,7 @@
 <!-- front/src/lib/components/auth/FormField.svelte -->
 <script>
-    import Input from '../common/Input.svelte';
-    import Select from '../common/Select.svelte';
+    import Input from '$lib/components/common/Input.svelte';
+    import Select from '$lib/components/common/Select.svelte';
   
     let {
       type = 'text',

@@ -1,13 +1,15 @@
 <!-- front/src/lib/components/auth/AuthLayout.svelte -->
 <script>
     import { t } from '$lib/i18n/index.js';
-    import Card from '../common/Card.svelte';
+    import Card from '$lib/components/common/Card.svelte';
   
     let { 
       title = '',
       subtitle = '',
       showLogo = true,
-      class: className = ''
+      class: className = '',
+      children,
+      footer
     } = $props();
   </script>
   
@@ -30,12 +32,12 @@
       {/if}
   
       <Card variant="bordered" padding="large">
-        {@render $$slots.default()}
+        {@render children()}
       </Card>
-  
-      {#if $$slots.footer}
-        <div class="text-center text-sm text-gray-600 dark:text-gray-400">
-          {@render $$slots.footer()}
+
+      {#if footer}
+        <div class="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+          {@render footer()}
         </div>
       {/if}
     </div>

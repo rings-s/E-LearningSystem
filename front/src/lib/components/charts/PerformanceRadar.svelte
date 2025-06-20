@@ -1,6 +1,6 @@
 // front/src/lib/components/charts/PerformanceRadar.svelte
 <script>
-  import ChartWrapper from './ChartWrapper.svelte';
+  import ChartWrapper from '$lib/components/charts/ChartWrapper.svelte';
 
   let {
     metrics = {

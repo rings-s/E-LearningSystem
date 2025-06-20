@@ -3,11 +3,14 @@
     import { classNames } from '$lib/utils/helpers.js';
   
     let {
-      variant = 'default', // 'default', 'bordered', 'elevated', 'gradient'
-      padding = 'normal', // 'none', 'small', 'normal', 'large'
+      variant = 'default',
+      padding = 'normal',
       class: className = '',
       hoverable = false,
-      onclick = null
+      onclick = null,
+      header = undefined,
+      footer = undefined,
+      children
     } = $props();
   
     const variants = {
@@ -23,6 +26,13 @@
       normal: 'p-6',
       large: 'p-8'
     };
+
+    const handleKeyDown = (event) => {
+      if (onclick && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault();
+        onclick(event);
+      }
+    };
   </script>
   
   <div
@@ -35,22 +45,23 @@
       className
     )}
     onclick={onclick}
+    onkeydown={handleKeyDown}
     role={onclick ? 'button' : undefined}
     tabindex={onclick ? 0 : undefined}
   >
-    {#if $$slots.header}
+    {#if header}
       <div class="card-header -m-6 mb-6 p-6 border-b border-gray-200 dark:border-gray-700">
-        {@render $$slots.header()}
+        {@render header()}
       </div>
     {/if}
   
     <div class="card-body">
-      {@render $$slots.default()}
+      {@render children()}
     </div>
   
-    {#if $$slots.footer}
+    {#if footer}
       <div class="card-footer -m-6 mt-6 p-6 border-t border-gray-200 dark:border-gray-700">
-        {@render $$slots.footer()}
+        {@render footer()}
       </div>
     {/if}
   </div>

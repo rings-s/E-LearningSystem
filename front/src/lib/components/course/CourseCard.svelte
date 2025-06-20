@@ -3,8 +3,8 @@
     import { goto } from '$app/navigation';
     import { t } from '$lib/i18n/index.js';
     import { formatters } from '$lib/utils/formatters.js';
-    import Card from '../common/Card.svelte';
-    import Badge from '../common/Badge.svelte';
+    import Card from '$lib/components/common/Card.svelte';
+    import Badge from '$lib/components/common/Badge.svelte';
   
     let { course } = $props();
   

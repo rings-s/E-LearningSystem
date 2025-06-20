@@ -3,11 +3,12 @@
     import { classNames } from '$lib/utils/helpers.js';
   
     let {
-      variant = 'default', // 'default', 'primary', 'success', 'warning', 'danger', 'info'
-      size = 'medium', // 'small', 'medium', 'large'
+      variant = 'default',
+      size = 'medium',
       removable = false,
       onRemove = () => {},
-      class: className = ''
+      class: className = '',
+      children
     } = $props();
   
     const variants = {
@@ -33,7 +34,7 @@
     sizes[size],
     className
   )}>
-    {@render $$slots.default()}
+    {@render children()}
     
     {#if removable}
       <button

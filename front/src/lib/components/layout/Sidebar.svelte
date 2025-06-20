@@ -3,7 +3,7 @@
     import { page } from '$app/stores';
     import { fade, fly } from 'svelte/transition';
     import { uiStore } from '$lib/stores/ui.store.js';
-    import { currentUser, userRole } from '$lib/stores/auth.store.js';
+    import { currentUser, userRole } from '$lib/services/auth.service.js';
     import { t } from '$lib/i18n/index.js';
     import { classNames } from '$lib/utils/helpers.js';
   
@@ -56,7 +56,7 @@
       <!-- Navigation -->
       <nav class="flex-1 px-4 py-6 space-y-1">
         {#each navigation as item}
-          
+          <a
             href={item.href}
             class={classNames(
               'group flex items-center px-4 py-2.5 text-sm font-medium rounded-lg transition-all duration-200',
