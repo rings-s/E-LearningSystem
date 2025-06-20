@@ -1,106 +1,42 @@
 <!-- front/src/routes/(auth)/register/+page.svelte -->
-<script>
+<script lang="ts">
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth.store.js';
   import { uiStore } from '$lib/stores/ui.store.js';
   import { t } from '$lib/i18n/index.js';
-  import { validators, validateForm } from '$lib/utils/validators.js';
+  import { validators } from '$lib/utils/validators.js';
   import { ROLES } from '$lib/utils/constants.js';
   import FormField from '$lib/components/auth/FormField.svelte';
   import Button from '$lib/components/common/Button.svelte';
   import Card from '$lib/components/common/Card.svelte';
 
+  // --- State Definition ---
   let currentStep = $state(0);
   let loading = $state(false);
+  
   let formData = $state({
-    // Step 1 - Account Type
     role: '',
-    
-    // Step 2 - Personal Info
     first_name: '',
     last_name: '',
     email: '',
     phone_number: '',
     date_of_birth: '',
-    
-    // Step 3 - Security
     password: '',
     confirm_password: ''
   });
 
-  let errors = $state({});
-  let touched = $state({});
+  // --- Types for strong type-safety ---
+  type FormData = typeof formData;
+  type FormFieldNames = keyof FormData;
+  type Errors = { [K in FormFieldNames]?: string };
+  type Touched = { [K in FormFieldNames]?: boolean };
 
-  // Fix the derived state issue by using functions instead of direct references
-  const getPasswordStrength = () => {
-    const password = formData.password;
-    if (!password) return { score: 0, text: '', color: 'gray' };
-    
-    let score = 0;
-    const checks = {
-      length: password.length >= 8,
-      lowercase: /[a-z]/.test(password),
-      uppercase: /[A-Z]/.test(password),
-      numbers: /\d/.test(password),
-      symbols: /[^A-Za-z0-9]/.test(password)
-    };
-    
-    score = Object.values(checks).filter(Boolean).length;
-    
-    const levels = [
-      { score: 0, text: '', color: 'gray' },
-      { score: 1, text: 'Very Weak', color: 'red' },
-      { score: 2, text: 'Weak', color: 'orange' },
-      { score: 3, text: 'Fair', color: 'yellow' },
-      { score: 4, text: 'Good', color: 'blue' },
-      { score: 5, text: 'Strong', color: 'green' }
-    ];
-    
-    return levels[score] || levels[0];
-  };
+  let errors = $state<Errors>({});
+  let touched = $state<Touched>({});
 
-  const passwordStrength = $derived(getPasswordStrength());
-
-  const roleOptions = [
-    { 
-      value: ROLES.STUDENT, 
-      label: $t('auth.student'),
-      description: 'Learn new skills and earn certificates',
-      icon: '🎓'
-    },
-    { 
-      value: ROLES.TEACHER, 
-      label: $t('auth.teacher'),
-      description: 'Create and teach courses to students',
-      icon: '👨‍🏫'
-    }
-  ];
-
-  // Create steps as a function to avoid the state_referenced_locally warning
-  const getSteps = () => [
-    {
-      title: 'Account Type',
-      description: 'Choose your role',
-      completed: $derived(currentStep > 0 || !!formData.role)
-    },
-    {
-      title: 'Personal Information',
-      description: 'Tell us about yourself',
-      completed: $derived(currentStep > 1)
-    },
-    {
-      title: 'Security',
-      description: 'Secure your account',
-      completed: $derived(currentStep > 2)
-    }
-  ];
-
-  const steps = getSteps();
-
-  const validationRules = {
-    role: [
-      { validator: validators.required, message: 'Please select an account type' }
-    ],
+  // --- Validation Logic ---
+  const validationRules: { [key: string]: any[] } = {
+    role: [{ validator: validators.required, message: 'Please select an account type' }],
     first_name: [
       { validator: validators.required, message: $t('errors.requiredField') },
       { validator: validators.minLength(2), message: 'Name must be at least 2 characters' }
@@ -113,9 +49,7 @@
       { validator: validators.required, message: $t('errors.requiredField') },
       { validator: validators.email, message: $t('errors.invalidEmail') }
     ],
-    phone_number: [
-      { validator: validators.phoneNumber, message: 'Invalid phone number format' }
-    ],
+    phone_number: [{ validator: validators.phoneNumber, message: 'Invalid phone number format' }],
     password: [
       { validator: validators.required, message: $t('errors.requiredField') },
       { validator: validators.minLength(8), message: $t('errors.passwordTooShort') }
@@ -126,84 +60,59 @@
     ]
   };
 
-  const getFieldError = (fieldName) => {
-    return touched[fieldName] ? errors[fieldName] || '' : '';
-  };
-
-  const handleFieldBlur = (fieldName) => {
-    touched[fieldName] = true;
-    validateField(fieldName);
-  };
-
-  const validateField = (fieldName) => {
-    const fieldValue = formData[fieldName];
+  const validateField = (fieldName: FormFieldNames): boolean => {
+    const value = formData[fieldName];
     const rules = validationRules[fieldName] || [];
-    
     for (const rule of rules) {
-      if (!rule.validator(fieldValue, formData)) {
+      if (!rule.validator(value, formData)) {
         errors[fieldName] = rule.message;
         return false;
       }
     }
-    
-    // Clear error if validation passes
-    if (errors[fieldName]) {
-      delete errors[fieldName];
-      errors = { ...errors };
-    }
+    delete errors[fieldName];
     return true;
   };
 
-  const validateStep = (step) => {
-    const fieldsToValidate = step === 0 ? ['role'] 
-      : step === 1 ? ['first_name', 'last_name', 'email']
-      : ['password', 'confirm_password'];
-    
-    let isValid = true;
-    
-    // Check each field but don't mark as touched yet
-    for (const field of fieldsToValidate) {
-      if (!validateStepField(field)) {
-        isValid = false;
-      }
-    }
-    
-    return isValid;
+  const handleFieldBlur = (fieldName: FormFieldNames) => {
+    touched[fieldName] = true;
+    validateField(fieldName);
   };
 
-  const validateStepField = (fieldName) => {
-    const fieldValue = formData[fieldName];
-    const rules = validationRules[fieldName] || [];
+  const getFieldError = (fieldName: FormFieldNames): string | undefined => {
+    return touched[fieldName] ? errors[fieldName] : undefined;
+  };
+
+  // --- Step Management ---
+  const stepFields: FormFieldNames[][] = [
+    ['role'],
+    ['first_name', 'last_name', 'email'],
+    ['password', 'confirm_password']
+  ];
+
+  const isStepValid = (stepIndex: number): boolean => {
+    const fields = stepFields[stepIndex];
+    if (!fields) return false;
     
-    // Only require fields if they are truly required for this step
-    if (fieldName === 'phone_number' || fieldName === 'date_of_birth') {
-      return true; // These are optional
-    }
-    
-    for (const rule of rules) {
-      if (!rule.validator(fieldValue, formData)) {
-        return false;
-      }
-    }
-    
-    return true;
+    const allFieldsHaveValues = fields.every(field => !!formData[field]);
+    if (!allFieldsHaveValues) return false;
+
+    const noErrorsForStep = fields.every(field => !errors[field]);
+    return noErrorsForStep;
   };
 
   const nextStep = () => {
-    if (validateStep(currentStep)) {
-      if (currentStep < 2) {
-        currentStep++;
-      }
-    } else {
-      // Mark fields as touched if validation fails
-      const fieldsToValidate = currentStep === 0 ? ['role'] 
-        : currentStep === 1 ? ['first_name', 'last_name', 'email']
-        : ['password', 'confirm_password'];
-      
-      fieldsToValidate.forEach(field => {
+    const fieldsToValidate = stepFields[currentStep];
+    fieldsToValidate.forEach(field => {
         touched[field] = true;
         validateField(field);
-      });
+    });
+
+    const currentStepIsValid = fieldsToValidate.every(field => validateField(field));
+
+    if (currentStepIsValid) {
+      if (currentStep < steps.length - 1) {
+        currentStep++;
+      }
     }
   };
 
@@ -213,20 +122,61 @@
     }
   };
 
-  const canProceed = $derived.by(() => {
-    if (currentStep === 0) return !!formData.role;
-    if (currentStep === 1) return formData.first_name && formData.last_name && formData.email;
-    if (currentStep === 2) return formData.password && formData.confirm_password && formData.password === formData.confirm_password;
-    return false;
+  // --- Derived State ---
+  const passwordStrength = $derived.by(() => {
+    const password = formData.password;
+    if (!password) return { score: 0, text: '', color: 'gray' };
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/\d/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+    const levels = [
+      { score: 0, text: '', color: 'gray' },
+      { score: 1, text: 'Very Weak', color: 'red' },
+      { score: 2, text: 'Weak', color: 'orange' },
+      { score: 3, text: 'Fair', color: 'yellow' },
+      { score: 4, text: 'Good', color: 'blue' },
+      { score: 5, text: 'Strong', color: 'green' }
+    ];
+    return levels[score];
   });
 
-  const handleSubmit = async (e) => {
-    e?.preventDefault();
-    if (!validateStep(2)) {
-      // Mark all final step fields as touched
-      ['password', 'confirm_password'].forEach(field => {
+  const steps = $derived([
+    {
+      title: 'Account Type',
+      description: 'Choose your role',
+      completed: isStepValid(0) && currentStep > 0
+    },
+    {
+      title: 'Personal Information',
+      description: 'Tell us about yourself',
+      completed: isStepValid(1) && currentStep > 1
+    },
+    {
+      title: 'Security',
+      description: 'Secure your account',
+      completed: false
+    }
+  ]);
+  
+  const canProceed = $derived(isStepValid(currentStep));
+
+  // --- Form Submission ---
+  const handleSubmit = async () => {
+    stepFields.flat().forEach(field => {
         touched[field] = true;
-        validateField(field);
+        validateField(field as FormFieldNames);
+    });
+
+    const isFormValid = stepFields.every((_, index) => isStepValid(index));
+
+    if (!isFormValid) {
+      uiStore.showNotification({
+        type: 'error',
+        title: 'Validation Error',
+        message: 'Please fix the errors before submitting.'
       });
       return;
     }
@@ -250,6 +200,13 @@
       });
     }
   };
+  
+  // --- UI Data ---
+  const roleOptions = [
+    { value: ROLES.STUDENT, label: $t('auth.student'), description: 'Learn new skills and earn certificates', icon: '🎓' },
+    { value: ROLES.TEACHER, label: $t('auth.teacher'), description: 'Create and teach courses to students', icon: '👨‍🏫' }
+  ];
+
 </script>
 
 <svelte:head>
