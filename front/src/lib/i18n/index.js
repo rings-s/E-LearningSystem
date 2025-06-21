@@ -1,15 +1,17 @@
+// front/src/lib/i18n/index.js
 import { derived, writable } from 'svelte/store';
 import { browser } from '$app/environment';
 import en from './en.js';
 import ar from './ar.js';
+import { languages, defaultLanguage } from './config.js';
 
 const translations = { en, ar };
 
 function createI18n() {
-    const locale = writable('en');
+    const locale = writable(defaultLanguage);
     
     const t = derived(locale, ($locale) => {
-        const translation = translations[$locale] || translations.en;
+        const translation = translations[$locale] || translations[defaultLanguage];
         
         return (key, params = {}) => {
             let text = key.split('.').reduce((obj, k) => obj?.[k], translation) || key;
@@ -25,10 +27,13 @@ function createI18n() {
 
     // Initialize from localStorage
     if (browser) {
-        const savedLocale = localStorage.getItem('language') || 'en';
+        const savedLocale = localStorage.getItem('language') || defaultLanguage;
         locale.set(savedLocale);
-        document.documentElement.lang = savedLocale;
-        document.documentElement.dir = savedLocale === 'ar' ? 'rtl' : 'ltr';
+        const lang = languages[savedLocale];
+        if (lang) {
+            document.documentElement.lang = lang.code;
+            document.documentElement.dir = lang.dir;
+        }
     }
 
     return {
@@ -37,14 +42,16 @@ function createI18n() {
         setLocale: (newLocale) => {
             if (translations[newLocale]) {
                 locale.set(newLocale);
-                if (browser) {
+                const lang = languages[newLocale];
+                if (browser && lang) {
                     localStorage.setItem('language', newLocale);
-                    document.documentElement.lang = newLocale;
-                    document.documentElement.dir = newLocale === 'ar' ? 'rtl' : 'ltr';
+                    document.documentElement.lang = lang.code;
+                    document.documentElement.dir = lang.dir;
                 }
             }
-        }
+        },
+        languages
     };
 }
 
-export const { locale, t, setLocale } = createI18n();
+export const { locale, t, setLocale, languages: availableLanguages } = createI18n();

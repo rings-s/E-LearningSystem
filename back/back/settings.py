@@ -61,15 +61,15 @@ ROOT_URLCONF = 'back.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'templates'],
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
                 'django.template.context_processors.debug',
                 'django.template.context_processors.request',
+                'django.template.context_processors.media',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'django.template.context_processors.media',
             ],
         },
     },
@@ -197,18 +197,36 @@ ALLOWED_VIDEO_EXTENSIONS = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv']
 ALLOWED_DOCUMENT_EXTENSIONS = ['pdf', 'doc', 'docx', 'txt', 'odt', 'ppt', 'pptx', 'xls', 'xlsx']
 ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp']
 
-# Email Configuration
-if ENVIRONMENT == 'production':
-    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-    EMAIL_HOST = 'smtp.gmail.com'
-    EMAIL_PORT = 587
-    EMAIL_USE_TLS = True
-    EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-    EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-else:
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'E-Learning Platform <noreply@elearning.com>')
+# ========================== #
+# EMAIL CONFIGURATION        #
+# ========================== #
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
+# Use console backend for local development if requested
+if DEBUG and os.getenv('USE_CONSOLE_EMAIL', 'False').lower() == 'true':
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    print("🔥 EMAIL: Using console backend")
+else:
+    print("🔥 EMAIL: Using SMTP backend")
+
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() == 'true'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+if not EMAIL_HOST_USER and not DEBUG:
+    print("⚠️  WARNING: EMAIL_HOST_USER not set")
+if not EMAIL_HOST_PASSWORD and not DEBUG:
+    print("⚠️  WARNING: EMAIL_HOST_PASSWORD not set")
+
+print(f"🔥 EMAIL CONFIG: Host={EMAIL_HOST}, Port={EMAIL_PORT}, User={EMAIL_HOST_USER}, TLS={EMAIL_USE_TLS}")
+
 COMPANY_NAME = os.getenv('COMPANY_NAME', 'E-Learning Platform')
 EMAIL_VERIFY_PATH = '/verify-email'
 PASSWORD_RESET_PATH = '/reset-password'

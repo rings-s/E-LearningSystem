@@ -13,29 +13,38 @@
     onclick = () => {},
     class: className = '',
     children,
+    iconLeft = null,
+    iconRight = null,
     ...rest
   } = $props();
 
+  const baseStyles = 'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-50 transform active:scale-[0.98]';
+
   const variants = {
-    primary: 'bg-primary-600 hover:bg-primary-700 focus:ring-primary-500 text-white border-transparent shadow-sm',
-    secondary: 'bg-secondary-600 hover:bg-secondary-700 focus:ring-secondary-500 text-white border-transparent shadow-sm',
-    outline: 'bg-transparent border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-primary-500 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700',
-    ghost: 'bg-transparent border-transparent text-gray-700 hover:bg-gray-100 focus:ring-primary-500 dark:text-gray-300 dark:hover:bg-gray-700',
-    danger: 'bg-red-600 hover:bg-red-700 focus:ring-red-500 text-white border-transparent shadow-sm'
+    primary: 'bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 focus:ring-primary-500 text-white shadow-lg shadow-primary-500/25 hover:shadow-xl hover:shadow-primary-500/30 border border-transparent',
+    secondary: 'bg-gradient-to-r from-secondary-600 to-secondary-700 hover:from-secondary-700 hover:to-secondary-800 focus:ring-secondary-500 text-white shadow-lg shadow-secondary-500/25 hover:shadow-xl hover:shadow-secondary-500/30 border border-transparent',
+    outline: 'bg-transparent border-2 border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50 focus:ring-gray-500 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:border-gray-500',
+    ghost: 'bg-transparent border-2 border-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-500 dark:text-gray-300 dark:hover:bg-gray-800',
+    danger: 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 focus:ring-red-500 text-white shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-500/30 border border-transparent'
   };
 
   const sizes = {
-    small: 'px-3 py-1.5 text-xs',
-    medium: 'px-4 py-2 text-sm',
-    large: 'px-6 py-3 text-base'
+    small: 'px-4 py-2 text-sm rounded-lg gap-2',
+    medium: 'px-6 py-3 text-base rounded-xl gap-2.5',
+    large: 'px-8 py-4 text-lg rounded-2xl gap-3'
+  };
+
+  const iconSizes = {
+    small: 'w-4 h-4',
+    medium: 'w-5 h-5',
+    large: 'w-6 h-6'
   };
 
   const classes = classNames(
-    'inline-flex items-center justify-center font-medium rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900',
+    baseStyles,
     variants[variant],
     sizes[size],
     fullWidth && 'w-full',
-    (disabled || loading) && 'opacity-50 cursor-not-allowed pointer-events-none',
     className
   );
 
@@ -49,12 +58,21 @@
 {#if href && !disabled}
   <a {href} class={classes} {...rest}>
     {#if loading}
-      <svg class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+      <svg class="animate-spin {iconSizes[size]}" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
       </svg>
+    {:else if iconLeft}
+      <svg class={iconSizes[size]} fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        {@html iconLeft}
+      </svg>
     {/if}
     {@render children()}
+    {#if iconRight && !loading}
+      <svg class={iconSizes[size]} fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        {@html iconRight}
+      </svg>
+    {/if}
   </a>
 {:else}
   <button
@@ -65,11 +83,20 @@
     {...rest}
   >
     {#if loading}
-      <svg class="animate-spin -ml-1 mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24">
+      <svg class="animate-spin {iconSizes[size]}" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
       </svg>
+    {:else if iconLeft}
+      <svg class={iconSizes[size]} fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        {@html iconLeft}
+      </svg>
     {/if}
     {@render children()}
+    {#if iconRight && !loading}
+      <svg class={iconSizes[size]} fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        {@html iconRight}
+      </svg>
+    {/if}
   </button>
 {/if}

@@ -57,11 +57,26 @@ export default {
         alreadyHaveAccount: 'لديك حساب بالفعل؟',
         dontHaveAccount: 'ليس لديك حساب؟',
         loginSuccess: 'تم تسجيل الدخول بنجاح',
-        registerSuccess: 'تم التسجيل بنجاح. يرجى التحقق من بريدك الإلكتروني.',
+        registerSuccess: 'تم التسجيل بنجاح',
         logoutSuccess: 'تم تسجيل الخروج بنجاح',
         invalidCredentials: 'البريد الإلكتروني أو كلمة المرور غير صحيحة',
         emailVerified: 'تم تأكيد البريد الإلكتروني بنجاح',
-        passwordChanged: 'تم تغيير كلمة المرور بنجاح'
+        passwordChanged: 'تم تغيير كلمة المرور بنجاح',
+        rememberMe: 'تذكرني',
+        continueWith: 'أو تابع مع',
+        accountType: 'نوع الحساب',
+        chooseRole: 'نوع الحساب',
+        personalInfo: 'معلومات شخصية',
+        tellUsAboutYou: 'أخبرنا عن نفسك',
+        security: 'الحماية',
+        secureAccount: 'تأمين حسابك',
+        checkEmailForCode: 'الرجاء التحقق من بريدك الإلكتروني للحصول على رمز التحقق',
+        registrationFailed: 'فشل التسجيل',
+        creating: 'إنشاء...',
+        chooseAccountType: 'اختر نوع الحساب',
+        authDescription: 'وصف الحساب',
+        studentDescription: 'انضم كطالب لاستكشاف مجموعة واسعة من الدورات التعليمية. تعلم مهارات جديدة في مجالات مثل البرمجة، التصميم، والتسويق.',
+        teacherDescription: 'انضم كمدرس لمشاركة معرفتك وخبراتك. قم بإنشاء وبيع دوراتك الخاصة لآلاف الطلاب المهتمين بمجالك.'
     },
     
     navigation: {

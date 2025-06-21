@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+    <head>
+        <title>{{ company_name }} | التحقق من البريد الإلكتروني</title>
+        <style>
+            body {
+                font-family: Arial, sans-serif;
+                direction: rtl;
+                text-align: right;
+                margin: 0;
+                padding: 0;
+                background-color: #f4f4f4; /* Page background if opened in browser */
+                color: #333;
+            }
+            /* Unused classes from previous style block, kept for potential future use */
+            .alert-box {
+                margin: 20px 0;
+                padding: 10px;
+                background: #fff0f0;
+                border-right: 4px solid #ff5555;
+            }
+            .login-details {
+                margin: 20px 0;
+                padding: 10px;
+                background: #f5f5f5;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="email-container" style="max-width: 600px; margin: 20px auto; background-color: #ffffff; border: 1px solid #dddddd; border-radius: 8px; overflow: hidden;">
+            <div class="email-header" style="background-color: #007bff; color: #ffffff; padding: 20px; text-align: center;">
+                <h1 style="margin: 0; font-size: 24px;">{{ company_name }} | التحقق من البريد الإلكتروني</h1>
+            </div>
+
+            <div class="email-body" style="padding: 20px; line-height: 1.6;">
+                {% if user_name %}
+                <h2>مرحباً {{ user_name }}!</h2>
+                {% else %}
+                <h2>مرحباً بكم!</h2>
+                {% endif %}
+
+                <p>شكراً لتسجيلك في {{ company_name }}.</p>
+                <p>لإكمال عملية التسجيل، يرجى استخدام رمز التحقق التالي:</p>
+
+                <div class="verification-code" style="font-size: 28px; font-weight: bold; color: #007bff; text-align: center; margin: 20px 0; padding: 15px; background-color: #e9f5ff; border: 1px dashed #007bff; border-radius: 4px;">{{ verification_code }}</div>
+
+                <p>أدخل هذا الرمز في صفحة التحقق لتفعيل حسابك.</p>
+
+                {% if verification_url %}
+                <a href="{{ verification_url }}" class="button" style="display: inline-block; background-color: #28a745; color: #ffffff !important; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; text-align: center; margin-top: 10px; margin-bottom: 10px;"
+                    >تحقق من الحساب</a
+                >
+                {% endif %}
+
+                <p>سينتهي هذا الرمز خلال {{ expiry_hours }} ساعة.</p>
+
+                <p>
+                    إذا لم تقم بإنشاء هذا الحساب، يرجى تجاهل هذا البريد
+                    الإلكتروني.
+                </p>
+            </div>
+
+            <div class="email-footer" style="text-align: center; padding: 15px; font-size: 12px; color: #777777; background-color: #f9f9f9; border-top: 1px solid #eeeeee;">
+                <p>
+                    جميع الحقوق محفوظة &copy; {{ current_year }} {{ company_name
+                    }}
+                </p>
+            </div>
+        </div>
+    </body>
+</html>

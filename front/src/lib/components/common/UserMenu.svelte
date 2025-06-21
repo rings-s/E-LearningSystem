@@ -3,7 +3,7 @@
     import { fade } from 'svelte/transition';
     import { goto } from '$app/navigation';
     import { authStore } from '$lib/stores/auth.store.js';
-    import { authService, currentUser } from '$lib/services/auth.service.js';
+    import { currentUser } from '$lib/services/auth.service.js';
     import { t } from '$lib/i18n/index.js';
     import { clickOutside, getInitials } from '$lib/utils/helpers.js';
   
