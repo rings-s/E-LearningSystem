@@ -2,7 +2,6 @@
 import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
 import { authApi } from '../apis/auth.js';
-import { goto } from '$app/navigation';
 
 function createAuthStore() {
     const initialState = {
@@ -11,8 +10,7 @@ function createAuthStore() {
         refreshToken: null,
         isLoading: true,
         isAuthenticated: false,
-        loginAttempts: 0,
-        lastLoginAttempt: null
+        isInitialized: false
     };
 
     const { subscribe, set, update } = writable(initialState);
@@ -41,38 +39,24 @@ function createAuthStore() {
                         token,
                         refreshToken,
                         isAuthenticated: true,
-                        isLoading: false
+                        isLoading: false,
+                        isInitialized: true
                     }));
                 } catch (error) {
                     console.warn('Token validation failed:', error);
-                    this.logout(false); // Don't redirect on init failure
+                    this.clearAuth();
                 }
             } else {
-                update(state => ({ ...state, isLoading: false }));
+                update(state => ({ 
+                    ...state, 
+                    isLoading: false,
+                    isInitialized: true 
+                }));
             }
-        },
-
-        setAuthData(authData) {
-            update(state => ({ ...state, ...authData, loginAttempts: 0 }));
         },
 
         async login(credentials) {
-            const now = Date.now();
-            
-            if (currentState.loginAttempts >= 5 && now - currentState.lastLoginAttempt < 15 * 60 * 1000) {
-                return { 
-                    success: false, 
-                    error: 'Too many login attempts. Please wait 15 minutes.' 
-                };
-            }
-
             try {
-                update(state => ({ 
-                    ...state, 
-                    lastLoginAttempt: now,
-                    loginAttempts: state.loginAttempts + 1 
-                }));
-
                 const response = await authApi.login(credentials);
                 const { access, refresh, user } = response;
                 
@@ -81,42 +65,107 @@ function createAuthStore() {
                     localStorage.setItem('refresh_token', refresh);
                 }
                 
-                this.setAuthData({
+                update(state => ({
+                    ...state,
                     user,
                     token: access,
                     refreshToken: refresh,
                     isAuthenticated: true,
-                    isLoading: false
-                });
+                    isLoading: false,
+                    isInitialized: true
+                }));
                 
                 return { success: true, user };
             } catch (error) {
                 return { 
                     success: false, 
-                    error: this.parseError(error) 
+                    error: error.message || 'Login failed'
                 };
             }
         },
 
-        logout(redirect = true) {
+        async register(userData) {
+            try {
+                const response = await authApi.register(userData);
+                return { success: true, data: response };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        },
+
+        async verifyEmail(email, code) {
+            try {
+                const response = await authApi.verifyEmail({ email, code });
+                const { access, refresh, user } = response;
+                
+                if (browser && access) {
+                    localStorage.setItem('access_token', access);
+                    localStorage.setItem('refresh_token', refresh);
+                }
+                
+                update(state => ({
+                    ...state,
+                    user,
+                    token: access,
+                    refreshToken: refresh,
+                    isAuthenticated: true,
+                    isLoading: false
+                }));
+                
+                return { success: true, user };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        },
+
+        async resendVerification(email) {
+            try {
+                await authApi.resendVerification(email);
+                return { success: true };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        },
+
+        async updateProfile(data) {
+            try {
+                const response = await authApi.updateProfile(data);
+                update(state => ({
+                    ...state,
+                    user: { ...state.user, ...response.data }
+                }));
+                return { success: true, data: response.data };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        },
+
+        clearAuth() {
             if (browser) {
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('refresh_token');
             }
-            
-            set({ ...initialState, isLoading: false });
-            
-            if (browser && redirect) {
-                goto('/login');
-            }
+            set({
+                user: null,
+                token: null,
+                refreshToken: null,
+                isAuthenticated: false,
+                isLoading: false,
+                isInitialized: true
+            });
         },
 
-        // ... rest of the methods remain the same
+        logout() {
+            this.clearAuth();
+        }
     };
 }
 
 export const authStore = createAuthStore();
+
+// Derived stores
 export const isAuthenticated = derived(authStore, $auth => $auth.isAuthenticated);
 export const currentUser = derived(authStore, $auth => $auth.user);
 export const userRole = derived(authStore, $auth => $auth.user?.role || 'guest');
 export const isLoading = derived(authStore, $auth => $auth.isLoading);
+export const isInitialized = derived(authStore, $auth => $auth.isInitialized);
