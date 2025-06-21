@@ -76,7 +76,17 @@ export default {
         chooseAccountType: 'اختر نوع الحساب',
         authDescription: 'وصف الحساب',
         studentDescription: 'انضم كطالب لاستكشاف مجموعة واسعة من الدورات التعليمية. تعلم مهارات جديدة في مجالات مثل البرمجة، التصميم، والتسويق.',
-        teacherDescription: 'انضم كمدرس لمشاركة معرفتك وخبراتك. قم بإنشاء وبيع دوراتك الخاصة لآلاف الطلاب المهتمين بمجالك.'
+        teacherDescription: 'انضم كمدرس لمشاركة معرفتك وخبراتك. قم بإنشاء وبيع دوراتك الخاصة لآلاف الطلاب المهتمين بمجالك.',
+        
+        enterName: 'أدخل الاسم',
+        enterEmail: 'أدخل البريد الإلكتروني',
+        enterPassword: 'أدخل كلمة المرور',
+        enterConfirmPassword: 'أدخل تأكيد كلمة المرور',
+        enterFirstName: 'أدخل الاسم الأول',
+        enterLastName: 'أدخل الاسم الأخير',
+        enterPhoneNumber: 'أدخل رقم الهاتف',
+        enterDateOfBirth: 'أدخل تاريخ الميلاد',
+        enterRole: 'أدخل نوع الحساب',   
     },
     
     navigation: {
