@@ -84,6 +84,10 @@
       };
       return colors[type] || 'default';
     };
+  
+    const handleSubmit = () => {
+      createDiscussion();
+    };
   </script>
   
   <div class="space-y-6">
@@ -247,7 +251,7 @@
     title="New Discussion"
     size="large"
   >
-    <form onsubmit|preventDefault={createDiscussion} class="space-y-4">
+    <form on:submit={handleSubmit} class="space-y-4">
       <div>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Type
@@ -293,7 +297,7 @@
       </div>
     </form>
   
-    {@snippet footer()}
+    {#snippet footer()}
       <Button variant="ghost" onclick={() => showCreateModal = false}>
         Cancel
       </Button>

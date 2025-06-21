@@ -1,7 +1,5 @@
 <!-- front/src/lib/components/common/Button.svelte -->
 <script>
-  import { classNames } from '$lib/utils/helpers.js';
-
   let {
     variant = 'primary', // 'primary', 'secondary', 'outline', 'ghost', 'danger'
     size = 'medium', // 'small', 'medium', 'large'
@@ -18,35 +16,35 @@
     ...rest
   } = $props();
 
-  const baseStyles = 'inline-flex items-center justify-center font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 disabled:cursor-not-allowed disabled:opacity-50 transform active:scale-[0.98]';
+  const baseStyles = 'inline-flex items-center justify-center font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg';
 
   const variants = {
-    primary: 'bg-gradient-to-r from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 focus:ring-primary-500 text-white shadow-lg shadow-primary-500/25 hover:shadow-xl hover:shadow-primary-500/30 border border-transparent',
-    secondary: 'bg-gradient-to-r from-secondary-600 to-secondary-700 hover:from-secondary-700 hover:to-secondary-800 focus:ring-secondary-500 text-white shadow-lg shadow-secondary-500/25 hover:shadow-xl hover:shadow-secondary-500/30 border border-transparent',
-    outline: 'bg-transparent border-2 border-gray-300 text-gray-700 hover:border-gray-400 hover:bg-gray-50 focus:ring-gray-500 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:border-gray-500',
-    ghost: 'bg-transparent border-2 border-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-500 dark:text-gray-300 dark:hover:bg-gray-800',
-    danger: 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 focus:ring-red-500 text-white shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-500/30 border border-transparent'
+    primary: 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm focus:ring-blue-500',
+    secondary: 'bg-gray-600 hover:bg-gray-700 text-white shadow-sm focus:ring-gray-500',
+    outline: 'border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-blue-500',
+    ghost: 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 focus:ring-gray-500',
+    danger: 'bg-red-600 hover:bg-red-700 text-white shadow-sm focus:ring-red-500'
   };
 
   const sizes = {
-    small: 'px-4 py-2 text-sm rounded-lg gap-2',
-    medium: 'px-6 py-3 text-base rounded-xl gap-2.5',
-    large: 'px-8 py-4 text-lg rounded-2xl gap-3'
+    small: 'px-3 py-1.5 text-sm gap-1.5',
+    medium: 'px-4 py-2 text-sm gap-2',
+    large: 'px-6 py-3 text-base gap-2'
   };
 
   const iconSizes = {
     small: 'w-4 h-4',
-    medium: 'w-5 h-5',
-    large: 'w-6 h-6'
+    medium: 'w-4 h-4',
+    large: 'w-5 h-5'
   };
 
-  const classes = classNames(
+  const classes = [
     baseStyles,
     variants[variant],
     sizes[size],
     fullWidth && 'w-full',
     className
-  );
+  ].filter(Boolean).join(' ');
 
   const handleClick = (e) => {
     if (!disabled && !loading) {

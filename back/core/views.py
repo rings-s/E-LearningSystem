@@ -493,12 +493,13 @@ class DashboardView(APIView):
         
         return Response(StudentDashboardSerializer(data).data)
     
+    
     def get_teacher_dashboard(self, user):
-        from courses.models import Course, Enrollment, CourseReview, Discussion
+        from courses.models import Course, Enrollment, CourseReview
         from courses.serializers import CourseReviewSerializer
-        
+    
         courses = Course.objects.filter(instructor=user)
-        
+    
         data = {
             'total_courses': courses.count(),
             'published_courses': courses.filter(status='published').count(),
@@ -528,7 +529,8 @@ class DashboardView(APIView):
         }
         
         return Response(TeacherDashboardSerializer(data).data)
-    
+
+
     def get_manager_dashboard(self, user):
 
         User = get_user_model()
