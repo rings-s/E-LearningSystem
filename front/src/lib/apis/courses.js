@@ -1,4 +1,4 @@
-// front/src/lib/apis/courses.js
+// front/src/lib/apis/courses.js - Add missing methods
 import { api } from './index.js';
 
 export const coursesApi = {
@@ -30,6 +30,11 @@ export const coursesApi = {
 
     async getCourseAnalytics(uuid) {
         return api.get(`/courses/${uuid}/analytics/`);
+    },
+
+    // Categories - Add this missing method
+    async getCategories() {
+        return api.get('/categories/');
     },
 
     // Enrollments

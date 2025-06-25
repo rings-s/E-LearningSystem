@@ -86,7 +86,11 @@ export default {
         enterLastName: 'أدخل الاسم الأخير',
         enterPhoneNumber: 'أدخل رقم الهاتف',
         enterDateOfBirth: 'أدخل تاريخ الميلاد',
-        enterRole: 'أدخل نوع الحساب',   
+        enterRole: 'أدخل نوع الحساب',
+        contactSupport: 'اتصل بدعم',
+        needHelp: 'هل تحتاج إلى مساعدة؟',
+        createAccount: 'إنشاء حساب',
+        reenterPassword: 'أدخل كلمة المرور مرة أخرى',
     },
     
     navigation: {

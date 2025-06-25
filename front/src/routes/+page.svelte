@@ -16,7 +16,7 @@
     <div class="text-center max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 class="text-5xl sm:text-6xl lg:text-7xl font-bold mb-6">
             <span class="bg-gradient-to-r from-primary-600 via-secondary-600 to-accent-600 bg-clip-text text-transparent">
-                Welcome to 244SCHOOL
+                Welcome to 249SCHOOL
             </span>
         </h1>
         

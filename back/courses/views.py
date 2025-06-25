@@ -60,14 +60,17 @@ class CourseListCreateView(generics.ListCreateAPIView):
         if self.request.method == 'GET':
             queryset = queryset.filter(status='published')
         
-        return queryset.select_related(
+        # Ensure explicit ordering to fix pagination warning
+        queryset = queryset.select_related(
             'instructor', 'category'
         ).prefetch_related(
             'tags', 'co_instructors'
         ).annotate(
             avg_rating=Avg('reviews__rating'),
             enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True))
-        )
+        ).order_by('-created_at', 'id')  # Add explicit ordering with tiebreaker
+        
+        return queryset
     
     def get_serializer_class(self):
         if self.request.method == 'POST':
