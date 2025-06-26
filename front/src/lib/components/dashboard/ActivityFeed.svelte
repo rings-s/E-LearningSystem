@@ -32,9 +32,9 @@
     };
   
     const displayedActivities = $derived(activities.slice(0, maxItems));
-  </script>
+</script>
   
-  <div class={classNames('activity-feed', className)}>
+<div class={classNames('activity-feed', className)}>
     <div class="space-y-4">
       {#each displayedActivities as activity, index}
         <div class="flex gap-3">
@@ -69,7 +69,7 @@
         </div>
   
         {#if index < displayedActivities.length - 1}
-          <div class="ml-5 border-l-2 border-gray-200 dark:border-gray-700 h-4" />
+          <div class="ml-5 border-l-2 border-gray-200 dark:border-gray-700 h-4"></div>
         {/if}
       {/each}
     </div>
@@ -82,4 +82,4 @@
         View all activities ({activities.length})
       </button>
     {/if}
-  </div>
+</div>

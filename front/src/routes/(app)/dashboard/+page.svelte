@@ -2,7 +2,7 @@
 <script>
   import { onMount } from 'svelte';
   import { coreApi } from '$lib/apis/core.js';
-  import { currentUser } from '$lib/services/auth.service.js';
+  import { currentUser } from '$lib/stores/auth.store.js';
   import { t } from '$lib/i18n/index.js';
   import StatsCard from '$lib/components/dashboard/StatsCard.svelte';
   import ActivityFeed from '$lib/components/dashboard/ActivityFeed.svelte';
@@ -27,7 +27,13 @@
         total_certificates: 0,
         in_progress_courses: 0,
         active_courses: [],
-        recent_activities: []
+        recent_activities: [],
+        // Teacher data
+        total_courses: 0,
+        total_students: 0,
+        average_rating: 0,
+        active_students: 0,
+        course_analytics: []
       };
     } finally {
       loading = false;
@@ -64,7 +70,7 @@
     }
   ];
 
-  const tabs = currentUser()?.role === 'teacher' ? teacherTabs : studentTabs;
+  const tabs = $derived($currentUser?.role === 'teacher' ? teacherTabs : studentTabs);
 </script>
 
 <svelte:head>
@@ -79,7 +85,7 @@
       Dashboard
     </h1>
     <p class="mt-1 text-lg text-gray-600 dark:text-gray-400">
-      Welcome back, {currentUser()?.first_name || 'Student'}!
+      Welcome back, {$currentUser?.first_name || 'Student'}!
     </p>
   </div>
 
@@ -127,13 +133,13 @@
 </div>
 
 <!-- Continue Learning -->
-{#if dashboardData?.in_progress_courses > 0}
+{#if dashboardData?.in_progress_courses > 0 && dashboardData?.active_courses?.length > 0}
   <Card variant="bordered" class="mb-6">
     <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
       Continue Learning
     </h3>
     <div class="space-y-4">
-      {#each dashboardData.active_courses || [] as course}
+      {#each dashboardData.active_courses as course}
         <div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
           <div class="flex-1">
             <h4 class="font-medium text-gray-900 dark:text-white">
@@ -225,23 +231,39 @@
 
 {#snippet TeacherCourses()}
 <div class="space-y-4">
-  {#each dashboardData?.course_analytics || [] as course}
-    <Card variant="bordered" hoverable>
-      <div class="flex items-center justify-between">
-        <div>
-          <h4 class="text-lg font-semibold text-gray-900 dark:text-white">
-            {course.title}
-          </h4>
-          <p class="text-sm text-gray-500 dark:text-gray-400">
-            {course.enrolled_count} students • {course.completion_rate}% completion rate
-          </p>
+  {#if dashboardData?.course_analytics?.length > 0}
+    {#each dashboardData.course_analytics as course}
+      <Card variant="bordered" hoverable>
+        <div class="flex items-center justify-between">
+          <div>
+            <h4 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {course.title}
+            </h4>
+            <p class="text-sm text-gray-500 dark:text-gray-400">
+              {course.enrolled_count} students • {course.completion_rate}% completion rate
+            </p>
+          </div>
+          <Button href={`/teaching/courses/${course.uuid}`} variant="outline">
+            Manage Course
+          </Button>
         </div>
-        <Button href={`/teaching/courses/${course.uuid}`} variant="outline">
-          Manage Course
+      </Card>
+    {/each}
+  {:else}
+    <Card variant="bordered">
+      <div class="text-center py-8">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          No courses yet
+        </h3>
+        <p class="text-gray-600 dark:text-gray-400 mb-4">
+          Create your first course to start teaching
+        </p>
+        <Button href="/courses/create" variant="primary">
+          Create Course
         </Button>
       </div>
     </Card>
-  {/each}
+  {/if}
 </div>
 {/snippet}
 

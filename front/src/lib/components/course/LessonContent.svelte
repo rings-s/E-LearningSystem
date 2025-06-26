@@ -140,7 +140,7 @@
             <h3 class="text-lg font-semibold mb-4">Resources</h3>
             <div class="space-y-3">
               {#each lesson.resources as resource}
-                
+                <a
                   href={resource.file || resource.url}
                   target="_blank"
                   rel="noopener noreferrer"
