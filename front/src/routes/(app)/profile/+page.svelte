@@ -1,20 +1,18 @@
 <!-- front/src/routes/(app)/profile/+page.svelte -->
 <script>
   import { onMount } from 'svelte';
-  import { authStore, currentUser } from '$lib/services/auth.service.js';
+  import { authStore, currentUser } from '$lib/stores/auth.store.js';
   import { authApi } from '$lib/apis/auth.js';
   import { uiStore } from '$lib/stores/ui.store.js';
-  import { t } from '$lib/i18n/index.js';
   import { validators, validateForm } from '$lib/utils/validators.js';
   import { classNames } from '$lib/utils/helpers.js';
-  import FormField from '$lib/components/auth/FormField.svelte';
   import Button from '$lib/components/common/Button.svelte';
   import Card from '$lib/components/common/Card.svelte';
-  import Tabs from '$lib/components/common/Tabs.svelte';
 
   let loading = $state(false);
   let uploadingAvatar = $state(false);
   let savingProfile = $state(false);
+  let activeTab = $state('personal');
   let fileInput;
   
   let formData = $state({
@@ -29,7 +27,7 @@
     field_of_study: '',
     learning_goals: '',
     preferred_language: 'en',
-    time_zone: 'UTC',
+    time_zone: 'Africa/Khartoum', // Sudan timezone
     linkedin_url: '',
     github_url: '',
     website_url: ''
@@ -54,45 +52,79 @@
     phone_number: [{ validator: validators.phoneNumber, message: 'Invalid phone number' }]
   };
 
-  onMount(() => {
-    const user = currentUser();
+  // Reactive computations
+  let user = $state(null);
+  
+  // Watch for current user changes
+  $effect(() => {
+    user = $currentUser;
     if (user) {
-      formData = {
-        first_name: user.first_name || '',
-        last_name: user.last_name || '',
-        email: user.email || '',
-        phone_number: user.phone_number || '',
-        date_of_birth: user.date_of_birth || '',
-        bio: user.profile?.bio || '',
-        education_level: user.profile?.education_level || '',
-        institution: user.profile?.institution || '',
-        field_of_study: user.profile?.field_of_study || '',
-        learning_goals: user.profile?.learning_goals || '',
-        preferred_language: user.profile?.preferred_language || 'en',
-        time_zone: user.profile?.time_zone || 'UTC',
-        linkedin_url: user.profile?.linkedin_url || '',
-        github_url: user.profile?.github_url || '',
-        website_url: user.profile?.website_url || ''
-      };
+      // Update form data when user changes
+      formData.first_name = user.first_name || '';
+      formData.last_name = user.last_name || '';
+      formData.email = user.email || '';
+      formData.phone_number = user.phone_number || '';
+      formData.date_of_birth = user.date_of_birth || '';
+      formData.bio = user.profile?.bio || '';
+      formData.education_level = user.profile?.education_level || '';
+      formData.institution = user.profile?.institution || '';
+      formData.field_of_study = user.profile?.field_of_study || '';
+      formData.learning_goals = user.profile?.learning_goals || '';
+      formData.preferred_language = user.profile?.preferred_language || 'en';
+      formData.time_zone = user.profile?.time_zone || 'Africa/Khartoum';
+      formData.linkedin_url = user.profile?.linkedin_url || '';
+      formData.github_url = user.profile?.github_url || '';
+      formData.website_url = user.profile?.website_url || '';
     }
   });
+
+  function getFullName() {
+    if (!user) return 'Unknown User';
+    
+    const firstName = user.first_name?.trim() || '';
+    const lastName = user.last_name?.trim() || '';
+    
+    if (firstName && lastName) {
+      return `${firstName} ${lastName}`;
+    } else if (firstName) {
+      return firstName;
+    } else if (lastName) {
+      return lastName;
+    } else {
+      return user.email || 'Unknown User';
+    }
+  }
+
+  function getUserInitials() {
+    if (!user) return '?';
+    
+    const firstName = user.first_name?.trim() || '';
+    const lastName = user.last_name?.trim() || '';
+    
+    if (firstName && lastName) {
+      return `${firstName[0]}${lastName[0]}`.toUpperCase();
+    } else if (firstName) {
+      return firstName[0].toUpperCase();
+    } else if (user.email) {
+      return user.email[0].toUpperCase();
+    }
+    return '?';
+  }
 
   async function handleAvatarChange(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Validate file type
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
     if (!validTypes.includes(file.type)) {
       uiStore.showNotification({
         type: 'error',
         title: 'Invalid file type',
-        message: 'Please upload an image file'
+        message: 'Please upload an image file (JPG, PNG, WebP)'
       });
       return;
     }
 
-    // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       uiStore.showNotification({
         type: 'error',
@@ -107,8 +139,8 @@
     try {
       const response = await authApi.uploadAvatar(file);
       
-      // Update local user data
-      await authStore.updateProfile({ avatar: response.avatar });
+      // Refresh user data
+      await authStore.init();
       
       uiStore.showNotification({
         type: 'success',
@@ -119,11 +151,15 @@
       console.error('Avatar upload error:', error);
       uiStore.showNotification({
         type: 'error',
-        title: 'Error',
+        title: 'Upload failed',
         message: error.message || 'Failed to upload avatar'
       });
     } finally {
       uploadingAvatar = false;
+      // Clear the file input
+      if (fileInput) {
+        fileInput.value = '';
+      }
     }
   }
 
@@ -135,6 +171,12 @@
       errors = validation.errors;
       Object.keys(validation.errors).forEach(key => {
         touched[key] = true;
+      });
+      
+      uiStore.showNotification({
+        type: 'error',
+        title: 'Validation Error',
+        message: 'Please fix the errors below'
       });
       return;
     }
@@ -150,39 +192,24 @@
           title: 'Profile updated',
           message: 'Your profile has been updated successfully'
         });
+        
+        // Reset touched fields after successful save
+        touched = {};
+        errors = {};
       } else {
-        throw new Error(result.error);
+        throw new Error(result.error || 'Failed to update profile');
       }
     } catch (error) {
       console.error('Profile update error:', error);
       uiStore.showNotification({
         type: 'error',
-        title: 'Error',
+        title: 'Update failed',
         message: error.message || 'Failed to update profile'
       });
     } finally {
       savingProfile = false;
     }
   }
-
-  const tabs = [
-    {
-      label: 'Personal Info',
-      content: () => PersonalInfoTab
-    },
-    {
-      label: 'Education',
-      content: () => EducationTab
-    },
-    {
-      label: 'Preferences',
-      content: () => PreferencesTab
-    },
-    {
-      label: 'Social Links',
-      content: () => SocialLinksTab
-    }
-  ];
 
   function validateField(fieldName) {
     const value = formData[fieldName];
@@ -205,26 +232,6 @@
 
   function getFieldError(fieldName) {
     return touched[fieldName] ? errors[fieldName] : '';
-  }
-
-  function getFullName() {
-    const user = currentUser();
-    if (!user) return '';
-    return `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
-  }
-
-  function getUserInitials() {
-    const user = currentUser();
-    if (!user) return '?';
-    
-    if (user.first_name && user.last_name) {
-      return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
-    } else if (user.first_name) {
-      return user.first_name[0].toUpperCase();
-    } else if (user.email) {
-      return user.email[0].toUpperCase();
-    }
-    return '?';
   }
 </script>
 
@@ -249,9 +256,9 @@
       <div class="flex items-center gap-6">
         <div class="relative group">
           <div class="w-24 h-24 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
-            {#if currentUser()?.avatar}
+            {#if user?.avatar}
               <img 
-                src={currentUser().avatar} 
+                src={user.avatar} 
                 alt={getFullName()}
                 class="w-full h-full object-cover"
               />
@@ -263,6 +270,7 @@
           </div>
           
           <button
+            type="button"
             onclick={() => fileInput?.click()}
             disabled={uploadingAvatar}
             class={classNames(
@@ -294,16 +302,17 @@
             {getFullName()}
           </h3>
           <p class="text-sm text-gray-500 dark:text-gray-400 capitalize">
-            {currentUser()?.role || 'Student'}
+            {user?.role || 'Student'}
           </p>
           <Button
+            type="button"
             onclick={() => fileInput?.click()}
             variant="outline"
             size="small"
             class="mt-2"
             disabled={uploadingAvatar}
           >
-            Change Avatar
+            {uploadingAvatar ? 'Uploading...' : 'Change Avatar'}
           </Button>
         </div>
       </div>
@@ -312,183 +321,288 @@
     <!-- Profile Form -->
     <Card variant="bordered">
       <form onsubmit={handleProfileSubmit}>
-        <Tabs {tabs} variant="underline" />
+        <!-- Tab Navigation -->
+        <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
+          <nav class="-mb-px flex space-x-8">
+            <button
+              type="button"
+              onclick={() => activeTab = 'personal'}
+              class="py-2 px-1 border-b-2 font-medium text-sm {
+                activeTab === 'personal'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }"
+            >
+              Personal Info
+            </button>
+            <button
+              type="button"
+              onclick={() => activeTab = 'education'}
+              class="py-2 px-1 border-b-2 font-medium text-sm {
+                activeTab === 'education'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }"
+            >
+              Education
+            </button>
+            <button
+              type="button"
+              onclick={() => activeTab = 'preferences'}
+              class="py-2 px-1 border-b-2 font-medium text-sm {
+                activeTab === 'preferences'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }"
+            >
+              Preferences
+            </button>
+            <button
+              type="button"
+              onclick={() => activeTab = 'social'}
+              class="py-2 px-1 border-b-2 font-medium text-sm {
+                activeTab === 'social'
+                  ? 'border-primary-500 text-primary-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }"
+            >
+              Social Links
+            </button>
+          </nav>
+        </div>
 
-        <div class="mt-6 flex justify-end">
-          <Button
-            type="submit"
-            variant="primary"
-            loading={savingProfile}
-            disabled={savingProfile}
-          >
-            {savingProfile ? 'Saving...' : 'Save Changes'}
-          </Button>
+        <!-- Tab Content -->
+        {#if activeTab === 'personal'}
+          <div class="space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  First Name *
+                </label>
+                <input
+                  type="text"
+                  bind:value={formData.first_name}
+                  onblur={() => handleFieldBlur('first_name')}
+                  required
+                  class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 {
+                    getFieldError('first_name') ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''
+                  }"
+                  placeholder="Enter your first name"
+                />
+                {#if getFieldError('first_name')}
+                  <p class="mt-1 text-xs text-red-600">{getFieldError('first_name')}</p>
+                {/if}
+              </div>
+              
+              <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Last Name *
+                </label>
+                <input
+                  type="text"
+                  bind:value={formData.last_name}
+                  onblur={() => handleFieldBlur('last_name')}
+                  required
+                  class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200 {
+                    getFieldError('last_name') ? 'border-red-300 focus:border-red-500 focus:ring-red-500' : ''
+                  }"
+                  placeholder="Enter your last name"
+                />
+                {#if getFieldError('last_name')}
+                  <p class="mt-1 text-xs text-red-600">{getFieldError('last_name')}</p>
+                {/if}
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Email *
+              </label>
+              <input
+                type="email"
+                bind:value={formData.email}
+                disabled
+                class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-3 py-2 text-sm text-gray-500 dark:text-gray-400 cursor-not-allowed"
+              />
+              <p class="mt-1 text-xs text-gray-500">Email cannot be changed</p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Phone Number
+              </label>
+              <input
+                type="tel"
+                bind:value={formData.phone_number}
+                onblur={() => handleFieldBlur('phone_number')}
+                class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+                placeholder="+249123456789"
+              />
+              {#if getFieldError('phone_number')}
+                <p class="mt-1 text-xs text-red-600">{getFieldError('phone_number')}</p>
+              {/if}
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Date of Birth
+              </label>
+              <input
+                type="date"
+                bind:value={formData.date_of_birth}
+                class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Bio
+              </label>
+              <textarea
+                bind:value={formData.bio}
+                rows="4"
+                class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+                placeholder="Tell us about yourself..."
+              ></textarea>
+            </div>
+          </div>
+        {:else if activeTab === 'education'}
+          <div class="space-y-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Education Level
+              </label>
+              <input
+                type="text"
+                bind:value={formData.education_level}
+                class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+                placeholder="e.g., Bachelor's Degree"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Institution
+              </label>
+              <input
+                type="text"
+                bind:value={formData.institution}
+                class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+                placeholder="Your school or university"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Field of Study
+              </label>
+              <input
+                type="text"
+                bind:value={formData.field_of_study}
+                class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+                placeholder="Your major or field"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Learning Goals
+              </label>
+              <textarea
+                bind:value={formData.learning_goals}
+                rows="4"
+                class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+                placeholder="What do you want to achieve?"
+              ></textarea>
+            </div>
+          </div>
+        {:else if activeTab === 'preferences'}
+          <div class="space-y-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Preferred Language
+              </label>
+              <select
+                bind:value={formData.preferred_language}
+                class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+              >
+                <option value="en">English</option>
+                <option value="ar">العربية (Arabic)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Time Zone
+              </label>
+              <select
+                bind:value={formData.time_zone}
+                class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+              >
+                <option value="Africa/Khartoum">Sudan (CAT)</option>
+                <option value="UTC">UTC</option>
+                <option value="America/New_York">Eastern Time</option>
+                <option value="Europe/London">London</option>
+                <option value="Asia/Dubai">Dubai</option>
+                <option value="Asia/Riyadh">Riyadh</option>
+              </select>
+            </div>
+          </div>
+        {:else if activeTab === 'social'}
+          <div class="space-y-6">
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                LinkedIn
+              </label>
+              <input
+                type="url"
+                bind:value={formData.linkedin_url}
+                class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+                placeholder="https://linkedin.com/in/yourprofile"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                GitHub
+              </label>
+              <input
+                type="url"
+                bind:value={formData.github_url}
+                class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+                placeholder="https://github.com/yourusername"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Personal Website
+              </label>
+              <input
+                type="url"
+                bind:value={formData.website_url}
+                class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
+                placeholder="https://yourwebsite.com"
+              />
+            </div>
+          </div>
+        {/if}
+
+        <!-- Save Button -->
+        <div class="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+          <div class="flex justify-end">
+            <Button
+              type="submit"
+              variant="primary"
+              loading={savingProfile}
+              disabled={savingProfile}
+              class="min-w-[120px]"
+            >
+              {savingProfile ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
         </div>
       </form>
     </Card>
   </div>
 </div>
-
-{#snippet PersonalInfoTab()}
-  <div class="space-y-6">
-    <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-      <FormField
-        name="first_name"
-        label="First Name"
-        bind:value={formData.first_name}
-        error={getFieldError('first_name')}
-        onblur={() => handleFieldBlur('first_name')}
-        required
-      />
-      
-      <FormField
-        name="last_name"
-        label="Last Name"
-        bind:value={formData.last_name}
-        error={getFieldError('last_name')}
-        onblur={() => handleFieldBlur('last_name')}
-        required
-      />
-    </div>
-
-    <FormField
-      type="email"
-      name="email"
-      label="Email"
-      bind:value={formData.email}
-      error={getFieldError('email')}
-      onblur={() => handleFieldBlur('email')}
-      required
-      disabled
-    />
-
-    <FormField
-      type="tel"
-      name="phone_number"
-      label="Phone Number"
-      bind:value={formData.phone_number}
-      error={getFieldError('phone_number')}
-      onblur={() => handleFieldBlur('phone_number')}
-    />
-
-    <FormField
-      type="date"
-      name="date_of_birth"
-      label="Date of Birth"
-      bind:value={formData.date_of_birth}
-    />
-
-    <div>
-      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-        Bio
-      </label>
-      <textarea
-        bind:value={formData.bio}
-        rows="4"
-        class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
-        placeholder="Tell us about yourself..."
-      ></textarea>
-    </div>
-  </div>
-{/snippet}
-
-{#snippet EducationTab()}
-  <div class="space-y-6">
-    <FormField
-      name="education_level"
-      label="Education Level"
-      bind:value={formData.education_level}
-      placeholder="e.g., Bachelor's Degree"
-    />
-
-    <FormField
-      name="institution"
-      label="Institution"
-      bind:value={formData.institution}
-      placeholder="Your school or university"
-    />
-
-    <FormField
-      name="field_of_study"
-      label="Field of Study"
-      bind:value={formData.field_of_study}
-      placeholder="Your major or field"
-    />
-
-    <div>
-      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-        Learning Goals
-      </label>
-      <textarea
-        bind:value={formData.learning_goals}
-        rows="4"
-        class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
-        placeholder="What do you want to achieve?"
-      ></textarea>
-    </div>
-  </div>
-{/snippet}
-
-{#snippet PreferencesTab()}
-  <div class="space-y-6">
-    <FormField
-      type="select"
-      name="preferred_language"
-      label="Preferred Language"
-      bind:value={formData.preferred_language}
-      options={[
-        { value: 'en', label: 'English' },
-        { value: 'ar', label: 'العربية' }
-      ]}
-    />
-
-    <FormField
-      type="select"
-      name="time_zone"
-      label="Time Zone"
-      bind:value={formData.time_zone}
-      options={[
-        { value: 'UTC', label: 'UTC' },
-        { value: 'America/New_York', label: 'Eastern Time' },
-        { value: 'America/Chicago', label: 'Central Time' },
-        { value: 'America/Denver', label: 'Mountain Time' },
-        { value: 'America/Los_Angeles', label: 'Pacific Time' },
-        { value: 'Europe/London', label: 'London' },
-        { value: 'Europe/Paris', label: 'Paris' },
-        { value: 'Asia/Dubai', label: 'Dubai' },
-        { value: 'Asia/Kolkata', label: 'India' },
-        { value: 'Asia/Singapore', label: 'Singapore' },
-        { value: 'Asia/Tokyo', label: 'Tokyo' },
-        { value: 'Australia/Sydney', label: 'Sydney' }
-      ]}
-    />
-  </div>
-{/snippet}
-
-{#snippet SocialLinksTab()}
-  <div class="space-y-6">
-    <FormField
-      type="url"
-      name="linkedin_url"
-      label="LinkedIn"
-      bind:value={formData.linkedin_url}
-      placeholder="https://linkedin.com/in/yourprofile"
-    />
-
-    <FormField
-      type="url"
-      name="github_url"
-      label="GitHub"
-      bind:value={formData.github_url}
-      placeholder="https://github.com/yourusername"
-    />
-
-    <FormField
-      type="url"
-      name="website_url"
-      label="Personal Website"
-      bind:value={formData.website_url}
-      placeholder="https://yourwebsite.com"
-    />
-  </div>
-{/snippet}

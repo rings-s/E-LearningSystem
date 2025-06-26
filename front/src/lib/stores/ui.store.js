@@ -1,4 +1,4 @@
-// front/src/lib/stores/ui.store.js
+// front/src/lib/stores/ui.store.js - Add showNotification method
 import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
 
@@ -76,17 +76,31 @@ function createUIStore() {
         },
 
         showNotification(notification) {
-            const id = Date.now();
+            const id = Date.now() + Math.random();
+            const newNotification = {
+                id,
+                type: 'info',
+                title: '',
+                message: '',
+                duration: 5000,
+                ...notification
+            };
+
             update(state => ({
                 ...state,
-                notifications: [...state.notifications, { ...notification, id }]
+                notifications: [...state.notifications, newNotification]
             }));
             
             // Auto remove after duration
-            if (notification.duration !== 0) {
+            if (newNotification.duration > 0) {
                 setTimeout(() => {
                     this.removeNotification(id);
-                }, notification.duration || 5000);
+                }, newNotification.duration);
+            }
+
+            // Log to console in development
+            if (browser && window.location.hostname === 'localhost') {
+                console.log(`[${newNotification.type.toUpperCase()}] ${newNotification.title}: ${newNotification.message}`);
             }
         },
 

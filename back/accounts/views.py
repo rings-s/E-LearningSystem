@@ -236,7 +236,6 @@ class PasswordResetConfirmView(generics.GenericAPIView):
         )
 
 class UploadAvatarView(APIView):
-    """Upload user avatar"""
     permission_classes = [IsAuthenticated]
     
     def post(self, request):

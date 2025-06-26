@@ -1,8 +1,5 @@
 // front/src/lib/apis/index.js
 import { browser } from '$app/environment';
-import { goto } from '$app/navigation';
-import { authStore } from '../stores/auth.store.js';
-import { get } from 'svelte/store';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -11,9 +8,14 @@ class ApiClient {
         this.baseURL = API_BASE_URL;
     }
 
+    getToken() {
+        if (!browser) return null;
+        return localStorage.getItem('access_token');
+    }
+
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
-        const auth = get(authStore);
+        const token = this.getToken();
         
         const config = {
             ...options,
@@ -23,25 +25,31 @@ class ApiClient {
             }
         };
 
-        // Add auth token if available
-        if (auth.token && !options.skipAuth) {
-            config.headers.Authorization = `Bearer ${auth.token}`;
+        // Add auth token if available and not explicitly skipped
+        if (token && !options.skipAuth) {
+            config.headers.Authorization = `Bearer ${token}`;
         }
 
         try {
             const response = await fetch(url, config);
             
-            // Handle auth errors
-            if (response.status === 401 && browser) {
-                authStore.logout();
-                goto('/login');
+            // Handle 401 - token expired/invalid
+            if (response.status === 401 && browser && !options.skipAuth) {
+                // Clear invalid tokens
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                
+                // Redirect to login if not already on auth page
+                if (!window.location.pathname.includes('/login')) {
+                    window.location.href = '/login';
+                }
                 throw new Error('Unauthorized');
             }
 
             const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(data.error?.message || data.message || 'Request failed');
+                throw new Error(data.error?.message || data.message || `HTTP ${response.status}`);
             }
 
             return data;
@@ -59,14 +67,6 @@ class ApiClient {
         return this.request(endpoint, {
             ...options,
             method: 'POST',
-            body: JSON.stringify(data)
-        });
-    }
-
-    put(endpoint, data, options = {}) {
-        return this.request(endpoint, {
-            ...options,
-            method: 'PUT',
             body: JSON.stringify(data)
         });
     }
@@ -90,7 +90,7 @@ class ApiClient {
             body: formData,
             headers: {
                 ...options.headers,
-                // Don't set Content-Type, let browser set it with boundary
+                // Don't set Content-Type for FormData
             }
         };
         delete config.headers['Content-Type'];

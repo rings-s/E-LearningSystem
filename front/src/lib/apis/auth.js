@@ -1,3 +1,4 @@
+// front/src/lib/apis/auth.js
 import { api } from './index.js';
 
 export const authApi = {
@@ -17,22 +18,6 @@ export const authApi = {
         return api.post('/auth/resend-verification/', { email }, { skipAuth: true });
     },
 
-    async refreshToken(refreshToken) {
-        return api.post('/auth/refresh/', { refresh: refreshToken }, { skipAuth: true });
-    },
-
-    async changePassword(data) {
-        return api.post('/auth/change-password/', data);
-    },
-
-    async requestPasswordReset(email) {
-        return api.post('/auth/password-reset/', { email }, { skipAuth: true });
-    },
-
-    async confirmPasswordReset(data) {
-        return api.post('/auth/password-reset-confirm/', data, { skipAuth: true });
-    },
-
     async getCurrentUser() {
         return api.get('/auth/users/me/');
     },
@@ -45,5 +30,17 @@ export const authApi = {
         const formData = new FormData();
         formData.append('avatar', file);
         return api.upload('/auth/users/me/avatar/', formData);
+    },
+
+    async refreshToken(refreshToken) {
+        return api.post('/auth/refresh/', { refresh: refreshToken }, { skipAuth: true });
+    },
+
+    async requestPasswordReset(email) {
+        return api.post('/auth/password-reset/', { email }, { skipAuth: true });
+    },
+
+    async confirmPasswordReset(data) {
+        return api.post('/auth/password-reset-confirm/', data, { skipAuth: true });
     }
 };

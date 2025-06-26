@@ -1,4 +1,4 @@
-<!-- front/src/routes/forum/+page.svelte -->
+<!-- front/src/routes/(app)/forum/+page.svelte -->
 <script>
   import { onMount } from 'svelte';
   import { coreApi } from '$lib/apis/core.js';
@@ -93,13 +93,18 @@
       label: 'Announcement'
     }
   };
+
+  // Fix for avatar error handling
+  function handleAvatarError(event) {
+    event.target.style.display = 'none';
+  }
 </script>
 
 <div class="container mx-auto px-4 py-8 max-w-7xl">
   <!-- Header -->
   <div class="mb-8">
     <h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-      {$t('navigation.forum')}
+      Forum
     </h1>
     <p class="text-gray-600 dark:text-gray-400">
       Join discussions, ask questions, and share knowledge with the community
@@ -284,12 +289,18 @@
 
                   <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                     <div class="flex items-center gap-1.5">
-                      <img 
-                        src={discussion.author_avatar || ''} 
-                        alt=""
-                        class="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700"
-                        onerror="this.style.display='none'"
-                      />
+                      {#if discussion.author_avatar}
+                        <img 
+                          src={discussion.author_avatar} 
+                          alt={discussion.author_name}
+                          class="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700"
+                          onerror={handleAvatarError}
+                        />
+                      {:else}
+                        <div class="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-xs font-medium text-gray-600 dark:text-gray-400">
+                          {discussion.author_name?.[0]?.toUpperCase() || '?'}
+                        </div>
+                      {/if}
                       <span>{discussion.author_name}</span>
                     </div>
                     <span>•</span>
