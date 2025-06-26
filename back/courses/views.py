@@ -29,6 +29,23 @@ from core.utils import (
     send_notification, bulk_notify_enrolled_students,
     track_activity, increment_view_count, update_enrollment_progress
 )
+import uuid
+from django.http import Http404
+
+
+
+
+
+def validate_and_get_object(model_class, uuid_value):
+    """Validate UUID and get object safely"""
+    try:
+        # Validate UUID format
+        uuid.UUID(str(uuid_value))
+        return get_object_or_404(model_class, uuid=uuid_value)
+    except (ValueError, AttributeError, TypeError):
+        raise Http404("Invalid UUID format")
+
+
 
 # Categories
 class CategoryListView(generics.ListAPIView):
@@ -68,22 +85,10 @@ class CourseListCreateView(generics.ListCreateAPIView):
         ).annotate(
             avg_rating=Avg('reviews__rating'),
             enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True))
-        ).order_by('-created_at', 'id')  # Add explicit ordering with tiebreaker
+        ).order_by('-created_at', 'id')  # Explicit ordering with tiebreaker
         
         return queryset
-    
-    def get_serializer_class(self):
-        if self.request.method == 'POST':
-            return CourseCreateUpdateSerializer
-        return CourseListSerializer
-    
-    def get_permissions(self):
-        if self.request.method == 'POST':
-            return [IsAuthenticated(), IsVerifiedUser(), CanCreateCourse()]
-        return [AllowAny()]
-    
-    def perform_create(self, serializer):
-        serializer.save(instructor=self.request.user)
+
 
 class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update or delete course"""
@@ -123,7 +128,7 @@ class CourseEnrollView(APIView):
     permission_classes = [IsAuthenticated, IsVerifiedUser]
     
     def post(self, request, uuid):
-        course = get_object_or_404(Course, uuid=uuid)
+        course = validate_and_get_object(Course, uuid)  # Use safe validation
         
         # Check enrollment limit
         if course.enrollment_limit:

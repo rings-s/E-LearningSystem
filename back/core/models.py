@@ -26,6 +26,7 @@ class Forum(models.Model):
     class Meta:
         verbose_name = _('Forum')
         verbose_name_plural = _('Forums')
+        ordering = ['-created_at', 'id']  # Add this line
 
     def __str__(self):
         return f"Forum: {self.course.title}"
@@ -58,7 +59,8 @@ class Discussion(models.Model):
     class Meta:
         verbose_name = _('Discussion')
         verbose_name_plural = _('Discussions')
-        ordering = ['-is_pinned', '-created_at']
+        ordering = ['-is_pinned', '-created_at', 'id']  # Add explicit ordering with tiebreaker
+
 
     def __str__(self):
         return self.title
@@ -83,7 +85,8 @@ class Reply(models.Model):
     class Meta:
         verbose_name = _('Reply')
         verbose_name_plural = _('Replies')
-        ordering = ['created_at']
+        ordering = ['created_at', 'id']  # Add this line
+
 
     def __str__(self):
         return f"Reply to: {self.discussion.title} by {self.author.email}"
@@ -132,11 +135,12 @@ class Notification(models.Model):
     class Meta:
         verbose_name = _('Notification')
         verbose_name_plural = _('Notifications')
-        ordering = ['-created_at']
+        ordering = ['-created_at', 'id']  # Add explicit tiebreaker
         indexes = [
             models.Index(fields=['recipient', 'is_read']),
             models.Index(fields=['created_at']),
         ]
+
 
     def __str__(self):
         return f"{self.notification_type} - {self.recipient.email} - {self.title}"
@@ -216,7 +220,7 @@ class ActivityLog(models.Model):
     class Meta:
         verbose_name = _('Activity Log')
         verbose_name_plural = _('Activity Logs')
-        ordering = ['-created_at']
+        ordering = ['-created_at', 'id']
         indexes = [
             models.Index(fields=['user', 'created_at']),
             models.Index(fields=['activity_type', 'created_at']),
@@ -278,7 +282,7 @@ class MediaContent(models.Model):
     class Meta:
         verbose_name = _('Media Content')
         verbose_name_plural = _('Media Contents')
-        ordering = ['-created_at']
+        ordering = ['-created_at', 'id']
 
     def __str__(self):
         return f"{self.title} ({self.content_type})"
@@ -316,7 +320,7 @@ class Announcement(models.Model):
     class Meta:
         verbose_name = _('Announcement')
         verbose_name_plural = _('Announcements')
-        ordering = ['-is_pinned', '-created_at']
+        ordering = ['-is_pinned', '-created_at', 'id']
 
     def __str__(self):
         return self.title
@@ -360,7 +364,7 @@ class SupportTicket(models.Model):
     class Meta:
         verbose_name = _('Support Ticket')
         verbose_name_plural = _('Support Tickets')
-        ordering = ['-created_at']
+        ordering = ['-created_at', 'id']
 
     def __str__(self):
         return f"{self.ticket_number} - {self.subject}"

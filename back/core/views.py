@@ -7,6 +7,10 @@ from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q, Avg, Sum
 from django.utils import timezone
 from datetime import timedelta
+from django.core.exceptions import ValidationError
+import uuid
+from django.http import Http404
+
 
 from .models import (
     Forum, Discussion, Reply, Notification, LearningAnalytics,
@@ -33,10 +37,22 @@ from accounts.permissions import (
 )
 from .utils import send_notification, track_activity, increment_view_count
 
+
+
+def get_object_by_uuid(model, uuid_value):
+    """Safely get object by UUID with proper error handling"""
+    try:
+        validate_uuid(uuid_value)
+        return get_object_or_404(model, uuid=uuid_value)
+    except ValidationError:
+        raise Http404("Invalid UUID format")
+
+
+
 # Forums
 class ForumListView(generics.ListAPIView):
     """List forums"""
-    queryset = Forum.objects.filter(is_active=True)
+    queryset = Forum.objects.filter(is_active=True).order_by('-created_at', 'id')  # Add explicit ordering
     serializer_class = ForumSerializer
     permission_classes = [IsAuthenticated]
     
@@ -45,7 +61,7 @@ class ForumListView(generics.ListAPIView):
             'course'
         ).annotate(
             discussions_count=Count('discussions')
-        )
+        ).order_by('-created_at', 'id')  # Ensure ordering is maintained
 
 class ForumDetailView(generics.RetrieveAPIView):
     """Get forum details"""
@@ -94,6 +110,11 @@ class DiscussionDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
     lookup_field = 'uuid'
     
+    def get_object(self):
+        """Override to add UUID validation"""
+        uuid_value = self.kwargs.get('uuid')
+        return validate_and_get_object(Discussion, uuid_value)
+
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
             return [IsAuthenticated(), IsOwnerOrReadOnly()]
@@ -110,7 +131,7 @@ class DiscussionPinView(APIView):
     permission_classes = [IsAuthenticated, IsModeratorOrUp]
     
     def post(self, request, uuid):
-        discussion = get_object_or_404(Discussion, uuid=uuid)
+        discussion = validate_and_get_object(Discussion, uuid)  # Use safe validation
         discussion.is_pinned = not discussion.is_pinned
         discussion.save()
         
@@ -119,12 +140,13 @@ class DiscussionPinView(APIView):
             'message': f'Discussion {"pinned" if discussion.is_pinned else "unpinned"}'
         })
 
+
 class DiscussionLockView(APIView):
     """Lock/unlock discussion"""
     permission_classes = [IsAuthenticated, IsModeratorOrUp]
     
     def post(self, request, uuid):
-        discussion = get_object_or_404(Discussion, uuid=uuid)
+        discussion = validate_and_get_object(Discussion, uuid)  # Use safe validation
         discussion.is_locked = not discussion.is_locked
         discussion.save()
         
@@ -138,7 +160,7 @@ class DiscussionResolveView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request, uuid):
-        discussion = get_object_or_404(Discussion, uuid=uuid)
+        discussion = validate_and_get_object(Discussion, uuid)  # Use safe validation
         
         if discussion.author != request.user and not request.user.is_staff:
             return Response(
@@ -150,7 +172,6 @@ class DiscussionResolveView(APIView):
         discussion.save()
         
         return Response({'message': 'Discussion marked as resolved'})
-
 # Replies
 class ReplyListCreateView(generics.ListCreateAPIView):
     """List and create replies"""

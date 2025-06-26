@@ -27,7 +27,7 @@ class Category(models.Model):
     class Meta:
         verbose_name = _('Category')
         verbose_name_plural = _('Categories')
-        ordering = ['order', 'name']
+        ordering = ['order', 'name', 'id']
 
     def __str__(self):
         return self.name
@@ -92,7 +92,7 @@ class Course(models.Model):
     class Meta:
         verbose_name = _('Course')
         verbose_name_plural = _('Courses')
-        ordering = ['-created_at']
+        ordering = ['-created_at', 'id']
 
     def __str__(self):
         return self.title
@@ -160,7 +160,7 @@ class Module(models.Model):
     class Meta:
         verbose_name = _('Module')
         verbose_name_plural = _('Modules')
-        ordering = ['course', 'order']
+        ordering = ['course', 'order', 'id']
         unique_together = ['course', 'order']
 
     def __str__(self):
@@ -208,7 +208,7 @@ class Lesson(models.Model):
         verbose_name = _('Lesson')
         verbose_name_plural = _('Lessons')
         ordering = ['module', 'order']
-        unique_together = ['module', 'slug']
+        unique_together = ['module', 'slug', 'id']
 
     def __str__(self):
         return f"{self.module.title} - {self.title}"
@@ -303,7 +303,7 @@ class Quiz(models.Model):
     class Meta:
         verbose_name = _('Quiz')
         verbose_name_plural = _('Quizzes')
-        ordering = ['course', 'created_at']
+        ordering = ['course', 'created_at', 'id']
 
     def __str__(self):
         return f"{self.course.title} - {self.title}"
@@ -335,7 +335,7 @@ class Question(models.Model):
     class Meta:
         verbose_name = _('Question')
         verbose_name_plural = _('Questions')
-        ordering = ['quiz', 'order']
+        ordering = ['quiz', 'order', 'id']
 
     def __str__(self):
         return f"{self.quiz.title} - Q{self.order}: {self.question_text[:50]}..."
@@ -378,7 +378,7 @@ class QuizAttempt(models.Model):
     class Meta:
         verbose_name = _('Quiz Attempt')
         verbose_name_plural = _('Quiz Attempts')
-        ordering = ['-started_at']
+        ordering = ['-started_at', 'id']
 
     def __str__(self):
         return f"{self.student.email} - {self.quiz.title} - Attempt {self.attempt_number}"
@@ -440,7 +440,8 @@ class Certificate(models.Model):
     class Meta:
         verbose_name = _('Certificate')
         verbose_name_plural = _('Certificates')
-        ordering = ['-issue_date']
+        ordering = ['-issue_date', 'id']  # Add explicit tiebreaker
+
 
     def __str__(self):
         return f"{self.certificate_number} - {self.student.email} - {self.course.title}"
@@ -491,7 +492,8 @@ class CourseReview(models.Model):
         verbose_name = _('Course Review')
         verbose_name_plural = _('Course Reviews')
         unique_together = ['course', 'student']
-        ordering = ['-created_at']
+        ordering = ['-created_at', 'id']  # Add explicit tiebreaker
+
 
     def __str__(self):
         return f"{self.course.title} - {self.student.email} ({self.rating}★)"

@@ -7,8 +7,40 @@ from asgiref.sync import async_to_sync
 import logging
 import hashlib
 
+
+from django.core.exceptions import ValidationError
+from django.http import Http404
+
+import uuid  # Use built-in uuid module
+
+
 logger = logging.getLogger(__name__)
 channel_layer = get_channel_layer()
+
+
+
+
+
+
+
+def validate_uuid_param(uuid_value):
+    """Validate UUID parameter and raise 404 if invalid"""
+    try:
+        validate_uuid(uuid_value)
+        return True
+    except ValidationError:
+        raise Http404("Invalid UUID format")
+
+def safe_uuid_filter(queryset, field_name, uuid_value):
+    """Safely filter by UUID field, returning empty queryset for invalid UUIDs"""
+    try:
+        validate_uuid(uuid_value)
+        filter_kwargs = {field_name: uuid_value}
+        return queryset.filter(**filter_kwargs)
+    except ValidationError:
+        return queryset.none()
+
+
 
 # Cache utilities
 def get_or_set_cache(key, func, timeout=3600):
