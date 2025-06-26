@@ -108,11 +108,15 @@ class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
             track_activity(
                 request.user,
                 'course_view',
-                course=instance
+                course=instance,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                user_agent=request.META.get('HTTP_USER_AGENT', '')
             )
         
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
+        
+
 
 class CourseEnrollView(APIView):
     """Enroll in a course"""

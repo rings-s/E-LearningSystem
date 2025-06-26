@@ -209,7 +209,7 @@ class ActivityLog(models.Model):
     
     # Request info
     ip_address = models.GenericIPAddressField(null=True, blank=True)
-    user_agent = models.TextField(blank=True)
+    user_agent = models.TextField(null=True, blank=True) 
     
     created_at = models.DateTimeField(auto_now_add=True)
 

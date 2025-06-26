@@ -1,7 +1,7 @@
 <!-- front/src/routes/(app)/profile/+page.svelte -->
 <script>
   import { onMount } from 'svelte';
-  import { authStore, currentUser } from '$lib/stores/auth.store.js';
+  import { authStore, currentUser } from '$lib/services/auth.service.js';
   import { authApi } from '$lib/apis/auth.js';
   import { uiStore } from '$lib/stores/ui.store.js';
   import { t } from '$lib/i18n/index.js';
@@ -40,38 +40,39 @@
 
   const validationRules = {
     first_name: [
-      { validator: validators.required, message: $t('errors.requiredField') },
-      { validator: validators.minLength(2), message: $t('auth.nameTooShort') }
+      { validator: validators.required, message: 'First name is required' },
+      { validator: validators.minLength(2), message: 'Name too short' }
     ],
     last_name: [
-      { validator: validators.required, message: $t('errors.requiredField') },
-      { validator: validators.minLength(2), message: $t('auth.nameTooShort') }
+      { validator: validators.required, message: 'Last name is required' },
+      { validator: validators.minLength(2), message: 'Name too short' }
     ],
     email: [
-      { validator: validators.required, message: $t('errors.requiredField') },
-      { validator: validators.email, message: $t('errors.invalidEmail') }
+      { validator: validators.required, message: 'Email is required' },
+      { validator: validators.email, message: 'Invalid email' }
     ],
-    phone_number: [{ validator: validators.phoneNumber, message: $t('errors.invalidPhone') }]
+    phone_number: [{ validator: validators.phoneNumber, message: 'Invalid phone number' }]
   };
 
   onMount(() => {
-    if ($currentUser) {
+    const user = currentUser();
+    if (user) {
       formData = {
-        first_name: $currentUser.first_name || '',
-        last_name: $currentUser.last_name || '',
-        email: $currentUser.email || '',
-        phone_number: $currentUser.phone_number || '',
-        date_of_birth: $currentUser.date_of_birth || '',
-        bio: $currentUser.profile?.bio || '',
-        education_level: $currentUser.profile?.education_level || '',
-        institution: $currentUser.profile?.institution || '',
-        field_of_study: $currentUser.profile?.field_of_study || '',
-        learning_goals: $currentUser.profile?.learning_goals || '',
-        preferred_language: $currentUser.profile?.preferred_language || 'en',
-        time_zone: $currentUser.profile?.time_zone || 'UTC',
-        linkedin_url: $currentUser.profile?.linkedin_url || '',
-        github_url: $currentUser.profile?.github_url || '',
-        website_url: $currentUser.profile?.website_url || ''
+        first_name: user.first_name || '',
+        last_name: user.last_name || '',
+        email: user.email || '',
+        phone_number: user.phone_number || '',
+        date_of_birth: user.date_of_birth || '',
+        bio: user.profile?.bio || '',
+        education_level: user.profile?.education_level || '',
+        institution: user.profile?.institution || '',
+        field_of_study: user.profile?.field_of_study || '',
+        learning_goals: user.profile?.learning_goals || '',
+        preferred_language: user.profile?.preferred_language || 'en',
+        time_zone: user.profile?.time_zone || 'UTC',
+        linkedin_url: user.profile?.linkedin_url || '',
+        github_url: user.profile?.github_url || '',
+        website_url: user.profile?.website_url || ''
       };
     }
   });
@@ -85,8 +86,8 @@
     if (!validTypes.includes(file.type)) {
       uiStore.showNotification({
         type: 'error',
-        title: $t('errors.invalidFileType'),
-        message: $t('errors.uploadImageOnly')
+        title: 'Invalid file type',
+        message: 'Please upload an image file'
       });
       return;
     }
@@ -95,8 +96,8 @@
     if (file.size > 5 * 1024 * 1024) {
       uiStore.showNotification({
         type: 'error',
-        title: $t('errors.fileTooLarge'),
-        message: $t('errors.maxFileSize5MB')
+        title: 'File too large',
+        message: 'Maximum file size is 5MB'
       });
       return;
     }
@@ -107,18 +108,19 @@
       const response = await authApi.uploadAvatar(file);
       
       // Update local user data
-      authStore.updateProfile({ avatar: response.avatar });
+      await authStore.updateProfile({ avatar: response.avatar });
       
       uiStore.showNotification({
         type: 'success',
-        title: $t('profile.avatarUpdated'),
-        message: $t('profile.avatarUpdateSuccess')
+        title: 'Avatar updated',
+        message: 'Your avatar has been updated successfully'
       });
     } catch (error) {
+      console.error('Avatar upload error:', error);
       uiStore.showNotification({
         type: 'error',
-        title: $t('common.error'),
-        message: error.message || $t('errors.uploadFailed')
+        title: 'Error',
+        message: error.message || 'Failed to upload avatar'
       });
     } finally {
       uploadingAvatar = false;
@@ -145,17 +147,18 @@
       if (result.success) {
         uiStore.showNotification({
           type: 'success',
-          title: $t('profile.updated'),
-          message: $t('profile.updateSuccess')
+          title: 'Profile updated',
+          message: 'Your profile has been updated successfully'
         });
       } else {
         throw new Error(result.error);
       }
     } catch (error) {
+      console.error('Profile update error:', error);
       uiStore.showNotification({
         type: 'error',
-        title: $t('common.error'),
-        message: error.message || $t('errors.updateFailed')
+        title: 'Error',
+        message: error.message || 'Failed to update profile'
       });
     } finally {
       savingProfile = false;
@@ -164,19 +167,19 @@
 
   const tabs = [
     {
-      label: $t('profile.personalInfo'),
+      label: 'Personal Info',
       content: () => PersonalInfoTab
     },
     {
-      label: $t('profile.education'),
+      label: 'Education',
       content: () => EducationTab
     },
     {
-      label: $t('profile.preferences'),
+      label: 'Preferences',
       content: () => PreferencesTab
     },
     {
-      label: $t('profile.socialLinks'),
+      label: 'Social Links',
       content: () => SocialLinksTab
     }
   ];
@@ -203,105 +206,127 @@
   function getFieldError(fieldName) {
     return touched[fieldName] ? errors[fieldName] : '';
   }
+
+  function getFullName() {
+    const user = currentUser();
+    if (!user) return '';
+    return `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
+  }
+
+  function getUserInitials() {
+    const user = currentUser();
+    if (!user) return '?';
+    
+    if (user.first_name && user.last_name) {
+      return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
+    } else if (user.first_name) {
+      return user.first_name[0].toUpperCase();
+    } else if (user.email) {
+      return user.email[0].toUpperCase();
+    }
+    return '?';
+  }
 </script>
 
 <svelte:head>
-  <title>{$t('profile.profile')} - EduVerse</title>
+  <title>Profile - 244SCHOOL</title>
 </svelte:head>
 
-<div class="max-w-4xl mx-auto space-y-6">
-  <!-- Header -->
-  <div>
-    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
-      {$t('profile.profile')}
-    </h1>
-    <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
-      {$t('profile.manageYourProfile')}
-    </p>
-  </div>
+<div class="container mx-auto px-4 py-8">
+  <div class="max-w-4xl mx-auto space-y-6">
+    <!-- Header -->
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">
+        Profile
+      </h1>
+      <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+        Manage your profile information
+      </p>
+    </div>
 
-  <!-- Avatar Section -->
-  <Card variant="bordered">
-    <div class="flex items-center gap-6">
-      <div class="relative group">
-        <div class="w-24 h-24 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
-          {#if $currentUser?.avatar}
-            <img 
-              src={$currentUser.avatar} 
-              alt={$currentUser.full_name}
-              class="w-full h-full object-cover"
-            />
-          {:else}
-            <div class="w-full h-full flex items-center justify-center text-2xl font-bold text-gray-400 dark:text-gray-600">
-              {$currentUser?.first_name?.[0]}{$currentUser?.last_name?.[0]}
-            </div>
-          {/if}
+    <!-- Avatar Section -->
+    <Card variant="bordered">
+      <div class="flex items-center gap-6">
+        <div class="relative group">
+          <div class="w-24 h-24 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700">
+            {#if currentUser()?.avatar}
+              <img 
+                src={currentUser().avatar} 
+                alt={getFullName()}
+                class="w-full h-full object-cover"
+              />
+            {:else}
+              <div class="w-full h-full flex items-center justify-center text-2xl font-bold text-gray-400 dark:text-gray-600">
+                {getUserInitials()}
+              </div>
+            {/if}
+          </div>
+          
+          <button
+            onclick={() => fileInput?.click()}
+            disabled={uploadingAvatar}
+            class={classNames(
+              'absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity',
+              uploadingAvatar && 'opacity-100'
+            )}
+          >
+            {#if uploadingAvatar}
+              <div class="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            {:else}
+              <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            {/if}
+          </button>
+          
+          <input
+            bind:this={fileInput}
+            type="file"
+            accept="image/*"
+            onchange={handleAvatarChange}
+            class="hidden"
+          />
         </div>
         
-        <button
-          onclick={() => fileInput.click()}
-          disabled={uploadingAvatar}
-          class={classNames(
-            'absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity',
-            uploadingAvatar && 'opacity-100'
-          )}
-        >
-          {#if uploadingAvatar}
-            <div class="w-8 h-8 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          {:else}
-            <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          {/if}
-        </button>
-        
-        <input
-          bind:this={fileInput}
-          type="file"
-          accept="image/*"
-          onchange={handleAvatarChange}
-          class="hidden"
-        />
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+            {getFullName()}
+          </h3>
+          <p class="text-sm text-gray-500 dark:text-gray-400 capitalize">
+            {currentUser()?.role || 'Student'}
+          </p>
+          <Button
+            onclick={() => fileInput?.click()}
+            variant="outline"
+            size="small"
+            class="mt-2"
+            disabled={uploadingAvatar}
+          >
+            Change Avatar
+          </Button>
+        </div>
       </div>
-      
-      <div>
-        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-          {$currentUser?.full_name || $currentUser?.email}
-        </h3>
-        <p class="text-sm text-gray-500 dark:text-gray-400">
-          {$t(`auth.${$currentUser?.role}`)}
-        </p>
-        <Button
-          onclick={() => fileInput.click()}
-          variant="outline"
-          size="small"
-          class="mt-2"
-          disabled={uploadingAvatar}
-        >
-          {$t('profile.changeAvatar')}
-        </Button>
-      </div>
-    </div>
-  </Card>
+    </Card>
 
-  <!-- Profile Form -->
-  <Card variant="bordered">
-    <form onsubmit={handleProfileSubmit}>
-      <Tabs {tabs} variant="underline" />
+    <!-- Profile Form -->
+    <Card variant="bordered">
+      <form onsubmit={handleProfileSubmit}>
+        <Tabs {tabs} variant="underline" />
 
-      <div class="mt-6 flex justify-end">
-        <Button
-          type="submit"
-          variant="primary"
-          loading={savingProfile}
-          disabled={savingProfile}
-        >
-          {savingProfile ? $t('common.saving') : $t('common.save')}
-        </Button>
-      </div>
-    </form>
-  </Card>
+        <div class="mt-6 flex justify-end">
+          <Button
+            type="submit"
+            variant="primary"
+            loading={savingProfile}
+            disabled={savingProfile}
+          >
+            {savingProfile ? 'Saving...' : 'Save Changes'}
+          </Button>
+        </div>
+      </form>
+    </Card>
+  </div>
 </div>
 
 {#snippet PersonalInfoTab()}
@@ -309,7 +334,7 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
       <FormField
         name="first_name"
-        label={$t('auth.firstName')}
+        label="First Name"
         bind:value={formData.first_name}
         error={getFieldError('first_name')}
         onblur={() => handleFieldBlur('first_name')}
@@ -318,7 +343,7 @@
       
       <FormField
         name="last_name"
-        label={$t('auth.lastName')}
+        label="Last Name"
         bind:value={formData.last_name}
         error={getFieldError('last_name')}
         onblur={() => handleFieldBlur('last_name')}
@@ -329,7 +354,7 @@
     <FormField
       type="email"
       name="email"
-      label={$t('auth.email')}
+      label="Email"
       bind:value={formData.email}
       error={getFieldError('email')}
       onblur={() => handleFieldBlur('email')}
@@ -340,7 +365,7 @@
     <FormField
       type="tel"
       name="phone_number"
-      label={$t('auth.phoneNumber')}
+      label="Phone Number"
       bind:value={formData.phone_number}
       error={getFieldError('phone_number')}
       onblur={() => handleFieldBlur('phone_number')}
@@ -349,19 +374,19 @@
     <FormField
       type="date"
       name="date_of_birth"
-      label={$t('auth.dateOfBirth')}
+      label="Date of Birth"
       bind:value={formData.date_of_birth}
     />
 
     <div>
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-        {$t('profile.bio')}
+        Bio
       </label>
       <textarea
         bind:value={formData.bio}
         rows="4"
         class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
-        placeholder={$t('profile.tellUsAboutYourself')}
+        placeholder="Tell us about yourself..."
       ></textarea>
     </div>
   </div>
@@ -371,34 +396,34 @@
   <div class="space-y-6">
     <FormField
       name="education_level"
-      label={$t('profile.educationLevel')}
+      label="Education Level"
       bind:value={formData.education_level}
-      placeholder={$t('profile.selectEducationLevel')}
+      placeholder="e.g., Bachelor's Degree"
     />
 
     <FormField
       name="institution"
-      label={$t('profile.institution')}
+      label="Institution"
       bind:value={formData.institution}
-      placeholder={$t('profile.enterInstitution')}
+      placeholder="Your school or university"
     />
 
     <FormField
       name="field_of_study"
-      label={$t('profile.fieldOfStudy')}
+      label="Field of Study"
       bind:value={formData.field_of_study}
-      placeholder={$t('profile.enterFieldOfStudy')}
+      placeholder="Your major or field"
     />
 
     <div>
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-        {$t('profile.learningGoals')}
+        Learning Goals
       </label>
       <textarea
         bind:value={formData.learning_goals}
         rows="4"
         class="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors duration-200"
-        placeholder={$t('profile.describeLearningGoals')}
+        placeholder="What do you want to achieve?"
       ></textarea>
     </div>
   </div>
@@ -409,7 +434,7 @@
     <FormField
       type="select"
       name="preferred_language"
-      label={$t('profile.preferredLanguage')}
+      label="Preferred Language"
       bind:value={formData.preferred_language}
       options={[
         { value: 'en', label: 'English' },
@@ -420,7 +445,7 @@
     <FormField
       type="select"
       name="time_zone"
-      label={$t('profile.timeZone')}
+      label="Time Zone"
       bind:value={formData.time_zone}
       options={[
         { value: 'UTC', label: 'UTC' },
@@ -448,7 +473,6 @@
       label="LinkedIn"
       bind:value={formData.linkedin_url}
       placeholder="https://linkedin.com/in/yourprofile"
-      icon='<path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />'
     />
 
     <FormField
@@ -457,16 +481,14 @@
       label="GitHub"
       bind:value={formData.github_url}
       placeholder="https://github.com/yourusername"
-      icon='<path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />'
     />
 
     <FormField
       type="url"
       name="website_url"
-      label={$t('profile.personalWebsite')}
+      label="Personal Website"
       bind:value={formData.website_url}
       placeholder="https://yourwebsite.com"
-      icon='<path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />'
     />
   </div>
 {/snippet}

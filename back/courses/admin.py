@@ -124,14 +124,15 @@ class CourseForm(forms.ModelForm):
 class CourseAdmin(admin.ModelAdmin, ExportCsvMixin):
     form = CourseForm
     list_display = ('title', 'instructor', 'category', 'level', 'status', 'is_featured', 
-                    'enrolled_students_count', 'average_rating', 'created_at')
+                    'enrolled_students_count', 'average_rating', 'views_count', 'created_at')
+    
     list_filter = ('status', 'level', 'is_featured', 'category', 'created_at')
     search_fields = ('title', 'description', 'short_description')
     prepopulated_fields = {'slug': ('title',)}
     filter_horizontal = ('co_instructors', 'tags')
     inlines = [ModuleInline, QuizInline]
     actions = ['publish_courses', 'archive_courses', 'export_as_csv']
-    readonly_fields = ('created_at', 'updated_at', 'published_at')
+    readonly_fields = ('created_at', 'updated_at', 'published_at', 'views_count')
     fieldsets = (
         (_('Basic Information'), {
             'fields': ('title', 'slug', 'short_description', 'description')

@@ -82,7 +82,7 @@ def track_activity(user, activity_type, **kwargs):
         user=user,
         activity_type=activity_type,
         ip_address=kwargs.pop('ip_address', None),
-        user_agent=kwargs.pop('user_agent', None),
+        user_agent=kwargs.pop('user_agent', ''),  # Use empty string instead of None
         metadata=kwargs.pop('metadata', {}),
         **kwargs
     )

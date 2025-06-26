@@ -64,7 +64,8 @@ class Course(models.Model):
     
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='courses')
     tags = models.ManyToManyField(Tag, blank=True, related_name='courses')
-    
+    views_count = models.PositiveIntegerField(default=0, verbose_name=_('Views Count'))
+
     level = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='beginner')
     language = models.CharField(max_length=10, default='en', verbose_name=_('Language'))
     
