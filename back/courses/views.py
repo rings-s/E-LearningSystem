@@ -85,9 +85,22 @@ class CourseListCreateView(generics.ListCreateAPIView):
         ).annotate(
             avg_rating=Avg('reviews__rating'),
             enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True))
-        ).order_by('-created_at', 'id')  # Explicit ordering with tiebreaker
+        ).order_by('-created_at', 'id')
         
         return queryset
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return CourseCreateUpdateSerializer
+        return CourseListSerializer
+    
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsAuthenticated(), CanCreateCourse()]
+        return [AllowAny()]
+        
+    def perform_create(self, serializer):
+        serializer.save(instructor=self.request.user)
 
 
 class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):

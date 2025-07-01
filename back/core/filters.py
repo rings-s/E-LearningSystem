@@ -4,6 +4,7 @@ import django_filters
 from django.db.models import Q
 from django.core.exceptions import ValidationError
 from .models import Discussion, Notification, ActivityLog, Announcement
+from .utils import validate_uuid
 import uuid  # Use built-in uuid module
 
 class UUIDFilter(django_filters.CharFilter):

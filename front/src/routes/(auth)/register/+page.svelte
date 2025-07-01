@@ -226,40 +226,53 @@
   <title>{$t('auth.register')} - EduVerse</title>
 </svelte:head>
 
-<div class="min-h-screen  py-12 sm:py-16">
-  <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
+  <!-- Background Elements -->
+  <div class="absolute inset-0 overflow-hidden">
+    <div class="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
+    <div class="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
+    <div class="absolute top-40 left-40 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
+  </div>
+
+  <div class="relative w-full max-w-4xl mx-auto">
     <!-- Header -->
     <div class="text-center mb-8">
-      <Logo size="large" showText={false} class="mx-auto mb-6" />
-      <h1 class="text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">
+      <div class="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full mb-4">
+        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"></path>
+        </svg>
+      </div>
+      <h1 class="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-2">
         {$t('auth.createAccount')}
       </h1>
-      <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+      <p class="text-gray-600">
         {$t('auth.alreadyHaveAccount')}
-        <a href="/login" class="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 transition-colors">
+        <a href="/login" class="text-blue-600 hover:text-blue-800 font-semibold hover:underline transition-colors">
           {$t('auth.login')}
         </a>
       </p>
     </div>
 
-    <Card variant="bordered" padding="large" class="backdrop-blur-sm bg-white/90 dark:bg-gray-800/90">
+    <!-- Main Card -->
+    <div class="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 p-8 relative overflow-hidden">
       <!-- Progress Steps -->
       <div class="mb-8">
-        <nav aria-label="Progress">
-          <ol class="flex items-center">
+        <nav aria-label="Progress" class="rtl:space-x-reverse">
+          <ol class="flex items-center justify-between">
             {#each steps as step, index}
-              <li class="relative {index !== steps.length - 1 ? 'flex-1 pr-8 sm:pr-20' : ''}">
-                <!-- Step indicator -->
-                <div class="flex items-center">
-                  <div class="flex items-center justify-center w-10 h-10 rounded-full transition-all duration-300 transform {
+              <li class="relative flex-1 group">
+                <!-- Step Content -->
+                <div class="flex flex-col items-center text-center">
+                  <!-- Step Circle -->
+                  <div class="relative z-10 flex items-center justify-center w-12 h-12 rounded-full transition-all duration-300 transform mb-2 {
                     index < currentStep
-                      ? 'bg-gradient-to-br from-primary-600 to-primary-700 text-white scale-90'
+                      ? 'bg-gradient-to-br from-blue-600 to-purple-700 text-white scale-100 shadow-xl'
                       : index === currentStep
-                      ? 'border-2 border-primary-600 bg-white text-primary-600 dark:bg-gray-800 scale-110 ring-4 ring-primary-100 dark:ring-primary-900/30'
-                      : 'border-2 border-gray-300 bg-white text-gray-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                      ? 'border-2 border-blue-600 bg-white text-blue-600 scale-110 ring-4 ring-blue-500/20 shadow-lg'
+                      : 'border-2 border-gray-300 bg-white text-gray-500 hover:border-gray-400 transition-colors'
                   }">
                     {#if index < currentStep}
-                      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                      <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
                       </svg>
                     {:else}
@@ -267,25 +280,26 @@
                     {/if}
                   </div>
                   
-                  <div class="ml-4 min-w-0 hidden sm:block">
-                    <span class="text-sm font-medium {
+                  <!-- Step Info -->
+                  <div class="min-w-0">
+                    <span class="text-sm font-semibold {
                       index === currentStep
-                        ? 'text-primary-600 dark:text-primary-400'
+                        ? 'text-blue-600'
                         : index < currentStep
-                        ? 'text-gray-900 dark:text-white'
-                        : 'text-gray-500 dark:text-gray-400'
+                        ? 'text-gray-900'
+                        : 'text-gray-500'
                     }">{step.title}</span>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">{step.description}</p>
+                    <p class="text-xs text-gray-500 mt-1 hidden sm:block">{step.description}</p>
                   </div>
                 </div>
 
-                <!-- Connector line -->
+                <!-- Connector Line -->
                 {#if index !== steps.length - 1}
-                  <div class="absolute top-5 left-10 w-full h-0.5 transition-all duration-500 {
+                  <div class="absolute top-6 left-1/2 w-full h-0.5 -translate-y-1/2 transition-all duration-500 rtl:right-1/2 rtl:left-auto {
                     index < currentStep 
-                      ? 'bg-gradient-to-r from-primary-600 to-primary-500' 
-                      : 'bg-gray-300 dark:bg-gray-600'
-                  }"></div>
+                      ? 'bg-gradient-to-r from-blue-600 to-purple-500' 
+                      : 'bg-gray-300'
+                  } hidden sm:block"></div>
                 {/if}
               </li>
             {/each}
@@ -298,11 +312,14 @@
         {#if currentStep === 0}
           <!-- Step 1: Account Type -->
           <div class="space-y-6">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">
-              {$t('auth.chooseAccountType')}
-            </h3>
+            <div class="text-center">
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">
+                {$t('auth.chooseAccountType')}
+              </h3>
+              <p class="text-gray-600">{$t('auth.chooseRole')}</p>
+            </div>
             
-            <div class="grid gap-4">
+            <div class="grid gap-4 max-w-2xl mx-auto">
               {#each roleOptions as option}
                 <button
                   type="button"
@@ -310,11 +327,11 @@
                   class={classNames(
                     'relative p-6 border-2 rounded-2xl text-left transition-all duration-300 group transform',
                     formData.role === option.value 
-                      ? 'border-primary-500 bg-gradient-to-br from-primary-50 to-primary-100/50 dark:from-primary-900/20 dark:to-primary-800/10 ring-4 ring-primary-500/20 scale-[1.02] shadow-xl' 
-                      : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-lg hover:scale-[1.01] hover:ring-2 hover:ring-gray-200 dark:hover:ring-gray-700'
+                      ? 'border-blue-500 bg-gradient-to-br from-blue-50 to-purple-50 ring-4 ring-blue-500/20 scale-[1.02] shadow-xl' 
+                      : 'border-gray-200 hover:border-gray-300 hover:shadow-lg hover:scale-[1.01] hover:ring-2 hover:ring-gray-200'
                   )}
                 >
-                  <div class="flex items-start gap-4">
+                  <div class="flex items-start gap-4 rtl:flex-row-reverse">
                     <div class={classNames(
                       'w-14 h-14 rounded-xl bg-gradient-to-br flex items-center justify-center transition-all duration-300 shadow-lg',
                       option.gradient,
@@ -324,17 +341,17 @@
                         {@html option.icon}
                       </svg>
                     </div>
-                    <div class="flex-1">
-                      <h4 class="font-semibold text-gray-900 dark:text-white text-lg">
+                    <div class="flex-1 rtl:text-right">
+                      <h4 class="font-semibold text-gray-900 text-lg">
                         {option.label}
                       </h4>
-                      <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                      <p class="text-sm text-gray-600 mt-1">
                         {option.description}
                       </p>
                     </div>
                     {#if formData.role === option.value}
                       <div class="flex-shrink-0 animate-bounce">
-                        <div class="w-6 h-6 bg-gradient-to-br from-primary-500 to-primary-600 rounded-full flex items-center justify-center shadow-lg ring-4 ring-primary-500/20">
+                        <div class="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg ring-4 ring-blue-500/20">
                           <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
                           </svg>
@@ -347,108 +364,219 @@
             </div>
             
             {#if getFieldError('role')}
-              <p class="text-sm text-red-600 dark:text-red-400 flex items-center gap-1">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div class="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center space-x-2 rtl:space-x-reverse">
+                <svg class="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                {getFieldError('role')}
-              </p>
+                <p class="text-red-700 text-sm font-medium">{getFieldError('role')}</p>
+              </div>
             {/if}
           </div>
         {:else if currentStep === 1}
           <!-- Step 2: Personal Information -->
           <div class="space-y-6">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">
-              {$t('auth.tellUsAboutYou')}
-            </h3>
+            <div class="text-center">
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">
+                {$t('auth.tellUsAboutYou')}
+              </h3>
+              <p class="text-gray-600">{$t('auth.personalInfo')}</p>
+            </div>
             
-            <div class="space-y-4">
+            <div class="space-y-4 max-w-2xl mx-auto">
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField
-                  name="first_name"
-                  label={$t('auth.firstName')}
-                  bind:value={formData.first_name}
-                  error={getFieldError('first_name')}
-                  onblur={() => handleFieldBlur('first_name')}
-                  required
-                  placeholder={$t('auth.enterFirstName')}
-                  icon='<path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />'
-                />
+                <div class="relative">
+                  <label class="block text-sm font-semibold text-gray-700 mb-2 rtl:text-right">{$t('auth.firstName')}</label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none rtl:right-0 rtl:left-auto rtl:pr-3 rtl:pl-0">
+                      <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <input 
+                      type="text"
+                      bind:value={formData.first_name}
+                      onblur={() => handleFieldBlur('first_name')}
+                      required
+                      class="w-full pl-10 pr-4 py-3 border-2 rounded-xl transition-all duration-200 border-gray-200 hover:border-gray-300
+                             focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10
+                             bg-white/50 backdrop-blur-sm rtl:pr-10 rtl:pl-4"
+                      placeholder={$t('auth.enterFirstName')}
+                    />
+                  </div>
+                  {#if getFieldError('first_name')}
+                    <p class="text-red-600 text-sm mt-1 flex items-center gap-1 rtl:flex-row-reverse">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {getFieldError('first_name')}
+                    </p>
+                  {/if}
+                </div>
                 
-                <FormField
-                  name="last_name"
-                  label={$t('auth.lastName')}
-                  bind:value={formData.last_name}
-                  error={getFieldError('last_name')}
-                  onblur={() => handleFieldBlur('last_name')}
-                  required
-                  placeholder={$t('auth.enterLastName')}
-                />
+                <div class="relative">
+                  <label class="block text-sm font-semibold text-gray-700 mb-2 rtl:text-right">{$t('auth.lastName')}</label>
+                  <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none rtl:right-0 rtl:left-auto rtl:pr-3 rtl:pl-0">
+                      <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <input 
+                      type="text"
+                      bind:value={formData.last_name}
+                      onblur={() => handleFieldBlur('last_name')}
+                      required
+                      class="w-full pl-10 pr-4 py-3 border-2 rounded-xl transition-all duration-200 border-gray-200 hover:border-gray-300
+                             focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10
+                             bg-white/50 backdrop-blur-sm rtl:pr-10 rtl:pl-4"
+                      placeholder={$t('auth.enterLastName')}
+                    />
+                  </div>
+                  {#if getFieldError('last_name')}
+                    <p class="text-red-600 text-sm mt-1 flex items-center gap-1 rtl:flex-row-reverse">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {getFieldError('last_name')}
+                    </p>
+                  {/if}
+                </div>
               </div>
 
-              <FormField
-                type="email"
-                name="email"
-                label={$t('auth.email')}
-                bind:value={formData.email}
-                error={getFieldError('email')}
-                onblur={() => handleFieldBlur('email')}
-                required
-                placeholder={$t('auth.enterEmail')}
-                icon='<path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />'
-              />
+              <div class="relative">
+                <label class="block text-sm font-semibold text-gray-700 mb-2 rtl:text-right">{$t('auth.email')}</label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none rtl:right-0 rtl:left-auto rtl:pr-3 rtl:pl-0">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <input 
+                    type="email"
+                    bind:value={formData.email}
+                    onblur={() => handleFieldBlur('email')}
+                    required
+                    class="w-full pl-10 pr-4 py-3 border-2 rounded-xl transition-all duration-200 border-gray-200 hover:border-gray-300
+                           focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10
+                           bg-white/50 backdrop-blur-sm rtl:pr-10 rtl:pl-4"
+                    placeholder={$t('auth.enterEmail')}
+                  />
+                </div>
+                {#if getFieldError('email')}
+                  <p class="text-red-600 text-sm mt-1 flex items-center gap-1 rtl:flex-row-reverse">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {getFieldError('email')}
+                  </p>
+                {/if}
+              </div>
 
-              <FormField
-                type="tel"
-                name="phone_number"
-                label="{$t('auth.phoneNumber')} ({$t('common.optional')})"
-                bind:value={formData.phone_number}
-                error={getFieldError('phone_number')}
-                onblur={() => handleFieldBlur('phone_number')}
-                placeholder="+1234567890"
-                icon='<path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />'
-              />
+              <div class="relative">
+                <label class="block text-sm font-semibold text-gray-700 mb-2 rtl:text-right">{$t('auth.phoneNumber')} ({$t('common.optional')})</label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none rtl:right-0 rtl:left-auto rtl:pr-3 rtl:pl-0">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </div>
+                  <input 
+                    type="tel"
+                    bind:value={formData.phone_number}
+                    onblur={() => handleFieldBlur('phone_number')}
+                    class="w-full pl-10 pr-4 py-3 border-2 rounded-xl transition-all duration-200 border-gray-200 hover:border-gray-300
+                           focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10
+                           bg-white/50 backdrop-blur-sm rtl:pr-10 rtl:pl-4"
+                    placeholder="+1234567890"
+                  />
+                </div>
+                {#if getFieldError('phone_number')}
+                  <p class="text-red-600 text-sm mt-1 flex items-center gap-1 rtl:flex-row-reverse">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {getFieldError('phone_number')}
+                  </p>
+                {/if}
+              </div>
 
-              <FormField
-                type="date"
-                name="date_of_birth"
-                label="{$t('auth.dateOfBirth')} ({$t('common.optional')})"
-                bind:value={formData.date_of_birth}
-                error={getFieldError('date_of_birth')}
-                onblur={() => handleFieldBlur('date_of_birth')}
-                icon='<path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />'
-              />
+              <div class="relative">
+                <label class="block text-sm font-semibold text-gray-700 mb-2 rtl:text-right">{$t('auth.dateOfBirth')} ({$t('common.optional')})</label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none rtl:right-0 rtl:left-auto rtl:pr-3 rtl:pl-0">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <input 
+                    type="date"
+                    bind:value={formData.date_of_birth}
+                    onblur={() => handleFieldBlur('date_of_birth')}
+                    class="w-full pl-10 pr-4 py-3 border-2 rounded-xl transition-all duration-200 border-gray-200 hover:border-gray-300
+                           focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10
+                           bg-white/50 backdrop-blur-sm rtl:pr-10 rtl:pl-4"
+                  />
+                </div>
+                {#if getFieldError('date_of_birth')}
+                  <p class="text-red-600 text-sm mt-1 flex items-center gap-1 rtl:flex-row-reverse">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {getFieldError('date_of_birth')}
+                  </p>
+                {/if}
+              </div>
             </div>
           </div>
         {:else if currentStep === 2}
           <!-- Step 3: Security -->
           <div class="space-y-6">
-            <h3 class="text-lg font-medium text-gray-900 dark:text-white">
-              {$t('auth.secureAccount')}
-            </h3>
+            <div class="text-center">
+              <h3 class="text-xl font-semibold text-gray-900 mb-2">
+                {$t('auth.secureAccount')}
+              </h3>
+              <p class="text-gray-600">{$t('auth.security')}</p>
+            </div>
             
-            <div class="space-y-4">
-              <FormField
-                type="password"
-                name="password"
-                label={$t('auth.password')}
-                bind:value={formData.password}
-                error={getFieldError('password')}
-                onblur={() => handleFieldBlur('password')}
-                required
-                placeholder={$t('auth.enterPassword')}
-                icon='<path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />'
-              />
+            <div class="space-y-4 max-w-2xl mx-auto">
+              <div class="relative">
+                <label class="block text-sm font-semibold text-gray-700 mb-2 rtl:text-right">{$t('auth.password')}</label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none rtl:right-0 rtl:left-auto rtl:pr-3 rtl:pl-0">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <input 
+                    type="password"
+                    bind:value={formData.password}
+                    onblur={() => handleFieldBlur('password')}
+                    required
+                    class="w-full pl-10 pr-4 py-3 border-2 rounded-xl transition-all duration-200 border-gray-200 hover:border-gray-300
+                           focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10
+                           bg-white/50 backdrop-blur-sm rtl:pr-10 rtl:pl-4"
+                    placeholder={$t('auth.enterPassword')}
+                  />
+                </div>
+                {#if getFieldError('password')}
+                  <p class="text-red-600 text-sm mt-1 flex items-center gap-1 rtl:flex-row-reverse">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {getFieldError('password')}
+                  </p>
+                {/if}
+              </div>
 
               {#if formData.password}
                 <div class="space-y-2">
-                  <div class="flex justify-between items-center">
-                    <span class="text-sm text-gray-600 dark:text-gray-400">{$t('auth.passwordStrength')}:</span>
+                  <div class="flex justify-between items-center rtl:flex-row-reverse">
+                    <span class="text-sm text-gray-600">{$t('auth.passwordStrength')}:</span>
                     <span class="text-sm font-medium" style="color: {passwordStrength.color}">
                       {passwordStrength.text}
                     </span>
                   </div>
-                  <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+                  <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                     <div 
                       class="h-2 rounded-full transition-all duration-500 ease-out"
                       style="width: {(passwordStrength.score / 5) * 100}%; background-color: {passwordStrength.color}"
@@ -457,25 +585,42 @@
                 </div>
               {/if}
 
-              <FormField
-                type="password"
-                name="confirm_password"
-                label={$t('auth.confirmPassword')}
-                bind:value={formData.confirm_password}
-                error={getFieldError('confirm_password')}
-                onblur={() => handleFieldBlur('confirm_password')}
-                required
-                placeholder={$t('auth.reenterPassword')}
-                icon='<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />'
-              />
+              <div class="relative">
+                <label class="block text-sm font-semibold text-gray-700 mb-2 rtl:text-right">{$t('auth.confirmPassword')}</label>
+                <div class="relative">
+                  <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none rtl:right-0 rtl:left-auto rtl:pr-3 rtl:pl-0">
+                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <input 
+                    type="password"
+                    bind:value={formData.confirm_password}
+                    onblur={() => handleFieldBlur('confirm_password')}
+                    required
+                    class="w-full pl-10 pr-4 py-3 border-2 rounded-xl transition-all duration-200 border-gray-200 hover:border-gray-300
+                           focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10
+                           bg-white/50 backdrop-blur-sm rtl:pr-10 rtl:pl-4"
+                    placeholder={$t('auth.reenterPassword')}
+                  />
+                </div>
+                {#if getFieldError('confirm_password')}
+                  <p class="text-red-600 text-sm mt-1 flex items-center gap-1 rtl:flex-row-reverse">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {getFieldError('confirm_password')}
+                  </p>
+                {/if}
+              </div>
 
               <div class="pt-4">
-                <div class="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4">
-                  <p class="text-xs text-gray-600 dark:text-gray-400">
+                <div class="bg-gray-50 rounded-lg p-4">
+                  <p class="text-xs text-gray-600 rtl:text-right">
                     {$t('auth.termsAgreement')} 
-                    <a href="/terms" class="text-primary-600 hover:text-primary-500 dark:text-primary-400 underline">{$t('auth.termsOfService')}</a> 
+                    <a href="/terms" class="text-blue-600 hover:text-blue-800 underline">{$t('auth.termsOfService')}</a> 
                     {$t('common.and')} 
-                    <a href="/privacy" class="text-primary-600 hover:text-primary-500 dark:text-primary-400 underline">{$t('auth.privacyPolicy')}</a>
+                    <a href="/privacy" class="text-blue-600 hover:text-blue-800 underline">{$t('auth.privacyPolicy')}</a>
                   </p>
                 </div>
               </div>
@@ -484,50 +629,93 @@
         {/if}
 
         <!-- Navigation Buttons -->
-        <div class="flex justify-between pt-8 border-t border-gray-200 dark:border-gray-700">
-          <Button
-            variant="outline"
+        <div class="flex justify-between pt-8 border-t border-gray-200 rtl:flex-row-reverse">
+          <button
             onclick={prevStep}
             disabled={currentStep === 0}
-            class="min-w-[100px]"
+            class="min-w-[100px] px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-xl
+                   hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed
+                   focus:outline-none focus:ring-4 focus:ring-gray-500/20"
           >
             {$t('common.previous')}
-          </Button>
+          </button>
           
           <div class="flex gap-2">
             {#if currentStep < 2}
-              <Button
-                variant="primary"
+              <button
                 onclick={nextStep}
                 disabled={!canProceed}
-                class="min-w-[100px]"
+                class="min-w-[100px] bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-xl
+                       hover:from-blue-700 hover:to-purple-700 transition-all duration-200 transform hover:scale-[1.02]
+                       focus:outline-none focus:ring-4 focus:ring-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed
+                       disabled:hover:scale-100 shadow-lg hover:shadow-xl"
               >
                 {$t('common.next')}
-              </Button>
+              </button>
             {:else}
-              <Button
-                variant="primary"
-                loading={loading}
-                disabled={!canProceed || loading}
+              <button
                 onclick={handleSubmit}
-                class="min-w-[150px]"
+                disabled={!canProceed || loading}
+                class="min-w-[150px] bg-gradient-to-r from-blue-600 to-purple-600 text-white font-semibold py-3 px-6 rounded-xl
+                       hover:from-blue-700 hover:to-purple-700 transition-all duration-200 transform hover:scale-[1.02]
+                       focus:outline-none focus:ring-4 focus:ring-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed
+                       disabled:hover:scale-100 shadow-lg hover:shadow-xl"
               >
-                {loading ? $t('common.creating') : $t('auth.createAccount')}
-              </Button>
+                {#if loading}
+                  <div class="flex items-center justify-center rtl:flex-row-reverse">
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white rtl:ml-3 rtl:mr-1" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    {$t('common.creating')}
+                  </div>
+                {:else}
+                  {$t('auth.createAccount')}
+                {/if}
+              </button>
             {/if}
           </div>
         </div>
       </div>
-    </Card>
+    </div>
 
     <!-- Footer -->
-    <div class="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
+    <div class="mt-6 text-center text-sm text-gray-600">
       <p>
         {$t('auth.needHelp')} 
-        <a href="/help" class="font-medium text-primary-600 hover:text-primary-500 dark:text-primary-400 transition-colors">
+        <a href="/help" class="font-medium text-blue-600 hover:text-blue-800 transition-colors">
           {$t('auth.contactSupport')}
         </a>
       </p>
     </div>
   </div>
 </div>
+
+<style>
+  @keyframes blob {
+    0% {
+      transform: translate(0px, 0px) scale(1);
+    }
+    33% {
+      transform: translate(30px, -50px) scale(1.1);
+    }
+    66% {
+      transform: translate(-20px, 20px) scale(0.9);
+    }
+    100% {
+      transform: translate(0px, 0px) scale(1);
+    }
+  }
+  
+  .animate-blob {
+    animation: blob 7s infinite;
+  }
+  
+  .animation-delay-2000 {
+    animation-delay: 2s;
+  }
+  
+  .animation-delay-4000 {
+    animation-delay: 4s;
+  }
+</style>

@@ -14,6 +14,14 @@ from django.http import Http404
 import uuid  # Use built-in uuid module
 
 
+def validate_uuid(value):
+    """Validate that the value is a valid UUID"""
+    try:
+        uuid.UUID(str(value))
+    except (ValueError, TypeError):
+        raise ValidationError("Invalid UUID format")
+
+
 logger = logging.getLogger(__name__)
 channel_layer = get_channel_layer()
 
