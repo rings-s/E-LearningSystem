@@ -253,7 +253,31 @@ export default {
 		markComplete: 'Mark as Complete',
 		preview: 'Preview',
 		locked: 'Locked',
-		comingSoon: 'Coming Soon'
+		comingSoon: 'Coming Soon',
+		aboutThisCourse: 'About This Course',
+		whatYoullLearn: "What You'll Learn",
+		prerequisites: 'Prerequisites',
+		courseCurriculum: 'Course Curriculum',
+		meetYourInstructor: 'Meet Your Instructor',
+		studentReviews: 'Student Reviews',
+		noReviewsYet: 'No reviews yet',
+		beFirstToReview: 'Be the first to leave a review!',
+		courseDetails: 'Course Details',
+		students: 'students',
+		totalLength: 'total length',
+		yes: 'Yes',
+		free: 'Free',
+		lifetimeAccess: 'Lifetime access',
+		certificateIncluded: 'Certificate included',
+		shareCourse: 'Share Course',
+		addToFavorites: 'Add to Favorites',
+		removeFromFavorites: 'Remove from Favorites',
+		enrolling: 'Enrolling...',
+		previewComingSoon: 'Preview Coming Soon',
+		courseNotFound: 'Course Not Found',
+		courseNotFoundDesc: "The course you're looking for doesn't exist or has been removed.",
+		browseAllCourses: 'Browse All Courses',
+		viewMyCourses: 'View My Courses'
 	},
 
 	dashboard: {
@@ -295,5 +319,21 @@ export default {
 		print: 'Print',
 		export: 'Export',
 		import: 'Import'
+	},
+
+	share: {
+		shareOn: 'Share on',
+		shareThisCourse: 'Share This Course',
+		shareWith: 'Share with',
+		facebook: 'Facebook',
+		twitter: 'Twitter',
+		linkedin: 'LinkedIn',
+		whatsapp: 'WhatsApp',
+		telegram: 'Telegram',
+		email: 'Email',
+		copyLink: 'Copy Link',
+		linkCopied: 'Link Copied!',
+		shareMessage: 'Check out this amazing course: {title}',
+		shareFailed: 'Failed to share'
 	}
 };

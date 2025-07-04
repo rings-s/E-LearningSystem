@@ -15,7 +15,7 @@
 		children
 	} = $props();
 
-	let modalElement;
+	let modalElement = $state();
 
 	const sizes = {
 		small: 'max-w-md',
@@ -59,7 +59,7 @@
 			transition:fade={{ duration: 200 }}
 			onclick={handleBackdropClick}
 			aria-hidden="true"
-		/>
+		></div>
 
 		<!-- Modal -->
 		<div class="flex min-h-screen items-center justify-center p-4">

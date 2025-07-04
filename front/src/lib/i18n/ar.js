@@ -156,7 +156,31 @@ export default {
 		markComplete: 'وضع علامة مكتمل',
 		preview: 'معاينة',
 		locked: 'مقفل',
-		comingSoon: 'قريباً'
+		comingSoon: 'قريباً',
+		aboutThisCourse: 'عن هذه الدورة',
+		whatYoullLearn: 'ما ستتعلمه',
+		prerequisites: 'المتطلبات الأساسية',
+		courseCurriculum: 'منهج الدورة',
+		meetYourInstructor: 'تعرف على مدرسك',
+		studentReviews: 'تقييمات الطلاب',
+		noReviewsYet: 'لا توجد تقييمات بعد',
+		beFirstToReview: 'كن أول من يترك تقييماً!',
+		courseDetails: 'تفاصيل الدورة',
+		students: 'طلاب',
+		totalLength: 'المدة الإجمالية',
+		yes: 'نعم',
+		free: 'مجاني',
+		lifetimeAccess: 'وصول مدى الحياة',
+		certificateIncluded: 'شهادة مضمنة',
+		shareCourse: 'مشاركة الدورة',
+		addToFavorites: 'إضافة للمفضلة',
+		removeFromFavorites: 'إزالة من المفضلة',
+		enrolling: 'جاري التسجيل...',
+		previewComingSoon: 'المعاينة قريباً',
+		courseNotFound: 'الدورة غير موجودة',
+		courseNotFoundDesc: 'الدورة التي تبحث عنها غير موجودة أو تم حذفها.',
+		browseAllCourses: 'تصفح جميع الدورات',
+		viewMyCourses: 'عرض دوراتي'
 	},
 
 	dashboard: {
@@ -229,5 +253,21 @@ export default {
 		print: 'طباعة',
 		export: 'تصدير',
 		import: 'استيراد'
+	},
+
+	share: {
+		shareOn: 'شارك على',
+		shareThisCourse: 'شارك هذه الدورة',
+		shareWith: 'شارك مع',
+		facebook: 'فيسبوك',
+		twitter: 'تويتر',
+		linkedin: 'لينكد إن',
+		whatsapp: 'واتساب',
+		telegram: 'تيليجرام',
+		email: 'البريد الإلكتروني',
+		copyLink: 'نسخ الرابط',
+		linkCopied: 'تم نسخ الرابط!',
+		shareMessage: 'اكتشف هذه الدورة الرائعة: {title}',
+		shareFailed: 'فشل في المشاركة'
 	}
 };

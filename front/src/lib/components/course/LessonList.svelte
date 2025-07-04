@@ -165,7 +165,7 @@
 									{lesson.title}
 								</h5>
 								<div class="mt-1 flex items-center gap-3 text-xs text-gray-500 dark:text-gray-400">
-									<span>{formatters.duration(lesson.estimated_time_minutes * 60)}</span>
+									<span>{formatters.duration((lesson.estimated_time_minutes || 0) * 60)}</span>
 									{#if lesson.is_preview}
 										<span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-700">
 											{$t('course.preview')}

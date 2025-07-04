@@ -9,7 +9,13 @@ export const coursesApi = {
 	},
 
 	async getCourse(uuid) {
-		return api.get(`/courses/${uuid}/`);
+		try {
+			const response = await api.get(`/courses/${uuid}/`);
+			return response;
+		} catch (error) {
+			console.error('Failed to get course:', error);
+			throw error;
+		}
 	},
 
 	async createCourse(data) {
@@ -39,7 +45,13 @@ export const coursesApi = {
 
 	// Enrollments
 	async getMyEnrollments() {
-		return api.get('/enrollments/my-courses/');
+		try {
+			const response = await api.get('/enrollments/my-courses/');
+			return response;
+		} catch (error) {
+			console.error('Failed to get enrollments:', error);
+			throw error;
+		}
 	},
 
 	async getEnrollment(uuid) {
@@ -65,7 +77,13 @@ export const coursesApi = {
 	},
 
 	async getLesson(uuid) {
-		return api.get(`/lessons/${uuid}/`);
+		try {
+			const response = await api.get(`/lessons/${uuid}/`);
+			return response;
+		} catch (error) {
+			console.error('Failed to get lesson:', error);
+			throw error;
+		}
 	},
 
 	async createLesson(data) {
@@ -81,11 +99,23 @@ export const coursesApi = {
 	},
 
 	async getLessonNotes(uuid) {
-		return api.get(`/lessons/${uuid}/notes/`);
+		try {
+			const response = await api.get(`/lessons/${uuid}/notes/`);
+			return response;
+		} catch (error) {
+			console.error('Failed to get lesson notes:', error);
+			return { notes: '' }; // Return empty notes on error
+		}
 	},
 
 	async saveLessonNotes(uuid, notes) {
-		return api.patch(`/lessons/${uuid}/notes/`, { notes });
+		try {
+			const response = await api.patch(`/lessons/${uuid}/notes/`, { notes });
+			return response;
+		} catch (error) {
+			console.error('Failed to save lesson notes:', error);
+			throw error;
+		}
 	},
 
 	// Quizzes
@@ -125,5 +155,35 @@ export const coursesApi = {
 
 	async verifyCertificate(uuid) {
 		return api.get(`/certificates/${uuid}/verify/`);
+	},
+
+	// Favorites (placeholder - to be implemented in backend)
+	async addToFavorites(courseUuid) {
+		// For now, store in localStorage until backend is implemented
+		const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+		if (!favorites.includes(courseUuid)) {
+			favorites.push(courseUuid);
+			localStorage.setItem('favorites', JSON.stringify(favorites));
+		}
+		return { success: true };
+	},
+
+	async removeFromFavorites(courseUuid) {
+		// For now, store in localStorage until backend is implemented
+		const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+		const updatedFavorites = favorites.filter(uuid => uuid !== courseUuid);
+		localStorage.setItem('favorites', JSON.stringify(updatedFavorites));
+		return { success: true };
+	},
+
+	async getFavorites() {
+		// For now, get from localStorage until backend is implemented
+		return JSON.parse(localStorage.getItem('favorites') || '[]');
+	},
+
+	async isFavorite(courseUuid) {
+		// For now, check localStorage until backend is implemented
+		const favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+		return favorites.includes(courseUuid);
 	}
 };

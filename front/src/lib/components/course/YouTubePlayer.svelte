@@ -90,13 +90,18 @@
 	}
 
 	function handlePlayerReady(event) {
-		playerReady = true;
-		duration = player.getDuration();
-		onReady(event);
+		try {
+			playerReady = true;
+			duration = player.getDuration() || 0;
+			onReady(event);
 
-		// Start progress tracking
-		if (isPlaying) {
-			startProgressTracking();
+			// Start progress tracking
+			if (isPlaying) {
+				startProgressTracking();
+			}
+		} catch (error) {
+			console.error('YouTube player ready error:', error);
+			playerReady = false;
 		}
 	}
 
@@ -119,15 +124,20 @@
 		if (progressInterval) return;
 
 		progressInterval = setInterval(() => {
-			if (player && playerReady) {
-				currentTime = player.getCurrentTime();
-				const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+			try {
+				if (player && playerReady && typeof player.getCurrentTime === 'function') {
+					currentTime = player.getCurrentTime() || 0;
+					const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-				onProgress({
-					currentTime,
-					duration,
-					progress
-				});
+					onProgress({
+						currentTime,
+						duration,
+						progress
+					});
+				}
+			} catch (error) {
+				console.error('Progress tracking error:', error);
+				stopProgressTracking();
 			}
 		}, 1000);
 	}

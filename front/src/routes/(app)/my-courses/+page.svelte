@@ -21,8 +21,10 @@
 
 	// Filtered enrollments based on search and filter
 	let filteredEnrollments = $derived(() => {
-		let filtered = enrollments;
+		const currentEnrollments = Array.isArray(enrollments) ? enrollments : [];
 		
+		let filtered = [...currentEnrollments];
+
 		// Apply status filter
 		if (activeFilter !== 'all') {
 			filtered = filtered.filter(e => e.status === activeFilter);
@@ -31,11 +33,12 @@
 		// Apply search filter
 		if (searchQuery.trim()) {
 			const query = searchQuery.toLowerCase();
-			filtered = filtered.filter(e => 
-				e.course.title.toLowerCase().includes(query) ||
-				e.course.instructor_name?.toLowerCase().includes(query) ||
-				e.course.category?.name?.toLowerCase().includes(query)
-			);
+			filtered = filtered.filter(e => {
+				const title = e.course?.title?.toLowerCase() || '';
+				const instructor = e.course?.instructor_name?.toLowerCase() || '';
+				const category = e.course?.category_name?.toLowerCase() || '';
+				return title.includes(query) || instructor.includes(query) || category.includes(query);
+			});
 		}
 		
 		return filtered;
@@ -43,11 +46,13 @@
 
 	// Statistics for the overview cards
 	let stats = $derived(() => {
-		const total = enrollments.length;
-		const completed = enrollments.filter(e => e.status === 'completed').length;
-		const inProgress = enrollments.filter(e => e.status === 'in_progress').length;
+		const currentEnrollments = Array.isArray(enrollments) ? enrollments : [];
+
+		const total = currentEnrollments.length;
+		const completed = currentEnrollments.filter(e => e.status === 'completed').length;
+		const inProgress = currentEnrollments.filter(e => e.status === 'in_progress').length;
 		const avgProgress = total > 0 
-			? Math.round(enrollments.reduce((sum, e) => sum + (e.progress_percentage || 0), 0) / total)
+			? Math.round(currentEnrollments.reduce((sum, e) => sum + (Number(e.progress_percentage) || 0), 0) / total)
 			: 0;
 			
 		return { total, completed, inProgress, avgProgress };
@@ -68,9 +73,11 @@
 	const fetchEnrollments = async () => {
 		try {
 			const response = await coursesApi.getMyEnrollments();
-			enrollments = response.results || response;
+			// Backend returns direct array, not paginated results
+			enrollments = Array.isArray(response) ? response : [];
 		} catch (error) {
 			console.error('Failed to fetch enrollments:', error);
+			enrollments = [];
 		} finally {
 			loading = false;
 		}
@@ -87,12 +94,19 @@
 	};
 
 	const formatDate = (dateString) => {
-		const date = new Date(dateString);
-		return date.toLocaleDateString('en-US', { 
-			month: 'short', 
-			day: 'numeric', 
-			year: 'numeric' 
-		});
+		if (!dateString) return 'N/A';
+		try {
+			const date = new Date(dateString);
+			if (isNaN(date.getTime())) return 'Invalid Date';
+			return date.toLocaleDateString('en-US', { 
+				month: 'short', 
+				day: 'numeric', 
+				year: 'numeric' 
+			});
+		} catch (error) {
+			console.error('Date formatting error:', error);
+			return 'Invalid Date';
+		}
 	};
 
 	const getProgressColor = (progress) => {
@@ -234,7 +248,7 @@
 					</div>
 				{/each}
 			</div>
-		{:else if enrollments.length === 0}
+		{:else if !loading && enrollments.length === 0}
 			<!-- Empty State -->
 			<div in:fade={{ duration: 500 }}>
 				<Card variant="bordered" class="py-20 text-center shadow-lg">
@@ -246,12 +260,20 @@
 						<p class="mx-auto mb-8 max-w-md text-lg text-gray-600 dark:text-gray-400">
 							Discover thousands of courses from world-class instructors and begin building your skills today.
 						</p>
-						<Button href="/courses" variant="primary" size="large" class="transition-all hover:scale-105">
-							<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-							</svg>
-							Explore Courses
-						</Button>
+						<div class="flex flex-col gap-4 sm:flex-row sm:justify-center">
+							<Button href="/courses" variant="primary" size="large" class="transition-all hover:scale-105">
+								<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+								</svg>
+								Explore Courses
+							</Button>
+							<Button onclick={() => fetchEnrollments()} variant="outline" size="large">
+								<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+								</svg>
+								Retry
+							</Button>
+						</div>
 					</div>
 				</Card>
 			</div>
@@ -329,7 +351,7 @@
 										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
 										</svg>
-										<span>{enrollment.course.instructor_name}</span>
+										<span>{enrollment.course.instructor_name || 'Unknown Instructor'}</span>
 									</div>
 									{#if enrollment.course.level}
 										<Badge variant="outline" size="small">

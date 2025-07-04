@@ -40,14 +40,14 @@
 		try {
 			course = await coursesApi.getCourse(courseId);
 		} catch (error) {
-			console.error('Failed to fetch course:', error);
+			// Fail silently, as the main data is the notes themselves
 		}
 	};
 
 	const fetchNotesData = async () => {
 		loading = true;
 		try {
-			const courseData = await coursesApi.getCourse(courseId);
+			const courseData = await coursesApi.getCourse(courseId, { cache: 'no-store' });
 			if (!courseData.modules) return;
 
 			const allLessons = courseData.modules.flatMap(module =>
@@ -61,7 +61,7 @@
 			const lessonsWithNotesData = await Promise.all(
 				allLessons.map(async (lesson) => {
 					try {
-						const notesResponse = await coursesApi.getLessonNotes(lesson.uuid);
+						const notesResponse = await coursesApi.getLessonNotes(lesson.uuid, { cache: 'no-store' });
 						return {
 							...lesson,
 							notes: notesResponse.notes || '',
@@ -80,7 +80,7 @@
 			// Only show lessons that have notes
 			lessonsWithNotes = lessonsWithNotesData.filter(lesson => lesson.hasNotes);
 		} catch (error) {
-			console.error('Failed to fetch notes:', error);
+			// Handle error appropriately
 		} finally {
 			loading = false;
 		}
@@ -200,103 +200,106 @@
 				{/each}
 			</div>
 		{:else if filteredLessons.length === 0}
-			<Card variant="bordered" class="py-16 text-center" in:fade={{ delay: 400, duration: 500 }}>
-				<svg class="mx-auto mb-6 h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-				</svg>
-				<h3 class="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
-					{searchQuery ? 'No notes found' : 'No notes yet'}
-				</h3>
-				<p class="mb-6 text-gray-600 dark:text-gray-400">
-					{searchQuery 
-						? 'Try adjusting your search terms'
-						: 'Start taking notes while learning to see them here'
-					}
-				</p>
-				{#if !searchQuery}
-					<Button
-						href={`/courses/${courseId}/learn`}
-						variant="primary"
-						size="medium"
-					>
-						Start Learning
-					</Button>
-				{/if}
-			</Card>
+			<div in:fade={{ delay: 400, duration: 500 }}>
+				<Card variant="bordered" class="py-16 text-center">
+					<svg class="mx-auto mb-6 h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+					</svg>
+					<h3 class="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
+						{searchQuery ? 'No notes found' : 'No notes yet'}
+					</h3>
+					<p class="mb-6 text-gray-600 dark:text-gray-400">
+						{searchQuery 
+							? 'Try adjusting your search terms'
+							: 'Start taking notes while learning to see them here'
+						}
+					</p>
+					{#if !searchQuery}
+						<Button
+							href={`/courses/${courseId}/learn`}
+							variant="primary"
+							size="medium"
+						>
+							Start Learning
+						</Button>
+					{/if}
+				</Card>
+			</div>
 		{:else}
 			<div class="space-y-4">
 				{#each filteredLessons as lesson, index}
-					<Card 
-						variant="bordered" 
-						class="transition-all duration-200 hover:shadow-md"
-						in:fly={{ y: 20, delay: index * 100, duration: 600 }}
-					>
-						<div class="space-y-4">
-							<!-- Lesson Header -->
-							<div class="flex items-start justify-between">
-								<div class="flex-1">
-									<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-										{lesson.title}
-									</h3>
-									<p class="text-sm text-gray-600 dark:text-gray-400">
-										{lesson.moduleTitle}
-									</p>
-								</div>
-								
-								<div class="flex items-center gap-2">
-									<Button
-										href={`/courses/${courseId}/learn`}
-										variant="ghost"
-										size="small"
-										class="text-primary-600 hover:text-primary-700 dark:text-primary-400"
-									>
-										<svg class="mr-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-										</svg>
-										Go to Lesson
-									</Button>
+					<div in:fly={{ y: 20, delay: index * 100, duration: 600 }}>
+						<Card 
+							variant="bordered" 
+							class="transition-all duration-200 hover:shadow-md"
+						>
+							<div class="space-y-4">
+								<!-- Lesson Header -->
+								<div class="flex items-start justify-between">
+									<div class="flex-1">
+										<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+											{lesson.title}
+										</h3>
+										<p class="text-sm text-gray-600 dark:text-gray-400">
+											{lesson.moduleTitle}
+										</p>
+									</div>
 									
+									<div class="flex items-center gap-2">
+										<Button
+											href={`/courses/${courseId}/learn`}
+											variant="ghost"
+											size="small"
+											class="text-primary-600 hover:text-primary-700 dark:text-primary-400"
+										>
+											<svg class="mr-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+											</svg>
+											Go to Lesson
+										</Button>
+										
+										{#if editingNote === lesson.uuid}
+											<Button onclick={() => saveNote(lesson)} variant="primary" size="small">
+												Save
+											</Button>
+											<Button onclick={cancelEdit} variant="ghost" size="small">
+												Cancel
+											</Button>
+										{:else}
+											<Button onclick={() => editNote(lesson)} variant="ghost" size="small">
+												<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+												</svg>
+											</Button>
+											<Button onclick={() => deleteNote(lesson)} variant="ghost" size="small" class="text-red-600 hover:text-red-700">
+												<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+												</svg>
+											</Button>
+										{/if}
+									</div>
+								</div>
+
+								<!-- Note Content -->
+								<div class="border-t border-gray-200 pt-4 dark:border-gray-700">
 									{#if editingNote === lesson.uuid}
-										<Button onclick={() => saveNote(lesson)} variant="primary" size="small">
-											Save
-										</Button>
-										<Button onclick={cancelEdit} variant="ghost" size="small">
-											Cancel
-										</Button>
+										<textarea
+											bind:value={tempNoteContent}
+											class="focus:ring-primary-500 focus:border-primary-500 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+											rows="6"
+											placeholder="Edit your notes..."
+										></textarea>
 									{:else}
-										<Button onclick={() => editNote(lesson)} variant="ghost" size="small">
-											<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-											</svg>
-										</Button>
-										<Button onclick={() => deleteNote(lesson)} variant="ghost" size="small" class="text-red-600 hover:text-red-700">
-											<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-											</svg>
-										</Button>
+										<div class="prose prose-sm dark:prose-invert max-w-none">
+											<p class="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+												{lesson.notes}
+											</p>
+										</div>
 									{/if}
 								</div>
 							</div>
-
-							<!-- Note Content -->
-							<div class="border-t border-gray-200 pt-4 dark:border-gray-700">
-								{#if editingNote === lesson.uuid}
-									<textarea
-										bind:value={tempNoteContent}
-										class="focus:ring-primary-500 focus:border-primary-500 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-										rows="6"
-										placeholder="Edit your notes..."
-									></textarea>
-								{:else}
-									<div class="prose prose-sm dark:prose-invert max-w-none">
-										<p class="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
-											{lesson.notes}
-										</p>
-									</div>
-								{/if}
-							</div>
-						</div>
-					</Card>
+						</Card>
+					</div>
 				{/each}
 			</div>
 		{/if}

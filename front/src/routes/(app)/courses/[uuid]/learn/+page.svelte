@@ -40,10 +40,23 @@
 
 	// Navigation state
 	let lessons = $derived(() => {
-		if (!course?.modules) return [];
-		return course.modules.flatMap((module) =>
-			module.lessons.map((lesson) => ({ ...lesson, moduleTitle: module.title }))
-		);
+		const modules = course?.modules;
+		if (!Array.isArray(modules)) {
+			return [];
+		}
+		try {
+			const allLessons = modules.flatMap((module) => {
+				if (!module || !Array.isArray(module.lessons)) return [];
+				return module.lessons.map((lesson) => ({ 
+					...lesson, 
+					moduleTitle: module.title || '',
+					module_title: module.title || '' // Backend compatibility
+				}));
+			});
+			return allLessons;
+		} catch (error) {
+			return [];
+		}
 	});
 
 	let currentLessonIndex = $derived(() => {
@@ -58,6 +71,11 @@
 	let nextLesson = $derived(() => {
 		return currentLessonIndex < lessons.length - 1 ? lessons[currentLessonIndex + 1] : null;
 	});
+
+	// Derived lesson counts for the template
+	let totalLessonsCount = $derived(() => lessons.length);
+	let completedLessonsCount = $derived(() => lessons.filter(l => l.is_completed).length);
+	let remainingLessonsCount = $derived(() => totalLessonsCount - completedLessonsCount);
 
 	onMount(async () => {
 		await Promise.all([fetchCourse(), fetchEnrollment()]);
@@ -372,8 +390,8 @@
 								class="mb-2"
 							/>
 							<div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-								<span>{lessons.filter(l => l.is_completed).length} of {lessons.length} completed</span>
-								<span>{lessons.length - lessons.filter(l => l.is_completed).length} remaining</span>
+								<span>{completedLessonsCount} of {totalLessonsCount} completed</span>
+								<span>{remainingLessonsCount} remaining</span>
 							</div>
 						</div>
 					</div>
@@ -819,4 +837,4 @@
 			</Card>
 		</div>
 	</div>
-{/if}
+{/if} 

@@ -79,7 +79,7 @@
 			<form onsubmit={handleSubmit} class="space-y-6">
 				<!-- Email Field -->
 				<div class="relative">
-					<label class="mb-2 block text-sm font-semibold text-gray-700">Email Address</label>
+					<label for="email-input" class="mb-2 block text-sm font-semibold text-gray-700">Email Address</label>
 					<div class="relative">
 						<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
 							<svg
@@ -97,6 +97,7 @@
 							</svg>
 						</div>
 						<input
+							id="email-input"
 							type="email"
 							bind:value={email}
 							onfocus={() => (emailFocused = true)}
@@ -115,7 +116,7 @@
 
 				<!-- Password Field -->
 				<div class="relative">
-					<label class="mb-2 block text-sm font-semibold text-gray-700">Password</label>
+					<label for="password-input" class="mb-2 block text-sm font-semibold text-gray-700">Password</label>
 					<div class="relative">
 						<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
 							<svg
@@ -133,6 +134,7 @@
 							</svg>
 						</div>
 						<input
+							id="password-input"
 							type={showPassword ? 'text' : 'password'}
 							bind:value={password}
 							onfocus={() => (passwordFocused = true)}

@@ -8,6 +8,7 @@
 	import { uiStore } from '$lib/stores/ui.store.js';
 	import { formatters } from '$lib/utils/formatters.js';
 	import { classNames } from '$lib/utils/helpers.js';
+	import { t } from '$lib/i18n';
 
 	// Components
 	import Card from '$lib/components/common/Card.svelte';
@@ -15,6 +16,7 @@
 	import Badge from '$lib/components/common/Badge.svelte';
 	import YouTubePlayer from '$lib/components/course/YouTubePlayer.svelte';
 	import LessonList from '$lib/components/course/LessonList.svelte';
+	import ShareModal from '$lib/components/course/ShareModal.svelte';
 
 	const courseId = $page.params.uuid;
 	/** @type {any} */
@@ -22,16 +24,19 @@
 	let loading = $state(true);
 	let enrolling = $state(false);
 	let activeTab = $state('overview');
+	let isFavorite = $state(false);
+	let showShareModal = $state(false);
+	let favoriteLoading = $state(false);
 
-	const tabs = [
-		{ id: 'overview', label: 'Overview', icon: 'info' },
-		{ id: 'curriculum', label: 'Curriculum', icon: 'list' },
-		{ id: 'instructor', label: 'Instructor', icon: 'user' },
-		{ id: 'reviews', label: 'Reviews', icon: 'star' }
-	];
+	const tabs = $derived([
+		{ id: 'overview', label: $t('course.overview'), icon: 'info' },
+		{ id: 'curriculum', label: $t('course.curriculum'), icon: 'list' },
+		{ id: 'instructor', label: $t('course.instructor'), icon: 'user' },
+		{ id: 'reviews', label: $t('course.reviews'), icon: 'star' }
+	]);
 
 	onMount(async () => {
-		await fetchCourse();
+		await Promise.all([fetchCourse(), checkFavoriteStatus()]);
 	});
 
 	const fetchCourse = async () => {
@@ -79,6 +84,55 @@
 		}
 	};
 
+	const checkFavoriteStatus = async () => {
+		try {
+			isFavorite = await coursesApi.isFavorite(courseId);
+		} catch (error) {
+			console.error('Failed to check favorite status:', error);
+		}
+	};
+
+	const handleFavoriteToggle = async () => {
+		if (!$currentUser) {
+			goto('/login');
+			return;
+		}
+
+		favoriteLoading = true;
+		try {
+			if (isFavorite) {
+				await coursesApi.removeFromFavorites(courseId);
+				isFavorite = false;
+				uiStore.showNotification({
+					type: 'success',
+					title: $t('course.removeFromFavorites'),
+					message: `${course?.title} ${$t('course.removeFromFavorites')}`
+				});
+			} else {
+				await coursesApi.addToFavorites(courseId);
+				isFavorite = true;
+				uiStore.showNotification({
+					type: 'success',
+					title: $t('course.addToFavorites'),
+					message: `${course?.title} ${$t('course.addToFavorites')}`
+				});
+			}
+		} catch (error) {
+			console.error('Failed to toggle favorite:', error);
+			uiStore.showNotification({
+				type: 'error',
+				title: 'Error',
+				message: 'Failed to update favorites'
+			});
+		} finally {
+			favoriteLoading = false;
+		}
+	};
+
+	const handleShare = () => {
+		showShareModal = true;
+	};
+
 	const levelConfig = {
 		beginner: { color: 'success', icon: '🟢' },
 		intermediate: { color: 'warning', icon: '🟡' },
@@ -94,8 +148,8 @@
 </script>
 
 <svelte:head>
-	<title>{course?.title || 'Course'} - 244SCHOOL</title>
-	<meta name="description" content={course?.short_description || 'Learn with 244SCHOOL'} />
+	<title>{course?.title || $t('course.course')} - {$t('common.appName')}</title>
+	<meta name="description" content={course?.short_description || $t('common.appName')} />
 </svelte:head>
 
 {#if loading}
@@ -246,7 +300,7 @@
 											d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 										/>
 									</svg>
-									<p class="text-lg opacity-80">Preview Coming Soon</p>
+									<p class="text-lg opacity-80">{$t('course.previewComingSoon')}</p>
 								</div>
 							</div>
 						{/if}
@@ -288,7 +342,7 @@
 					<Card variant="bordered" padding="large">
 						{#if activeTab === 'overview'}
 							<div class="prose prose-gray dark:prose-invert max-w-none">
-								<h3 class="mb-6 text-2xl font-bold">About This Course</h3>
+								<h3 class="mb-6 text-2xl font-bold">{$t('course.aboutThisCourse')}</h3>
 								{#if course?.description}
 									<div class="leading-relaxed text-gray-700 dark:text-gray-300">
 										{course.description}
@@ -296,7 +350,7 @@
 								{/if}
 
 								{#if course?.learning_outcomes}
-									<h3 class="mt-8 mb-4 text-xl font-semibold">What You'll Learn</h3>
+									<h3 class="mt-8 mb-4 text-xl font-semibold">{$t('course.whatYoullLearn')}</h3>
 									<div class="grid grid-cols-1 gap-3 md:grid-cols-2">
 										{#each course.learning_outcomes.split('\n').filter(Boolean) as outcome}
 											<div
@@ -324,7 +378,7 @@
 								{/if}
 
 								{#if course.prerequisites}
-									<h3 class="mt-8 mb-4 text-xl font-semibold">Prerequisites</h3>
+									<h3 class="mt-8 mb-4 text-xl font-semibold">{$t('course.prerequisites')}</h3>
 									<div class="rounded-lg bg-blue-50 p-4 dark:bg-blue-900/20">
 										<p class="text-blue-800 dark:text-blue-200">{course.prerequisites}</p>
 									</div>
@@ -332,17 +386,17 @@
 							</div>
 						{:else if activeTab === 'curriculum'}
 							<div>
-								<h3 class="mb-6 text-2xl font-bold">Course Curriculum</h3>
+								<h3 class="mb-6 text-2xl font-bold">{$t('course.courseCurriculum')}</h3>
 								<div class="mb-6 flex items-center gap-6 text-sm text-gray-600 dark:text-gray-400">
-									<span>{course.modules?.length || 0} modules</span>
-									<span>{course.total_lessons || 0} lessons</span>
-									<span>{course.duration_hours}h total length</span>
+									<span>{course.modules?.length || 0} {$t('course.modules')}</span>
+									<span>{course.total_lessons || 0} {$t('course.lessons')}</span>
+									<span>{course.duration_hours}{$t('course.hours')} {$t('course.totalLength')}</span>
 								</div>
 								<LessonList modules={course.modules || []} isEnrolled={course.is_enrolled} />
 							</div>
 						{:else if activeTab === 'instructor'}
 							<div>
-								<h3 class="mb-6 text-2xl font-bold">Meet Your Instructor</h3>
+								<h3 class="mb-6 text-2xl font-bold">{$t('course.meetYourInstructor')}</h3>
 								<div class="flex items-start gap-6">
 									{#if course.instructor.avatar}
 										<img
@@ -363,7 +417,7 @@
 											{course.instructor.full_name}
 										</h4>
 										<p class="text-primary-600 dark:text-primary-400 mb-4 font-medium">
-											{course.instructor.role === 'teacher' ? 'Instructor' : course.instructor.role}
+											{course.instructor.role === 'teacher' ? $t('course.instructor') : course.instructor.role}
 										</p>
 
 										{#if course.instructor.bio}
@@ -376,7 +430,7 @@
 							</div>
 						{:else if activeTab === 'reviews'}
 							<div>
-								<h3 class="mb-6 text-2xl font-bold">Student Reviews</h3>
+								<h3 class="mb-6 text-2xl font-bold">{$t('course.studentReviews')}</h3>
 								{#if course.reviews?.length > 0}
 									<div class="space-y-6">
 										{#each course.reviews as review}
@@ -446,9 +500,9 @@
 											/>
 										</svg>
 										<h4 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">
-											No reviews yet
+											{$t('course.noReviewsYet')}
 										</h4>
-										<p class="text-gray-500 dark:text-gray-400">Be the first to leave a review!</p>
+										<p class="text-gray-500 dark:text-gray-400">{$t('course.beFirstToReview')}</p>
 									</div>
 								{/if}
 							</div>
@@ -464,7 +518,7 @@
 							<div class="text-center">
 								{#if course.is_enrolled}
 									<div class="mb-4">
-										<Badge variant="success" size="large" class="mb-2">✓ Enrolled</Badge>
+										<Badge variant="success" size="large" class="mb-2">✓ {$t('course.enrolled')}</Badge>
 									</div>
 									<Button
 										href={`/courses/${courseId}/learn`}
@@ -473,10 +527,10 @@
 										fullWidth
 										class="mb-4"
 									>
-										Continue Learning
+										{$t('course.continueLearning')}
 									</Button>
 									<Button href={`/my-courses`} variant="outline" size="medium" fullWidth>
-										View My Courses
+										{$t('course.viewMyCourses')}
 									</Button>
 								{:else}
 									<Button
@@ -487,21 +541,21 @@
 										loading={enrolling}
 										class="mb-4"
 									>
-										{enrolling ? 'Enrolling...' : 'Enroll Now'}
+										{enrolling ? $t('course.enrolling') : $t('course.enrollNow')}
 									</Button>
 									<p class="text-sm text-gray-500 dark:text-gray-400">
-										Free • Lifetime access • Certificate included
+										{$t('course.free')} • {$t('course.lifetimeAccess')} • {$t('course.certificateIncluded')}
 									</p>
 								{/if}
 							</div>
 
 							<!-- Course Details -->
 							<div class="space-y-4 border-t border-gray-200 pt-6 dark:border-gray-700">
-								<h4 class="mb-4 font-semibold text-gray-900 dark:text-white">Course Details</h4>
+								<h4 class="mb-4 font-semibold text-gray-900 dark:text-white">{$t('course.courseDetails')}</h4>
 
 								<div class="space-y-3">
 									<div class="flex items-center justify-between text-sm">
-										<span class="text-gray-600 dark:text-gray-400">Level</span>
+										<span class="text-gray-600 dark:text-gray-400">{$t('course.level')}</span>
 										<Badge variant={levelConfig[course.level].color} size="small">
 											{levelConfig[course.level].icon}
 											{course.level}
@@ -509,28 +563,28 @@
 									</div>
 
 									<div class="flex items-center justify-between text-sm">
-										<span class="text-gray-600 dark:text-gray-400">Duration</span>
+										<span class="text-gray-600 dark:text-gray-400">{$t('course.duration')}</span>
 										<span class="font-medium text-gray-900 dark:text-white">
-											{course.duration_hours} hours
+											{course.duration_hours} {$t('course.hours')}
 										</span>
 									</div>
 
 									<div class="flex items-center justify-between text-sm">
-										<span class="text-gray-600 dark:text-gray-400">Language</span>
+										<span class="text-gray-600 dark:text-gray-400">{$t('course.language')}</span>
 										<span class="font-medium text-gray-900 dark:text-white">
 											{course.language === 'ar' ? 'العربية' : 'English'}
 										</span>
 									</div>
 
 									<div class="flex items-center justify-between text-sm">
-										<span class="text-gray-600 dark:text-gray-400">Students</span>
+										<span class="text-gray-600 dark:text-gray-400">{$t('course.students')}</span>
 										<span class="font-medium text-gray-900 dark:text-white">
 											{formatters.number(course.enrolled_count)}
 										</span>
 									</div>
 
 									<div class="flex items-center justify-between text-sm">
-										<span class="text-gray-600 dark:text-gray-400">Certificate</span>
+										<span class="text-gray-600 dark:text-gray-400">{$t('course.certificate')}</span>
 										<div class="flex items-center gap-1">
 											<svg
 												class="h-4 w-4 text-green-500"
@@ -545,7 +599,7 @@
 													d="M5 13l4 4L19 7"
 												/>
 											</svg>
-											<span class="font-medium text-gray-900 dark:text-white">Yes</span>
+											<span class="font-medium text-gray-900 dark:text-white">{$t('course.yes')}</span>
 										</div>
 									</div>
 								</div>
@@ -553,9 +607,14 @@
 
 							<!-- Share Course -->
 							<div class="border-t border-gray-200 pt-6 dark:border-gray-700">
-								<h4 class="mb-3 font-semibold text-gray-900 dark:text-white">Share Course</h4>
+								<h4 class="mb-3 font-semibold text-gray-900 dark:text-white">{$t('course.shareCourse')}</h4>
 								<div class="flex items-center gap-2">
-									<Button variant="outline" size="small" class="flex-1">
+									<Button 
+										onclick={handleShare}
+										variant="outline" 
+										size="small" 
+										class="flex-1"
+									>
 										<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path
 												stroke-linecap="round"
@@ -564,10 +623,17 @@
 												d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z"
 											/>
 										</svg>
-										Share
+										{$t('actions.share')}
 									</Button>
-									<Button variant="outline" size="small" class="flex-1">
-										<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<Button 
+										onclick={handleFavoriteToggle}
+										variant="outline" 
+										size="small" 
+										class="flex-1"
+										loading={favoriteLoading}
+										disabled={favoriteLoading}
+									>
+										<svg class="mr-2 h-4 w-4" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24">
 											<path
 												stroke-linecap="round"
 												stroke-linejoin="round"
@@ -575,7 +641,7 @@
 												d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
 											/>
 										</svg>
-										Save
+										{isFavorite ? $t('course.removeFromFavorites') : $t('course.addToFavorites')}
 									</Button>
 								</div>
 							</div>
@@ -600,10 +666,13 @@
 				d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 			/>
 		</svg>
-		<h2 class="mb-4 text-2xl font-bold text-gray-900 dark:text-white">Course Not Found</h2>
+		<h2 class="mb-4 text-2xl font-bold text-gray-900 dark:text-white">{$t('course.courseNotFound')}</h2>
 		<p class="mb-8 text-gray-600 dark:text-gray-400">
-			The course you're looking for doesn't exist or has been removed.
+			{$t('course.courseNotFoundDesc')}
 		</p>
-		<Button href="/courses" variant="primary">Browse All Courses</Button>
+		<Button href="/courses" variant="primary">{$t('course.browseAllCourses')}</Button>
 	</div>
 {/if}
+
+<!-- Share Modal -->
+<ShareModal bind:isOpen={showShareModal} {course} onClose={() => (showShareModal = false)} />
