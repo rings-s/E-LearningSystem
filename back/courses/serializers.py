@@ -44,6 +44,8 @@ class CourseDetailSerializer(serializers.ModelSerializer):
     modules = serializers.SerializerMethodField()
     enrolled_count = serializers.IntegerField(source='enrolled_students_count', read_only=True)
     average_rating = serializers.FloatField(read_only=True)
+    reviews_count = serializers.IntegerField(source='reviews.count', read_only=True)
+    reviews = serializers.SerializerMethodField()
     is_enrolled = serializers.SerializerMethodField()
     
     class Meta:
@@ -60,6 +62,10 @@ class CourseDetailSerializer(serializers.ModelSerializer):
     
     def get_modules(self, obj):
         return ModuleSerializer(obj.modules.filter(is_published=True), many=True).data
+    
+    def get_reviews(self, obj):
+        reviews = obj.reviews.filter(is_verified=True).order_by('-created_at')
+        return CourseReviewSerializer(reviews, many=True).data
     
     def get_is_enrolled(self, obj):
         request = self.context.get('request')

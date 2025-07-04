@@ -11,7 +11,6 @@ from django.core.exceptions import ValidationError
 import uuid
 from django.http import Http404
 
-
 from .models import (
     Forum, Discussion, Reply, Notification, LearningAnalytics,
     ActivityLog, MediaContent, Announcement, SupportTicket
@@ -39,12 +38,14 @@ from .utils import send_notification, track_activity, increment_view_count
 
 
 
-def get_object_by_uuid(model, uuid_value):
-    """Safely get object by UUID with proper error handling"""
+
+def validate_and_get_object(model_class, uuid_value):
+    """Validate UUID and get object safely"""
     try:
-        validate_uuid(uuid_value)
-        return get_object_or_404(model, uuid=uuid_value)
-    except ValidationError:
+        # Validate UUID format
+        uuid.UUID(str(uuid_value))
+        return get_object_or_404(model_class, uuid=uuid_value)
+    except (ValueError, AttributeError, TypeError):
         raise Http404("Invalid UUID format")
 
 
@@ -103,6 +104,8 @@ class DiscussionListCreateView(generics.ListCreateAPIView):
                 discussion=discussion
             )
 
+
+
 class DiscussionDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update or delete discussion"""
     queryset = Discussion.objects.all()
@@ -125,6 +128,7 @@ class DiscussionDetailView(generics.RetrieveUpdateDestroyAPIView):
         increment_view_count(discussion)
         serializer = self.get_serializer(discussion)
         return Response(serializer.data)
+
 
 class DiscussionPinView(APIView):
     """Pin/unpin discussion"""

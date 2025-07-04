@@ -108,6 +108,11 @@ class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Course.objects.all()
     lookup_field = 'uuid'
     
+    def get_object(self):
+        """Override to add UUID validation"""
+        uuid_value = self.kwargs.get('uuid')
+        return validate_and_get_object(Course, uuid_value)
+    
     def get_serializer_class(self):
         if self.request.method in ['PUT', 'PATCH']:
             return CourseCreateUpdateSerializer
@@ -133,7 +138,6 @@ class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
         
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
-        
 
 
 class CourseEnrollView(APIView):
@@ -327,12 +331,18 @@ class LessonListCreateView(generics.ListCreateAPIView):
             return [IsAuthenticated(), IsCourseInstructor()]
         return [IsAuthenticated(), IsEnrolledStudent()]
 
+
 class LessonDetailView(generics.RetrieveUpdateDestroyAPIView):
     """Retrieve, update or delete lesson"""
     queryset = Lesson.objects.all()
     serializer_class = LessonDetailSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'uuid'
+    
+    def get_object(self):
+        """Override to add UUID validation"""
+        uuid_value = self.kwargs.get('uuid')
+        return validate_and_get_object(Lesson, uuid_value)
     
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
@@ -342,7 +352,7 @@ class LessonDetailView(generics.RetrieveUpdateDestroyAPIView):
     def retrieve(self, request, *args, **kwargs):
         lesson = self.get_object()
         
-        # Track lesson start
+        # Track lesson start and update progress
         enrollment = Enrollment.objects.filter(
             student=request.user,
             course=lesson.module.course,
@@ -362,60 +372,86 @@ class LessonDetailView(generics.RetrieveUpdateDestroyAPIView):
                     lesson=lesson,
                     course=lesson.module.course
                 )
+            
+            # Update last accessed
+            enrollment.last_accessed = timezone.now()
+            enrollment.save()
         
         serializer = self.get_serializer(lesson)
         return Response(serializer.data)
 
 class LessonCompleteView(APIView):
-    """Mark lesson as completed"""
-    permission_classes = [IsAuthenticated, IsEnrolledStudent]
+    """Mark lesson as completed with real-time progress updates"""
+    permission_classes = [IsAuthenticated]
     
     def post(self, request, uuid):
-        lesson = get_object_or_404(Lesson, uuid=uuid)
-        
-        enrollment = get_object_or_404(
-            Enrollment,
-            student=request.user,
-            course=lesson.module.course,
-            is_active=True
-        )
-        
-        progress, created = LessonProgress.objects.get_or_create(
-            enrollment=enrollment,
-            lesson=lesson
-        )
-        
-        if not progress.is_completed:
-            progress.is_completed = True
-            progress.completed_at = timezone.now()
-            progress.save()
+        try:
+            lesson = get_object_or_404(Lesson, uuid=uuid)
             
-            # Update enrollment progress
-            update_enrollment_progress(enrollment)
-            
-            # Track activity
-            track_activity(
-                request.user,
-                'lesson_complete',
-                lesson=lesson,
-                course=lesson.module.course
+            enrollment = get_object_or_404(
+                Enrollment,
+                student=request.user,
+                course=lesson.module.course,
+                is_active=True
             )
             
-            # Send notification if course completed
-            if enrollment.progress_percentage >= 100:
-                send_notification(
+            progress, created = LessonProgress.objects.get_or_create(
+                enrollment=enrollment,
+                lesson=lesson
+            )
+            
+            if not progress.is_completed:
+                progress.is_completed = True
+                progress.completed_at = timezone.now()
+                progress.save()
+                
+                # Update enrollment progress
+                new_progress = self.calculate_course_progress(enrollment)
+                enrollment.progress_percentage = new_progress
+                enrollment.save()
+                
+                # Track activity
+                track_activity(
                     request.user,
-                    'course_completed',
-                    f'Congratulations! You completed {enrollment.course.title}',
-                    'You have successfully completed all lessons in the course',
-                    course=enrollment.course
+                    'lesson_complete',
+                    lesson=lesson,
+                    course=lesson.module.course
                 )
+            
+            return Response({
+                'message': 'Lesson completed successfully',
+                'progress_percentage': enrollment.progress_percentage,
+                'course_completed': enrollment.progress_percentage >= 100
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': 'Failed to complete lesson'
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    def calculate_course_progress(self, enrollment):
+        """Calculate accurate course progress"""
+        total_lessons = Lesson.objects.filter(
+            module__course=enrollment.course,
+            is_published=True
+        ).count()
         
-        return Response({'message': 'Lesson marked as completed'})
+        if total_lessons == 0:
+            return 0
+        
+        completed_lessons = LessonProgress.objects.filter(
+            enrollment=enrollment,
+            is_completed=True,
+            lesson__is_published=True
+        ).count()
+        
+        return round((completed_lessons / total_lessons) * 100, 2)
+
+
 
 class LessonNotesUpdateView(APIView):
     """Update lesson notes"""
-    permission_classes = [IsAuthenticated, IsEnrolledStudent]
+    permission_classes = [IsAuthenticated]
     
     def patch(self, request, uuid):
         lesson = get_object_or_404(Lesson, uuid=uuid)
@@ -496,7 +532,7 @@ class QuizDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class QuizStartAttemptView(APIView):
     """Start quiz attempt"""
-    permission_classes = [IsAuthenticated, IsEnrolledStudent]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request, uuid):
         quiz = get_object_or_404(Quiz, uuid=uuid)
@@ -539,7 +575,7 @@ class QuizStartAttemptView(APIView):
 
 class QuizSubmitView(APIView):
     """Submit quiz answers"""
-    permission_classes = [IsAuthenticated, IsEnrolledStudent]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request, uuid):
         quiz = get_object_or_404(Quiz, uuid=uuid)

@@ -135,7 +135,7 @@ def increment_view_count(obj):
 
 # Progress calculation
 def calculate_course_progress(enrollment):
-    """Calculate course completion percentage"""
+    """Calculate course completion percentage with better accuracy"""
     from courses.models import Lesson, LessonProgress
     
     total_lessons = Lesson.objects.filter(
@@ -148,26 +148,39 @@ def calculate_course_progress(enrollment):
     
     completed_lessons = LessonProgress.objects.filter(
         enrollment=enrollment,
-        is_completed=True
+        is_completed=True,
+        lesson__is_published=True
     ).count()
     
     return round((completed_lessons / total_lessons) * 100, 2)
 
+
 def update_enrollment_progress(enrollment):
-    """Update enrollment progress percentage"""
+    """Update enrollment progress percentage with real-time calculation"""
     progress = calculate_course_progress(enrollment)
     enrollment.progress_percentage = progress
     
+    # Update status based on progress
     if progress >= 100 and enrollment.status != 'completed':
         enrollment.status = 'completed'
         enrollment.completed_at = timezone.now()
         
         # Trigger certificate generation
-        from courses.tasks import generate_certificate_task
-        generate_certificate_task.delay(enrollment.id)
+        try:
+            from courses.tasks import generate_certificate_task
+            generate_certificate_task.delay(enrollment.id)
+        except ImportError:
+            # Handle case where Celery is not available
+            pass
+    elif progress > 0 and enrollment.status == 'enrolled':
+        enrollment.status = 'in_progress'
+        enrollment.started_at = timezone.now()
     
     enrollment.save()
+    return progress
 
+
+    
 # Quiz scoring
 def calculate_quiz_score(quiz_attempt):
     """Calculate score for a quiz attempt"""
