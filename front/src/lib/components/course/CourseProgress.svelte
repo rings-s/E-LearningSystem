@@ -17,9 +17,10 @@
 	};
 
 	const variants = {
-		primary: 'bg-primary-600 dark:bg-primary-500',
-		success: 'bg-green-600 dark:bg-green-500',
-		warning: 'bg-yellow-600 dark:bg-yellow-500'
+		primary: 'bg-gradient-to-r from-primary-600 to-primary-500 dark:from-primary-500 dark:to-primary-400',
+		success: 'bg-gradient-to-r from-green-600 to-emerald-500 dark:from-green-500 dark:to-emerald-400',
+		warning: 'bg-gradient-to-r from-yellow-600 to-orange-500 dark:from-yellow-500 dark:to-orange-400',
+		info: 'bg-gradient-to-r from-blue-600 to-cyan-500 dark:from-blue-500 dark:to-cyan-400'
 	};
 
 	const getVariant = () => {
@@ -49,10 +50,13 @@
 	>
 		<div
 			class={classNames(
-				'h-full rounded-full transition-all duration-500 ease-out',
+				'h-full rounded-full transition-all duration-500 ease-out shadow-sm',
 				variants[currentVariant]
 			)}
 			style="width: {Math.min(100, Math.max(0, progress))}%"
-		></div>
+		>
+			<!-- Progress shine effect -->
+			<div class="h-full w-full rounded-full bg-white bg-opacity-20 animate-pulse"></div>
+		</div>
 	</div>
 </div>

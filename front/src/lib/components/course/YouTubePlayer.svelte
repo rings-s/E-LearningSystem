@@ -67,7 +67,8 @@
 
 	function initializePlayer() {
 		if (!playerElement || !actualVideoId) return;
-
+		
+		console.log('Initializing YouTube player with video ID:', actualVideoId);
 		player = new window.YT.Player(playerElement, {
 			videoId: actualVideoId,
 			playerVars: {
@@ -91,8 +92,10 @@
 
 	function handlePlayerReady(event) {
 		try {
+			console.log('YouTube player ready');
 			playerReady = true;
 			duration = player.getDuration() || 0;
+			console.log('Video duration:', duration);
 			onReady(event);
 
 			// Start progress tracking
@@ -108,6 +111,7 @@
 	function handleStateChange(event) {
 		const state = event.data;
 		isPlaying = state === window.YT.PlayerState.PLAYING;
+		console.log('YouTube player state changed:', isPlaying ? 'Playing' : 'Paused');
 
 		if (isPlaying) {
 			startProgressTracking();
