@@ -1,2 +1,0 @@
-i want to fix only the django errors for now and keep the same code design as same
-make sure to fix all the courses app and core app errors inside the django back project and dont change a correct code and only fix the errors and make sure the errors will be fixed in the whole two apps

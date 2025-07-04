@@ -208,7 +208,7 @@ class Lesson(models.Model):
         verbose_name = _('Lesson')
         verbose_name_plural = _('Lessons')
         ordering = ['module', 'order']
-        unique_together = ['module', 'slug', 'id']
+        unique_together = ['module', 'slug']
 
     def __str__(self):
         return f"{self.module.title} - {self.title}"

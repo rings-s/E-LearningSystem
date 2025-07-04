@@ -2,120 +2,128 @@
 import { api } from './index.js';
 
 export const coursesApi = {
-    // Courses
-    async getCourses(params = {}) {
-        const queryString = new URLSearchParams(params).toString();
-        return api.get(`/courses/?${queryString}`);
-    },
+	// Courses
+	async getCourses(params = {}) {
+		const queryString = new URLSearchParams(params).toString();
+		return api.get(`/courses/?${queryString}`);
+	},
 
-    async getCourse(uuid) {
-        return api.get(`/courses/${uuid}/`);
-    },
+	async getCourse(uuid) {
+		return api.get(`/courses/${uuid}/`);
+	},
 
-    async createCourse(data) {
-        return api.post('/courses/', data);
-    },
+	async createCourse(data) {
+		return api.post('/courses/', data);
+	},
 
-    async updateCourse(uuid, data) {
-        return api.patch(`/courses/${uuid}/`, data);
-    },
+	async updateCourse(uuid, data) {
+		return api.patch(`/courses/${uuid}/`, data);
+	},
 
-    async enrollInCourse(uuid) {
-        return api.post(`/courses/${uuid}/enroll/`);
-    },
+	async enrollInCourse(uuid) {
+		return api.post(`/courses/${uuid}/enroll/`);
+	},
 
-    async publishCourse(uuid) {
-        return api.post(`/courses/${uuid}/publish/`);
-    },
+	async publishCourse(uuid) {
+		return api.post(`/courses/${uuid}/publish/`);
+	},
 
-    async getCourseAnalytics(uuid) {
-        return api.get(`/courses/${uuid}/analytics/`);
-    },
+	async getCourseAnalytics(uuid) {
+		return api.get(`/courses/${uuid}/analytics/`);
+	},
 
-    // Categories - Add this missing method
-    async getCategories() {
-        return api.get('/categories/');
-    },
+	// Categories - Add this missing method
+	async getCategories() {
+		return api.get('/categories/');
+	},
 
-    // Enrollments
-    async getMyEnrollments() {
-        return api.get('/enrollments/my-courses/');
-    },
+	// Enrollments
+	async getMyEnrollments() {
+		return api.get('/enrollments/my-courses/');
+	},
 
-    async getEnrollment(uuid) {
-        return api.get(`/enrollments/${uuid}/`);
-    },
+	async getEnrollment(uuid) {
+		return api.get(`/enrollments/${uuid}/`);
+	},
 
-    // Modules
-    async getModules(courseUuid) {
-        return api.get(`/modules/?course=${courseUuid}`);
-    },
+	// Modules
+	async getModules(courseUuid) {
+		return api.get(`/modules/?course=${courseUuid}`);
+	},
 
-    async createModule(data) {
-        return api.post('/modules/', data);
-    },
+	async createModule(data) {
+		return api.post('/modules/', data);
+	},
 
-    async updateModule(uuid, data) {
-        return api.patch(`/modules/${uuid}/`, data);
-    },
+	async updateModule(uuid, data) {
+		return api.patch(`/modules/${uuid}/`, data);
+	},
 
-    // Lessons
-    async getLessons(moduleUuid) {
-        return api.get(`/lessons/?module=${moduleUuid}`);
-    },
+	// Lessons
+	async getLessons(moduleUuid) {
+		return api.get(`/lessons/?module=${moduleUuid}`);
+	},
 
-    async getLesson(uuid) {
-        return api.get(`/lessons/${uuid}/`);
-    },
+	async getLesson(uuid) {
+		return api.get(`/lessons/${uuid}/`);
+	},
 
-    async createLesson(data) {
-        return api.post('/lessons/', data);
-    },
+	async createLesson(data) {
+		return api.post('/lessons/', data);
+	},
 
-    async updateLesson(uuid, data) {
-        return api.patch(`/lessons/${uuid}/`, data);
-    },
+	async updateLesson(uuid, data) {
+		return api.patch(`/lessons/${uuid}/`, data);
+	},
 
-    async completeLesson(uuid) {
-        return api.post(`/lessons/${uuid}/complete/`);
-    },
+	async completeLesson(uuid) {
+		return api.post(`/lessons/${uuid}/complete/`);
+	},
 
-    // Quizzes
-    async getQuizzes(courseUuid) {
-        return api.get(`/quizzes/?course=${courseUuid}`);
-    },
+	async getLessonNotes(uuid) {
+		return api.get(`/lessons/${uuid}/notes/`);
+	},
 
-    async getQuiz(uuid) {
-        return api.get(`/quizzes/${uuid}/`);
-    },
+	async saveLessonNotes(uuid, notes) {
+		return api.patch(`/lessons/${uuid}/notes/`, { notes });
+	},
 
-    async startQuizAttempt(uuid) {
-        return api.post(`/quizzes/${uuid}/start/`);
-    },
+	// Quizzes
+	async getQuizzes(courseUuid) {
+		return api.get(`/quizzes/?course=${courseUuid}`);
+	},
 
-    async submitQuiz(uuid, responses) {
-        return api.post(`/quizzes/${uuid}/submit/`, { quiz_id: uuid, responses });
-    },
+	async getQuiz(uuid) {
+		return api.get(`/quizzes/${uuid}/`);
+	},
 
-    // Reviews
-    async getCourseReviews(courseUuid) {
-        return api.get(`/reviews/?course=${courseUuid}`);
-    },
+	async startQuizAttempt(uuid) {
+		return api.post(`/quizzes/${uuid}/start/`);
+	},
 
-    async createReview(data) {
-        return api.post('/reviews/', data);
-    },
+	async submitQuiz(uuid, responses) {
+		return api.post(`/quizzes/${uuid}/submit/`, { quiz_id: uuid, responses });
+	},
 
-    // Certificates
-    async getMyCertificates() {
-        return api.get('/certificates/');
-    },
+	// Reviews
+	async getCourseReviews(courseUuid) {
+		return api.get(`/reviews/?course=${courseUuid}`);
+	},
 
-    async getCertificate(uuid) {
-        return api.get(`/certificates/${uuid}/`);
-    },
+	async createReview(data) {
+		return api.post('/reviews/', data);
+	},
 
-    async verifyCertificate(uuid) {
-        return api.get(`/certificates/${uuid}/verify/`);
-    }
+	// Certificates
+	async getMyCertificates() {
+		return api.get('/certificates/');
+	},
+
+	async getCertificate(uuid) {
+		return api.get(`/certificates/${uuid}/`);
+	},
+
+	async verifyCertificate(uuid) {
+		return api.get(`/certificates/${uuid}/verify/`);
+	}
 };

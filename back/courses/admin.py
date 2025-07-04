@@ -47,7 +47,7 @@ class QuestionInline(admin.StackedInline):
     model = Question
     extra = 1
     fields = ('question_text', 'question_type', 'points', 'order', 'is_required', 'explanation')
-    inlines = [AnswerInline]
+    # inlines = [AnswerInline]  # Nested inlines not supported in Django admin
 
 # Lesson Inline
 class LessonInline(admin.StackedInline):
@@ -69,7 +69,7 @@ class ModuleInline(admin.StackedInline):
     model = Module
     extra = 1
     fields = ('title', 'description', 'order', 'is_published')
-    inlines = [LessonInline]
+    # inlines = [LessonInline]  # Nested inlines not supported in Django admin
 
 # Category Admin
 class CategoryAdmin(admin.ModelAdmin):
@@ -206,7 +206,7 @@ class LessonAdmin(admin.ModelAdmin):
     list_filter = ('content_type', 'is_published', 'is_preview', 'module__course')
     search_fields = ('title', 'description')
     prepopulated_fields = {'slug': ('title',)}
-    inlines = [ResourceInline, QuizInline]
+    inlines = [ResourceInline]
 
 # LessonProgress Admin
 class LessonProgressAdmin(admin.ModelAdmin):

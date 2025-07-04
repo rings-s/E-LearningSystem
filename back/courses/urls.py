@@ -7,7 +7,7 @@ from .views import (
     CoursePublishView, CourseAnalyticsView,
     EnrollmentListView, EnrollmentDetailView, MyCoursesView,
     ModuleListCreateView, ModuleDetailView,
-    LessonListCreateView, LessonDetailView, LessonCompleteView,
+    LessonListCreateView, LessonDetailView, LessonCompleteView, LessonNotesUpdateView,
     QuizListCreateView, QuizDetailView, QuizStartAttemptView, QuizSubmitView,
     CertificateListView, CertificateDetailView, CertificateVerifyView,
     CourseReviewListCreateView, CourseReviewDetailView
@@ -40,6 +40,7 @@ urlpatterns = [
     path('lessons/', LessonListCreateView.as_view(), name='lesson-list'),
     path('lessons/<uuid:uuid>/', LessonDetailView.as_view(), name='lesson-detail'),
     path('lessons/<uuid:uuid>/complete/', LessonCompleteView.as_view(), name='lesson-complete'),
+    path('lessons/<uuid:uuid>/notes/', LessonNotesUpdateView.as_view(), name='lesson-notes'),
     
     # Quizzes
     path('quizzes/', QuizListCreateView.as_view(), name='quiz-list'),

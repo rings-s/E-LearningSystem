@@ -413,6 +413,56 @@ class LessonCompleteView(APIView):
         
         return Response({'message': 'Lesson marked as completed'})
 
+class LessonNotesUpdateView(APIView):
+    """Update lesson notes"""
+    permission_classes = [IsAuthenticated, IsEnrolledStudent]
+    
+    def patch(self, request, uuid):
+        lesson = get_object_or_404(Lesson, uuid=uuid)
+        
+        enrollment = get_object_or_404(
+            Enrollment,
+            student=request.user,
+            course=lesson.module.course,
+            is_active=True
+        )
+        
+        progress, created = LessonProgress.objects.get_or_create(
+            enrollment=enrollment,
+            lesson=lesson
+        )
+        
+        notes = request.data.get('notes', '')
+        progress.notes = notes
+        progress.save()
+        
+        return Response({
+            'message': 'Notes saved successfully',
+            'notes': progress.notes
+        })
+    
+    def get(self, request, uuid):
+        lesson = get_object_or_404(Lesson, uuid=uuid)
+        
+        enrollment = get_object_or_404(
+            Enrollment,
+            student=request.user,
+            course=lesson.module.course,
+            is_active=True
+        )
+        
+        progress = LessonProgress.objects.filter(
+            enrollment=enrollment,
+            lesson=lesson
+        ).first()
+        
+        notes = progress.notes if progress else ''
+        
+        return Response({
+            'notes': notes,
+            'lesson_uuid': str(lesson.uuid)
+        })
+
 # Quizzes
 class QuizListCreateView(generics.ListCreateAPIView):
     """List and create quizzes"""
