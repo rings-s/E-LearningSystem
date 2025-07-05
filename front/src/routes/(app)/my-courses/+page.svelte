@@ -4,9 +4,10 @@
 	import { fade, fly, scale } from 'svelte/transition';
 	import { coursesApi } from '$lib/apis/courses.js';
 	import { currentUser } from '$lib/stores/auth.store.js';
+	import { uiStore } from '$lib/stores/ui.store.js';
 	import { t } from '$lib/i18n/index.js';
 	import { formatters } from '$lib/utils/formatters.js';
-	import { classNames } from '$lib/utils/helpers.js';
+	import { classNames, debounce } from '$lib/utils/helpers.js';
 	
 	// Components
 	import CourseProgress from '$lib/components/course/CourseProgress.svelte';
@@ -19,84 +20,98 @@
 	let loading = $state(true);
 	let searchQuery = $state('');
 	let activeFilter = $state('all');
-	let viewMode = $state('grid'); // grid or list
-	let sortBy = $state('recent'); // recent, progress, title, status
+	let viewMode = $state('grid');
+	let sortBy = $state('recent');
+	let error = $state(null);
 
-	// User role from store
-	let userRole = $derived($currentUser?.role || 'student');
-	let isTeacher = $derived(userRole === 'teacher');
+	// Convert reactive statements to derived runes
+	const userRole = $derived($currentUser?.role || 'student');
+	const isTeacher = $derived(userRole === 'teacher');
 
-	// Filtered and sorted courses
-	let filteredCourses = $derived(() => {
-		let filtered = [...courses];
+	// Debounced search function
+	const debouncedSearch = debounce((query) => {
+		searchQuery = query;
+	}, 300);
 
-		// Apply status filter
-		if (activeFilter !== 'all') {
-			if (isTeacher) {
-				// Teacher filters: published, draft, archived
-				filtered = filtered.filter(c => c.status === activeFilter);
-			} else {
-				// Student filters: in_progress, completed, enrolled
-				filtered = filtered.filter(c => c.enrollment?.status === activeFilter);
+	// Convert filtered courses to derived
+	const filteredCourses = $derived((() => {
+		try {
+			let filtered = [...courses];
+
+			// Apply status filter
+			if (activeFilter !== 'all') {
+				if (isTeacher) {
+					filtered = filtered.filter(c => c.status === activeFilter);
+				} else {
+					filtered = filtered.filter(c => c.enrollment?.status === activeFilter);
+				}
 			}
-		}
-		
-		// Apply search filter
-		if (searchQuery.trim()) {
-			const query = searchQuery.toLowerCase();
-			filtered = filtered.filter(c => {
-				const title = c.title?.toLowerCase() || '';
-				const instructor = c.instructor_name?.toLowerCase() || '';
-				const category = c.category_name?.toLowerCase() || '';
-				return title.includes(query) || instructor.includes(query) || category.includes(query);
-			});
-		}
-
-		// Apply sorting
-		filtered.sort((a, b) => {
-			switch (sortBy) {
-				case 'title':
-					return a.title.localeCompare(b.title);
-				case 'progress':
-					if (isTeacher) return 0; // No progress for teachers
-					return (b.enrollment?.progress_percentage || 0) - (a.enrollment?.progress_percentage || 0);
-				case 'status':
-					if (isTeacher) return a.status.localeCompare(b.status);
-					return (a.enrollment?.status || '').localeCompare(b.enrollment?.status || '');
-				case 'recent':
-				default:
-					const aDate = isTeacher ? a.updated_at : a.enrollment?.enrolled_at;
-					const bDate = isTeacher ? b.updated_at : b.enrollment?.enrolled_at;
-					return new Date(bDate || 0) - new Date(aDate || 0);
-			}
-		});
-		
-		return filtered;
-	});
-
-	// Statistics
-	let stats = $derived(() => {
-		if (isTeacher) {
-			const total = courses.length;
-			const published = courses.filter(c => c.status === 'published').length;
-			const draft = courses.filter(c => c.status === 'draft').length;
-			const totalStudents = courses.reduce((sum, c) => sum + (c.enrolled_students_count || 0), 0);
 			
-			return { total, published, draft, totalStudents };
-		} else {
-			const total = courses.length;
-			const completed = courses.filter(c => c.enrollment?.status === 'completed').length;
-			const inProgress = courses.filter(c => c.enrollment?.status === 'in_progress').length;
-			const avgProgress = total > 0 
-				? Math.round(courses.reduce((sum, c) => sum + (c.enrollment?.progress_percentage || 0), 0) / total)
-				: 0;
-				
-			return { total, completed, inProgress, avgProgress };
-		}
-	});
+			// Apply search filter
+			if (searchQuery.trim()) {
+				const query = searchQuery.toLowerCase();
+				filtered = filtered.filter(c => {
+					const title = c.title?.toLowerCase() || '';
+					const instructor = c.instructor_name?.toLowerCase() || '';
+					const category = c.category_name?.toLowerCase() || '';
+					return title.includes(query) || instructor.includes(query) || category.includes(query);
+				});
+			}
 
-	// Filter options based on user role
-	let filterOptions = $derived(() => {
+			// Apply sorting
+			filtered.sort((a, b) => {
+				switch (sortBy) {
+					case 'title':
+						return a.title.localeCompare(b.title);
+					case 'progress':
+						if (isTeacher) return 0;
+						return (b.enrollment?.progress_percentage || 0) - (a.enrollment?.progress_percentage || 0);
+					case 'status':
+						if (isTeacher) return a.status.localeCompare(b.status);
+						return (a.enrollment?.status || '').localeCompare(b.enrollment?.status || '');
+					case 'recent':
+					default:
+						const aDate = isTeacher ? a.updated_at : a.enrollment?.enrolled_at;
+						const bDate = isTeacher ? b.updated_at : b.enrollment?.enrolled_at;
+						return new Date(bDate || 0) - new Date(aDate || 0);
+				}
+			});
+			
+			return filtered;
+		} catch (err) {
+			console.error('Error filtering courses:', err);
+			return [];
+		}
+	})());
+
+	// Convert stats to derived
+	const stats = $derived((() => {
+		try {
+			if (isTeacher) {
+				const total = courses.length;
+				const published = courses.filter(c => c.status === 'published').length;
+				const draft = courses.filter(c => c.status === 'draft').length;
+				const totalStudents = courses.reduce((sum, c) => sum + (c.enrolled_students_count || 0), 0);
+				
+				return { total, published, draft, totalStudents };
+			} else {
+				const total = courses.length;
+				const completed = courses.filter(c => c.enrollment?.status === 'completed').length;
+				const inProgress = courses.filter(c => c.enrollment?.status === 'in_progress').length;
+				const avgProgress = total > 0 
+					? Math.round(courses.reduce((sum, c) => sum + (c.enrollment?.progress_percentage || 0), 0) / total)
+					: 0;
+					
+				return { total, completed, inProgress, avgProgress };
+			}
+		} catch (err) {
+			console.error('Error calculating stats:', err);
+			return { total: 0, completed: 0, inProgress: 0, avgProgress: 0 };
+		}
+	})());
+
+	// Convert filter options to derived
+	const filterOptions = $derived((() => {
 		if (isTeacher) {
 			return [
 				{ id: 'all', label: 'All Courses', icon: 'M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z' },
@@ -112,9 +127,10 @@
 				{ id: 'enrolled', label: 'Recently Enrolled', icon: 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253' }
 			];
 		}
-	});
+	})());
 
-	let sortOptions = $derived(() => [
+	// Convert sort options to derived
+	const sortOptions = $derived([
 		{ id: 'recent', label: isTeacher ? 'Recently Updated' : 'Recently Enrolled' },
 		{ id: 'title', label: 'Title (A-Z)' },
 		...(isTeacher ? [] : [{ id: 'progress', label: 'Progress' }]),
@@ -125,26 +141,47 @@
 		await fetchCourses();
 	});
 
+	// Fixed: This should be fetchCourses (plural), not fetchCourse (singular)
 	const fetchCourses = async () => {
+		loading = true;
+		error = null;
+		
 		try {
+			console.log('Fetching courses for user:', $currentUser);
+			console.log('Is teacher:', isTeacher);
+			
 			if (isTeacher) {
-				// Fetch courses created by teacher
-				const response = await coursesApi.getCourses({ instructor: $currentUser.uuid });
-				courses = Array.isArray(response.results) ? response.results : [];
+				// For teachers, get courses they created
+				const response = await coursesApi.getCourses({ instructor: $currentUser?.uuid });
+				console.log('Teacher courses response:', response);
+				courses = Array.isArray(response.results) ? response.results : Array.isArray(response) ? response : [];
 			} else {
-				// Fetch enrolled courses for student
+				// For students, get their enrollments
 				const enrollments = await coursesApi.getMyEnrollments();
+				console.log('Student enrollments response:', enrollments);
 				courses = Array.isArray(enrollments) ? enrollments.map(e => ({
 					...e.course,
 					enrollment: e
 				})) : [];
 			}
-		} catch (error) {
-			console.error('Failed to fetch courses:', error);
+			console.log('Final courses:', courses);
+		} catch (err) {
+			console.error('Failed to fetch courses:', err);
+			error = err.message || 'Failed to load courses';
 			courses = [];
+			
+			uiStore.showNotification({
+				type: 'error',
+				title: 'Error',
+				message: 'Failed to load courses. Please try again.'
+			});
 		} finally {
 			loading = false;
 		}
+	};
+
+	const handleSearchInput = (event) => {
+		debouncedSearch(event.target.value);
 	};
 
 	const getStatusConfig = (status, isTeacherCourse = false) => {
@@ -200,12 +237,42 @@
 </svelte:head>
 
 <div class="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
-	<!-- Enhanced Hero Section -->
+	<!-- Enhanced Hero Section with Fixed Animated Background -->
 	<div class="relative overflow-hidden" in:fade={{ duration: 800 }}>
-		<!-- Animated Background -->
-		<!-- <div class="absolute inset-0 bg-gradient-to-br from-primary-600 via-primary-700 to-secondary-600">
-			<div class="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg"%3E%3Cg fill="none" fill-rule="evenodd"%3E%3Cg fill="%23ffffff" fill-opacity="0.05"%3E%3Ccircle cx="30" cy="30" r="30"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-20"></div>
-		</div> -->
+		<!-- Fixed Animated Background -->
+		<div class="absolute inset-0 bg-gradient-to-br from-primary-600 via-primary-700 to-secondary-600">
+			<!-- Animated geometric pattern -->
+			<div class="absolute inset-0 opacity-10">
+				<svg class="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+					<defs>
+						<pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse">
+							<path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/>
+						</pattern>
+					</defs>
+					<rect width="100%" height="100%" fill="url(#grid)" />
+				</svg>
+			</div>
+			
+			<!-- Floating geometric shapes -->
+			<div class="absolute inset-0 overflow-hidden">
+				{#each Array(6) as _, i}
+					<div 
+						class="absolute rounded-full bg-white/5 animate-float-gentle"
+						style="
+							width: {20 + Math.random() * 40}px; 
+							height: {20 + Math.random() * 40}px;
+							left: {Math.random() * 100}%;
+							top: {Math.random() * 100}%;
+							animation-delay: {i * 0.8}s;
+							animation-duration: {8 + Math.random() * 4}s;
+						"
+					></div>
+				{/each}
+			</div>
+
+			<!-- Gradient overlay -->
+			<div class="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-black/20"></div>
+		</div>
 		
 		<div class="container relative mx-auto px-4 py-20">
 			<div class="mx-auto max-w-4xl text-center text-white">
@@ -229,7 +296,7 @@
 				</div>
 
 				<!-- Enhanced Quick Stats -->
-				{#if !loading}
+				{#if !loading && !error}
 					<div class="grid grid-cols-2 gap-6 md:grid-cols-4" in:fly={{ y: 30, delay: 400, duration: 800 }}>
 						<div class="group rounded-2xl bg-white/10 p-6 backdrop-blur-sm transition-all hover:bg-white/15 hover:scale-105">
 							<div class="text-3xl font-bold">{stats.total}</div>
@@ -264,7 +331,8 @@
 							<Input
 								type="search"
 								placeholder={`Search ${isTeacher ? 'your courses' : 'enrolled courses'}...`}
-								bind:value={searchQuery}
+								value={searchQuery}
+								oninput={handleSearchInput}
 								class="h-12"
 								icon="<path stroke-linecap='round' stroke-linejoin='round' d='M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' />"
 							/>
@@ -313,7 +381,7 @@
 
 							<!-- Create/Browse Button -->
 							<Button 
-								href={isTeacher ? "/teacher/courses/create" : "/courses"} 
+								href={isTeacher ? "/courses/create" : "/courses"} 
 								variant="primary" 
 								size="medium"
 								class="whitespace-nowrap"
@@ -330,6 +398,9 @@
 					<div class="flex overflow-x-auto">
 						<div class="flex space-x-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-800">
 							{#each filterOptions as filter}
+								{@const count = filter.id === 'all' ? stats.total : 
+								 filter.id === 'published' || filter.id === 'completed' ? (isTeacher ? stats.published : stats.completed) :
+								 filter.id === 'draft' || filter.id === 'in_progress' ? (isTeacher ? stats.draft : stats.inProgress) : 0}
 								<button
 									onclick={() => activeFilter = filter.id}
 									class={classNames(
@@ -349,9 +420,7 @@
 											? "bg-primary-100 text-primary-800 dark:bg-primary-900/20 dark:text-primary-400"
 											: "bg-gray-200 dark:bg-gray-600"
 									)}>
-										{filter.id === 'all' ? stats.total : 
-										 filter.id === 'published' || filter.id === 'completed' ? (isTeacher ? stats.published : stats.completed) :
-										 filter.id === 'draft' || filter.id === 'in_progress' ? (isTeacher ? stats.draft : stats.inProgress) : 0}
+										{count}
 									</span>
 								</button>
 							{/each}
@@ -361,8 +430,26 @@
 			</Card>
 		</div>
 
-		<!-- Content Section -->
-		{#if loading}
+		<!-- Error State -->
+		{#if error}
+			<div in:fade={{ duration: 500 }}>
+				<Card variant="bordered" class="py-16 text-center shadow-xl">
+					<div class="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20">
+						<svg class="h-8 w-8 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+					</div>
+					<h3 class="mb-4 text-xl font-semibold text-gray-900 dark:text-white">Error Loading Courses</h3>
+					<p class="mb-6 text-gray-600 dark:text-gray-400">{error}</p>
+					<Button onclick={fetchCourses} variant="primary">
+						<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+						</svg>
+						Retry
+					</Button>
+				</Card>
+			</div>
+		{:else if loading}
 			<!-- Enhanced Loading State -->
 			<div class={classNames(
 				"grid gap-6",
@@ -404,7 +491,7 @@
 						</p>
 						<div class="flex flex-col gap-4 sm:flex-row sm:justify-center">
 							<Button 
-								href={isTeacher ? "/teacher/courses/create" : "/courses"} 
+								href={isTeacher ? "/courses/create" : "/courses"} 
 								variant="primary" 
 								size="large" 
 								class="transition-all hover:scale-105"
@@ -414,7 +501,7 @@
 								</svg>
 								{isTeacher ? 'Create First Course' : 'Explore Courses'}
 							</Button>
-							<Button onclick={() => fetchCourses()} variant="outline" size="large">
+							<Button onclick={fetchCourses} variant="outline" size="large">
 								<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
 								</svg>
@@ -653,3 +740,21 @@
 		{/if}
 	</div>
 </div>
+
+<style>
+	@keyframes float-gentle {
+		0%, 100% {
+			transform: translateY(0px) rotate(0deg);
+		}
+		33% {
+			transform: translateY(-20px) rotate(1deg);
+		}
+		66% {
+			transform: translateY(-10px) rotate(-1deg);
+		}
+	}
+
+	.animate-float-gentle {
+		animation: float-gentle 8s ease-in-out infinite;
+	}
+</style>
