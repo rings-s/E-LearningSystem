@@ -73,11 +73,62 @@ class CourseDetailSerializer(serializers.ModelSerializer):
             return obj.enrollments.filter(student=request.user, is_active=True).exists()
         return False
 
+
+
 class CourseCreateUpdateSerializer(serializers.ModelSerializer):
+    tags = serializers.ListField(
+        child=serializers.CharField(max_length=50),
+        write_only=True,
+        required=False,
+        allow_empty=True
+    )
+    
     class Meta:
         model = Course
         fields = '__all__'
         read_only_fields = ['uuid', 'created_at', 'updated_at', 'published_at']
+    
+    def create(self, validated_data):
+        # Handle tags
+        tags_data = validated_data.pop('tags', [])
+        
+        # Create course
+        course = Course.objects.create(**validated_data)
+        
+        # Handle tag creation/assignment
+        for tag_name in tags_data:
+            if tag_name.strip():  # Only create non-empty tags
+                tag, created = Tag.objects.get_or_create(
+                    name=tag_name.strip(),
+                    defaults={'slug': tag_name.strip().lower().replace(' ', '-')}
+                )
+                course.tags.add(tag)
+        
+        return course
+    
+    def update(self, instance, validated_data):
+        # Handle tags
+        tags_data = validated_data.pop('tags', None)
+        
+        # Update course fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Update tags if provided
+        if tags_data is not None:
+            instance.tags.clear()
+            for tag_name in tags_data:
+                if tag_name.strip():  # Only create non-empty tags
+                    tag, created = Tag.objects.get_or_create(
+                        name=tag_name.strip(),
+                        defaults={'slug': tag_name.strip().lower().replace(' ', '-')}
+                    )
+                    instance.tags.add(tag)
+        
+        return instance
+
+
 
 # Enrollment
 class EnrollmentSerializer(serializers.ModelSerializer):

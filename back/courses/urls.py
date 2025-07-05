@@ -1,14 +1,13 @@
-# back/courses/urls.py - Add categories endpoint
 from django.urls import path
 
 from .views import (
     CategoryListView, CategoryDetailView,
     CourseListCreateView, CourseDetailView, CourseEnrollView,
-    CoursePublishView, CourseAnalyticsView,
-    EnrollmentListView, EnrollmentDetailView, MyCoursesView,
+    CoursePublishView, CourseAnalyticsView, CourseImageUploadView,
+    CourseLessonListCreateView, CourseLessonDetailView, LessonFileUploadView,
+    LessonCompleteView, LessonNotesView,
+    EnrollmentListView, MyEnrollmentsView,
     ModuleListCreateView, ModuleDetailView,
-    LessonListCreateView, LessonDetailView, LessonCompleteView, LessonNotesUpdateView,
-    QuizListCreateView, QuizDetailView, QuizStartAttemptView, QuizSubmitView,
     CertificateListView, CertificateDetailView, CertificateVerifyView,
     CourseReviewListCreateView, CourseReviewDetailView
 )
@@ -20,33 +19,30 @@ urlpatterns = [
     path('categories/', CategoryListView.as_view(), name='category-list'),
     path('categories/<slug:slug>/', CategoryDetailView.as_view(), name='category-detail'),
     
-    # Courses
-    path('courses/', CourseListCreateView.as_view(), name='course-list'),
+    # Courses - Main CRUD
+    path('courses/', CourseListCreateView.as_view(), name='course-list-create'),
     path('courses/<uuid:uuid>/', CourseDetailView.as_view(), name='course-detail'),
+    
+    # Course Actions
     path('courses/<uuid:uuid>/enroll/', CourseEnrollView.as_view(), name='course-enroll'),
     path('courses/<uuid:uuid>/publish/', CoursePublishView.as_view(), name='course-publish'),
     path('courses/<uuid:uuid>/analytics/', CourseAnalyticsView.as_view(), name='course-analytics'),
+    path('courses/<uuid:uuid>/upload-image/', CourseImageUploadView.as_view(), name='course-image-upload'),
+    
+    # Lessons under Course
+    path('courses/<uuid:course_uuid>/lessons/', CourseLessonListCreateView.as_view(), name='course-lessons'),
+    path('courses/<uuid:course_uuid>/lessons/<uuid:uuid>/', CourseLessonDetailView.as_view(), name='course-lesson-detail'),
+    path('courses/<uuid:course_uuid>/lessons/<uuid:uuid>/upload/', LessonFileUploadView.as_view(), name='lesson-file-upload'),
+    path('courses/<uuid:course_uuid>/lessons/<uuid:uuid>/complete/', LessonCompleteView.as_view(), name='lesson-complete'),
+    path('courses/<uuid:course_uuid>/lessons/<uuid:uuid>/notes/', LessonNotesView.as_view(), name='lesson-notes'),
     
     # Enrollments
     path('enrollments/', EnrollmentListView.as_view(), name='enrollment-list'),
-    path('enrollments/<uuid:uuid>/', EnrollmentDetailView.as_view(), name='enrollment-detail'),
-    path('enrollments/my-courses/', MyCoursesView.as_view(), name='my-courses'),
+    path('enrollments/my-courses/', MyEnrollmentsView.as_view(), name='my-courses'),
     
     # Modules
-    path('modules/', ModuleListCreateView.as_view(), name='module-list'),
+    path('modules/', ModuleListCreateView.as_view(), name='module-list-create'),
     path('modules/<uuid:uuid>/', ModuleDetailView.as_view(), name='module-detail'),
-    
-    # Lessons
-    path('lessons/', LessonListCreateView.as_view(), name='lesson-list'),
-    path('lessons/<uuid:uuid>/', LessonDetailView.as_view(), name='lesson-detail'),
-    path('lessons/<uuid:uuid>/complete/', LessonCompleteView.as_view(), name='lesson-complete'),
-    path('lessons/<uuid:uuid>/notes/', LessonNotesUpdateView.as_view(), name='lesson-notes'),
-    
-    # Quizzes
-    path('quizzes/', QuizListCreateView.as_view(), name='quiz-list'),
-    path('quizzes/<uuid:uuid>/', QuizDetailView.as_view(), name='quiz-detail'),
-    path('quizzes/<uuid:uuid>/start/', QuizStartAttemptView.as_view(), name='quiz-start'),
-    path('quizzes/<uuid:uuid>/submit/', QuizSubmitView.as_view(), name='quiz-submit'),
     
     # Certificates
     path('certificates/', CertificateListView.as_view(), name='certificate-list'),
@@ -54,6 +50,6 @@ urlpatterns = [
     path('certificates/<uuid:uuid>/verify/', CertificateVerifyView.as_view(), name='certificate-verify'),
     
     # Reviews
-    path('reviews/', CourseReviewListCreateView.as_view(), name='review-list'),
+    path('reviews/', CourseReviewListCreateView.as_view(), name='review-list-create'),
     path('reviews/<uuid:uuid>/', CourseReviewDetailView.as_view(), name='review-detail'),
 ]

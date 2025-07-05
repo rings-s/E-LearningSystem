@@ -230,3 +230,7 @@ class ManagerDashboardSerializer(serializers.Serializer):
     popular_courses = serializers.ListField()
     user_growth = serializers.ListField()
     system_health = serializers.DictField()
+
+
+
+    
