@@ -4,10 +4,13 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { fade, fly, slide } from 'svelte/transition';
 	import { coursesApi } from '$lib/apis/courses.js';
+	import { coreApi } from '$lib/apis/core.js';
+	import { analyticsService } from '$lib/services/analytics.service.js';
 	import { currentUser } from '$lib/stores/auth.store.js';
 	import { uiStore } from '$lib/stores/ui.store.js';
 	import { debounce, classNames } from '$lib/utils/helpers.js';
 	import { formatters } from '$lib/utils/formatters.js';
+	import { APP_NAME } from '$lib/utils/constants.js';
 	import { browser } from '$app/environment';
 	import { locale, t } from '$lib/i18n/index.js';
 
@@ -32,21 +35,27 @@
 	let error = $state('');
 	let completingLesson = $state(false);
 
-	// Progress tracking
-	let videoProgress = $state({ currentTime: 0, duration: 0, progress: 0 });
-	let learningSession = $state({
-		startTime: null,
-		totalTime: 0,
-		lastActiveTime: Date.now()
+	// Enhanced Analytics Tracking
+	let analytics = $state({
+		sessionStartTime: null,
+		totalTimeSpent: 0,
+		lessonTimeSpent: 0,
+		interactionCount: 0,
+		lastProgressUpdate: null
 	});
 
-	// Note-taking - Enhanced
+	// Progress tracking with backend integration
+	let videoProgress = $state({ currentTime: 0, duration: 0, progress: 0 });
+	let learningSession = $state(null);
+
+	// Enhanced note-taking with real-time sync
 	let notes = $state([]);
 	let currentNote = $state('');
 	let noteSearchQuery = $state('');
 	let showNotes = $state(false);
 	let savingNote = $state(false);
 	let loadingNotes = $state(false);
+	let autoSaveTimer = null;
 
 	// UI state
 	let sidebar = $state({ 
@@ -99,14 +108,11 @@
 		calculatedProgress = totalLessonsCount > 0 ? Math.round((completedLessonsCount / totalLessonsCount) * 100) : 0;
 	});
 
-	// Session timers
-	let sessionTimer;
-	let autosaveTimer;
-
 	onMount(async () => {
 		await initializePage();
 		setupEventListeners();
 		startLearningSession();
+		startAnalyticsTracking();
 	});
 
 	onDestroy(() => {
@@ -171,7 +177,13 @@
 
 	async function loadLesson(lesson) {
 		try {
-			currentLesson = await coursesApi.getLesson(lesson.uuid);
+			// End previous lesson tracking
+			if (currentLesson) {
+				await endLessonTracking();
+			}
+
+			// Load new lesson
+			currentLesson = await coursesApi.getCourseLesson(courseId, lesson.uuid);
 			videoProgress = { currentTime: 0, duration: 0, progress: 0 };
 			
 			// Update URL
@@ -184,6 +196,9 @@
 			// Load lesson-specific data
 			await loadLessonNotes();
 			
+			// Start lesson analytics tracking
+			await startLessonTracking();
+			
 		} catch (err) {
 			console.error('Failed to load lesson:', err);
 			uiStore.showNotification({
@@ -194,21 +209,79 @@
 		}
 	}
 
-	// Enhanced notes functionality
+	// Enhanced Analytics Functions
+	function startAnalyticsTracking() {
+		analytics.sessionStartTime = Date.now();
+		analytics.interactionCount = 0;
+
+		// Track interactions
+		if (browser) {
+			['click', 'keydown', 'scroll'].forEach(event => {
+				document.addEventListener(event, trackInteraction);
+			});
+		}
+	}
+
+	function trackInteraction() {
+		analytics.interactionCount++;
+		analytics.lastProgressUpdate = Date.now();
+	}
+
+	async function startLessonTracking() {
+		if (!currentLesson) return;
+
+		analytics.lessonTimeSpent = 0;
+		
+		// Track lesson start with backend
+		try {
+			await coreApi.trackActivity({
+				activity_type: 'lesson_start',
+				course_id: courseId,
+				lesson_id: currentLesson.uuid,
+				metadata: {
+					lesson_title: currentLesson.title,
+					session_start: Date.now()
+				}
+			});
+		} catch (error) {
+			console.warn('Failed to track lesson start:', error);
+		}
+	}
+
+	async function endLessonTracking() {
+		if (!currentLesson || !analytics.sessionStartTime) return;
+
+		const timeSpent = Date.now() - analytics.sessionStartTime;
+		
+		try {
+			await coreApi.trackActivity({
+				activity_type: 'lesson_progress',
+				course_id: courseId,
+				lesson_id: currentLesson.uuid,
+				metadata: {
+					time_spent_seconds: Math.floor(timeSpent / 1000),
+					progress_percentage: videoProgress.progress,
+					interactions: analytics.interactionCount,
+					video_progress: videoProgress
+				}
+			});
+		} catch (error) {
+			console.warn('Failed to track lesson progress:', error);
+		}
+	}
+
+	// Enhanced notes functionality with auto-save
 	async function loadLessonNotes() {
 		if (!currentLesson) return;
 		
 		loadingNotes = true;
 		try {
-			const response = await coursesApi.getLessonNotes(currentLesson.uuid);
-			// Clear existing notes for this lesson
+			const response = await coursesApi.getLessonNotes(courseId, currentLesson.uuid);
 			notes = notes.filter(n => n.lessonId !== currentLesson.uuid);
 			
 			if (response.notes) {
-				// Backend returns notes as a string, we need to parse if it's JSON or handle as text
 				let lessonNotes = [];
 				try {
-					// Try to parse as JSON first (if stored as JSON array)
 					const parsedNotes = JSON.parse(response.notes);
 					if (Array.isArray(parsedNotes)) {
 						lessonNotes = parsedNotes.map(n => ({
@@ -217,7 +290,6 @@
 							lessonTitle: currentLesson.title
 						}));
 					} else {
-						// Single note object
 						lessonNotes = [{
 							id: Date.now(),
 							content: response.notes,
@@ -228,7 +300,6 @@
 						}];
 					}
 				} catch (parseError) {
-					// If not JSON, treat as plain text
 					if (response.notes.trim()) {
 						lessonNotes = [{
 							id: Date.now(),
@@ -262,41 +333,61 @@
 		}
 	}
 
-	// Learning session management
+	// Enhanced Learning session management with analytics
 	function startLearningSession() {
-		learningSession.startTime = Date.now();
-		learningSession.lastActiveTime = Date.now();
-
-		// Track session time
-		sessionTimer = setInterval(() => {
-			learningSession.totalTime += 1;
-		}, 1000);
-
-		// Auto-save progress
-		autosaveTimer = setInterval(saveProgress, 30000);
+		learningSession = analyticsService.startStudySession(courseId, currentLesson?.uuid);
+		
+		// Update session every 30 seconds
+		setInterval(() => {
+			if (learningSession) {
+				analyticsService.updateStudySession({
+					videoProgress,
+					lessonProgress: calculatedProgress,
+					timeSpent: Date.now() - learningSession.startTime
+				});
+			}
+		}, 30000);
 	}
 
 	function cleanup() {
-		if (sessionTimer) clearInterval(sessionTimer);
-		if (autosaveTimer) clearInterval(autosaveTimer);
+		if (learningSession) {
+			analyticsService.endStudySession();
+		}
+		
+		if (autoSaveTimer) {
+			clearTimeout(autoSaveTimer);
+		}
+
+		if (browser) {
+			['click', 'keydown', 'scroll'].forEach(event => {
+				document.removeEventListener(event, trackInteraction);
+			});
+		}
+
+		// Final lesson tracking
+		endLessonTracking();
 	}
 
-	// Progress tracking
-	const saveProgress = debounce(() => {
+	// Progress tracking with enhanced analytics
+	const saveProgress = debounce(async () => {
 		if (currentLesson && browser) {
-			const progress = {
+			const progressData = {
 				lessonId: currentLesson.uuid,
 				videoProgress,
-				timeSpent: learningSession.totalTime,
+				timeSpent: Date.now() - (analytics.sessionStartTime || Date.now()),
 				lastAccessed: Date.now(),
-				completed: currentLesson.is_completed
+				completed: currentLesson.is_completed,
+				interactionCount: analytics.interactionCount
 			};
 			
-			localStorage.setItem(`lesson_progress_${currentLesson.uuid}`, JSON.stringify(progress));
+			localStorage.setItem(`lesson_progress_${currentLesson.uuid}`, JSON.stringify(progressData));
 
-			// Sync with server
-			coursesApi.updateLessonProgress(currentLesson.uuid, progress)
-				.catch(err => console.warn('Failed to sync progress:', err));
+			// Enhanced backend sync with analytics
+			try {
+				await analyticsService.trackLessonProgress(currentLesson.uuid, progressData);
+			} catch (err) {
+				console.warn('Failed to sync progress:', err);
+			}
 		}
 	}, 2000);
 
@@ -305,11 +396,10 @@
 			localStorage.setItem(`course_notes_${courseId}`, JSON.stringify(notes));
 		}
 		
-		// Save to backend - combine all notes for this lesson
 		if (currentLesson) {
 			const lessonNotes = notes.filter(n => n.lessonId === currentLesson.uuid);
 			try {
-				await coursesApi.saveLessonNotes(currentLesson.uuid, JSON.stringify(lessonNotes));
+				await coursesApi.saveLessonNotes(courseId, currentLesson.uuid, JSON.stringify(lessonNotes));
 			} catch (err) {
 				console.warn('Failed to save notes to backend:', err);
 			}
@@ -321,13 +411,25 @@
 
 		completingLesson = true;
 		try {
-			await coursesApi.completeLesson(currentLesson.uuid);
+			await coursesApi.completeLesson(courseId, currentLesson.uuid);
 			currentLesson.is_completed = true;
 
 			// Update enrollment progress
 			if (enrollment) {
 				enrollment.progress_percentage = calculatedProgress;
 			}
+
+			// Track completion with analytics
+			await coreApi.trackActivity({
+				activity_type: 'lesson_complete',
+				course_id: courseId,
+				lesson_id: currentLesson.uuid,
+				metadata: {
+					completion_time: Date.now(),
+					time_spent: Date.now() - (analytics.sessionStartTime || Date.now()),
+					video_completion_rate: videoProgress.progress
+				}
+			});
 
 			uiStore.showNotification({
 				type: 'success',
@@ -351,10 +453,17 @@
 		}
 	}
 
-	// Video player handlers
+	// Enhanced video player handlers with analytics
 	function handleVideoProgress(data) {
 		videoProgress = data;
-		learningSession.lastActiveTime = Date.now();
+		analytics.lastProgressUpdate = Date.now();
+
+		// Track detailed video analytics
+		analyticsService.updateStudySession({
+			...data,
+			interactionCount: analytics.interactionCount,
+			lessonId: currentLesson?.uuid
+		});
 
 		// Auto-complete at 95%
 		if (data.progress >= 95 && !currentLesson.is_completed && !completingLesson) {
@@ -364,7 +473,7 @@
 		saveProgress();
 	}
 
-	// Enhanced note-taking system
+	// Enhanced note-taking system with auto-save
 	async function addNote() {
 		if (!currentNote.trim()) return;
 
@@ -382,8 +491,8 @@
 			notes = [note, ...notes];
 			currentNote = '';
 			
-			// Save immediately
-			await saveNotes();
+			// Auto-save
+			setupAutoSave();
 
 			uiStore.showNotification({
 				type: 'success',
@@ -402,15 +511,36 @@
 		}
 	}
 
-	function deleteNote(noteId) {
-		notes = notes.filter(n => n.id !== noteId);
-		saveNotes();
+	function setupAutoSave() {
+		if (autoSaveTimer) {
+			clearTimeout(autoSaveTimer);
+		}
+		
+		autoSaveTimer = setTimeout(() => {
+			saveNotes();
+		}, 2000);
 	}
 
-	// Enhanced navigation with proper error handling
+	function deleteNote(noteId) {
+		notes = notes.filter(n => n.id !== noteId);
+		setupAutoSave();
+	}
+
+	// Enhanced navigation with analytics tracking
 	async function navigateToLesson(lesson) {
 		if (lesson) {
 			try {
+				// Track navigation
+				await coreApi.trackActivity({
+					activity_type: 'lesson_navigation',
+					course_id: courseId,
+					lesson_id: lesson.uuid,
+					metadata: {
+						from_lesson: currentLesson?.uuid,
+						navigation_type: 'manual'
+					}
+				});
+
 				await loadLesson(lesson);
 			} catch (err) {
 				console.error('Navigation error:', err);
@@ -468,7 +598,7 @@
 
 		window.addEventListener('resize', handleResize);
 		window.addEventListener('keydown', handleKeyboard);
-		handleResize(); // Initial check
+		handleResize();
 
 		return () => {
 			window.removeEventListener('resize', handleResize);
@@ -491,8 +621,8 @@
 </script>
 
 <svelte:head>
-	<title>{currentLesson?.title || $t('course.loading')} - {course?.title || 'Course'} - 244SCHOOL</title>
-	<meta name="description" content="Continue your learning journey with {course?.title || 'this course'}" />
+	<title>{currentLesson?.title || $t('course.loading')} - {course?.title || 'Course'} - {APP_NAME}</title>
+	<meta name="description" content="Continue your learning journey with {course?.title || 'this course'} on {APP_NAME}" />
 </svelte:head>
 
 <!-- Loading State -->
@@ -529,7 +659,7 @@
 {#if !loading && !error && currentLesson}
 	<div class="flex h-screen bg-gray-50 dark:bg-gray-900" in:fade>
 		
-		<!-- Sidebar -->
+		<!-- Enhanced Sidebar with Analytics -->
 		<div class={classNames(
 			'transition-all duration-300 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800',
 			sidebar.collapsed ? 'w-16' : 'w-80',
@@ -540,9 +670,14 @@
 			<!-- Sidebar Header -->
 			<div class="flex h-16 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-700">
 				{#if !sidebar.collapsed}
-					<h2 class="font-semibold text-gray-900 dark:text-white truncate">
-						{course?.title || 'Course'}
-					</h2>
+					<div>
+						<h2 class="font-semibold text-gray-900 dark:text-white truncate">
+							{course?.title || 'Course'}
+						</h2>
+						<div class="text-xs text-gray-500 dark:text-gray-400">
+							{APP_NAME} Learning Platform
+						</div>
+					</div>
 				{/if}
 				
 				<button
@@ -558,12 +693,13 @@
 			</div>
 
 			{#if !sidebar.collapsed}
-				<!-- Sidebar Tabs -->
+				<!-- Enhanced Sidebar Tabs -->
 				<div class="flex border-b border-gray-200 dark:border-gray-700">
 					{#each [
 						{ id: 'overview', label: $t('course.overview'), icon: '📊' },
 						{ id: 'lessons', label: $t('course.lessons'), icon: '📚' },
-						{ id: 'notes', label: $t('course.notes'), icon: '📝' }
+						{ id: 'notes', label: $t('course.notes'), icon: '📝' },
+						{ id: 'analytics', label: 'Progress', icon: '📈' }
 					] as tab}
 						<button
 							onclick={() => sidebar.activeTab = tab.id}
@@ -580,11 +716,11 @@
 					{/each}
 				</div>
 
-				<!-- Sidebar Content -->
+				<!-- Enhanced Sidebar Content -->
 				<div class="flex-1 overflow-y-auto p-4">
 					
 					{#if sidebar.activeTab === 'overview'}
-						<!-- Course Overview -->
+						<!-- Enhanced Course Overview with Analytics -->
 						<div class="space-y-4">
 							<div>
 								<h3 class="mb-2 font-medium text-gray-900 dark:text-white">{$t('course.progress')} {$t('course.overview')}</h3>
@@ -605,13 +741,21 @@
 								<h3 class="mb-2 font-medium text-gray-900 dark:text-white">{$t('course.learningStats')}</h3>
 								<div class="space-y-2 text-sm">
 									<div class="flex justify-between">
-										<span class="text-gray-600 dark:text-gray-400">{$t('course.timeSpent')}</span>
-										<span class="font-medium">{formatters.duration(learningSession.totalTime)}</span>
+										<span class="text-gray-600 dark:text-gray-400">Session Time</span>
+										<span class="font-medium">
+											{formatters.duration(analytics.sessionStartTime ? (Date.now() - analytics.sessionStartTime) / 1000 : 0)}
+										</span>
 									</div>
 									<div class="flex justify-between">
-										<span class="text-gray-600 dark:text-gray-400">{$t('course.currentSession')}</span>
-										<span class="font-medium">{formatters.duration(learningSession.totalTime)}</span>
+										<span class="text-gray-600 dark:text-gray-400">Interactions</span>
+										<span class="font-medium">{analytics.interactionCount}</span>
 									</div>
+									{#if videoProgress.progress > 0}
+										<div class="flex justify-between">
+											<span class="text-gray-600 dark:text-gray-400">Video Progress</span>
+											<span class="font-medium">{Math.round(videoProgress.progress)}%</span>
+										</div>
+									{/if}
 								</div>
 							</div>
 						</div>
@@ -709,6 +853,50 @@
 								{/if}
 							</div>
 						</div>
+
+					{:else if sidebar.activeTab === 'analytics'}
+						<!-- Learning Analytics Panel -->
+						<div class="space-y-4">
+							<h3 class="font-medium text-gray-900 dark:text-white">Your Progress</h3>
+							
+							<!-- Course Completion -->
+							<div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
+								<div class="text-2xl font-bold text-blue-600 dark:text-blue-400">
+									{calculatedProgress}%
+								</div>
+								<div class="text-sm text-blue-800 dark:text-blue-200">Course Completion</div>
+							</div>
+
+							<!-- Time Analytics -->
+							<div class="grid grid-cols-2 gap-2">
+								<div class="rounded-lg bg-green-50 p-3 dark:bg-green-900/20">
+									<div class="text-lg font-bold text-green-600 dark:text-green-400">
+										{formatters.duration(analytics.sessionStartTime ? (Date.now() - analytics.sessionStartTime) / 1000 : 0)}
+									</div>
+									<div class="text-xs text-green-800 dark:text-green-200">Session Time</div>
+								</div>
+								<div class="rounded-lg bg-purple-50 p-3 dark:bg-purple-900/20">
+									<div class="text-lg font-bold text-purple-600 dark:text-purple-400">
+										{analytics.interactionCount}
+									</div>
+									<div class="text-xs text-purple-800 dark:text-purple-200">Interactions</div>
+								</div>
+							</div>
+
+							<!-- Lesson Progress -->
+							<div class="space-y-2">
+								<div class="text-sm font-medium">Lesson Progress</div>
+								<div class="text-xs text-gray-600 dark:text-gray-400">
+									Lesson {currentLessonIndex + 1} of {totalLessonsCount}
+								</div>
+								<div class="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+									<div 
+										class="bg-gradient-to-r from-primary-500 to-secondary-500 h-2 rounded-full transition-all duration-300" 
+										style="width: {((currentLessonIndex + 1) / totalLessonsCount) * 100}%"
+									></div>
+								</div>
+							</div>
+						</div>
 					{/if}
 				</div>
 			{/if}
@@ -717,7 +905,7 @@
 		<!-- Main Content -->
 		<div class="flex flex-1 flex-col">
 			
-			<!-- Top Bar -->
+			<!-- Enhanced Top Bar -->
 			<div class="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6 dark:border-gray-700 dark:bg-gray-800">
 				
 				<!-- Mobile menu button -->
@@ -732,7 +920,7 @@
 					</button>
 				{/if}
 
-				<!-- Lesson Info -->
+				<!-- Enhanced Lesson Info -->
 				<div class="flex-1">
 					<div class="flex items-center gap-3">
 						<h1 class="text-lg font-semibold text-gray-900 dark:text-white truncate">
@@ -751,7 +939,7 @@
 						{/if}
 					</div>
 					<div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-						{currentLesson.moduleTitle || 'Module'} • {formatters.duration((currentLesson.estimated_time_minutes || 0) * 60)}
+						{currentLesson.moduleTitle || 'Module'} • {formatters.duration((currentLesson.estimated_time_minutes || 0) * 60)} • {APP_NAME}
 					</div>
 				</div>
 
@@ -767,6 +955,11 @@
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 						</svg>
 					</Button>
+					
+					<!-- Progress Indicator -->
+					<div class="text-sm text-gray-500 dark:text-gray-400">
+						{Math.round(calculatedProgress)}% Complete
+					</div>
 				</div>
 			</div>
 
@@ -774,22 +967,12 @@
 			<div class="flex-1 overflow-hidden">
 				<div class="h-full p-4 md:p-6">
 					
-					<!-- Video/Content Player with Responsive Sizing -->
+					<!-- Video/Content Player with Enhanced Analytics -->
 					<div class="mb-6">
 						<Card variant="bordered" class="overflow-hidden shadow-lg">
 							<div class="-m-6">
 								{#if currentLesson.content_type === 'video' && currentLesson.video_url}
-									<div class={classNames(
-										'w-full bg-black flex items-center justify-center',
-										// Mobile: 16:9 aspect ratio (standard video)
-										'aspect-video',
-										// Tablet: keep 16:9 ratio
-										'sm:aspect-video',
-										// Desktop: slightly wider but still show full content
-										'lg:aspect-[2/1]',
-										// Extra large: wider but ensure content visibility
-										'xl:aspect-[2.5/1]'
-									)}>
+									<div class="aspect-video w-full bg-black flex items-center justify-center">
 										<div class="w-full h-full">
 											<YouTubePlayer
 												videoId={currentLesson.video_url}
@@ -799,14 +982,7 @@
 										</div>
 									</div>
 								{:else if currentLesson.content_type === 'pdf' && currentLesson.file_attachment}
-									<div class={classNames(
-										'w-full',
-										// Responsive heights for PDF viewer
-										'h-[500px]', // Mobile
-										'sm:h-[600px]', // Tablet  
-										'lg:h-[400px]', // Desktop 
-										'xl:h-[350px]' // Extra large
-									)}>
+									<div class="h-[600px] w-full">
 										<PDFViewer
 											src={currentLesson.file_attachment}
 											title={currentLesson.title}
@@ -822,7 +998,7 @@
 										<div class="text-center text-gray-500 dark:text-gray-400">
 											<svg class="mx-auto mb-4 h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-								</svg>
+											</svg>
 											<p>{$t('course.contentNotAvailable')}</p>
 										</div>
 									</div>
@@ -831,7 +1007,7 @@
 						</Card>
 					</div>
 
-					<!-- Enhanced Lesson Controls -->
+					<!-- Enhanced Lesson Controls with Analytics -->
 					<div class="mb-6">
 						<Card variant="bordered" class="bg-white/95 backdrop-blur-sm shadow-md dark:bg-gray-800/95">
 							<div class="flex items-center justify-between">
@@ -856,7 +1032,8 @@
 
 									{#if videoProgress.duration > 0}
 										<div class="text-sm text-gray-600 dark:text-gray-400">
-											{$t('course.videoProgress')}: {Math.round(videoProgress.progress)}%
+											{$t('course.videoProgress')}: {Math.round(videoProgress.progress)}% • 
+											{formatters.duration(videoProgress.currentTime)} / {formatters.duration(videoProgress.duration)}
 										</div>
 									{/if}
 								</div>

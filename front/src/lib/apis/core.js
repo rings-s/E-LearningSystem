@@ -7,6 +7,34 @@ export const coreApi = {
 		return api.get('/core/dashboard/');
 	},
 
+	// Enhanced Analytics Endpoints
+	async getStudentAnalytics() {
+		return api.get('/core/student-analytics/');
+	},
+
+	async getTeacherAnalytics() {
+		return api.get('/core/teacher-analytics/');
+	},
+
+	async getPlatformAnalytics() {
+		return api.get('/core/platform-analytics/');
+	},
+
+	// Study Session Tracking
+	async trackStudySession(sessionData) {
+		return api.post('/core/track-study-session/', sessionData);
+	},
+
+	// Activity Tracking
+	async trackActivity(activityData) {
+		return api.post('/core/track-activity/', activityData);
+	},
+
+	// Progress Analytics
+	async getProgressAnalytics(courseId) {
+		return api.get(`/core/progress-analytics/${courseId}/`);
+	},
+
 	// Forums & Discussions
 	async getForums() {
 		return api.get('/core/forums/');

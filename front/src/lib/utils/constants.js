@@ -1,5 +1,5 @@
 // front/src/lib/utils/constants.js
-export const APP_NAME = '244SCHOOL';
+export const APP_NAME = '249Sudan';
 
 export const ROLES = {
 	STUDENT: 'student',
@@ -48,7 +48,7 @@ export const BREAKPOINTS = {
 	'2XL': 1536
 };
 
-// Modern color palette from Coolors.co 2024 trends
+// Modern color palette optimized for e-learning
 export const COLORS = {
 	primary: {
 		50: '#f0f4ff',
