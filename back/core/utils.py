@@ -4,15 +4,15 @@ from django.utils import timezone
 from django.db.models import F
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from django.shortcuts import get_object_or_404
+from django.http import Http404
+from django.core.exceptions import ValidationError
 import logging
 import hashlib
-
-
-from django.core.exceptions import ValidationError
-from django.http import Http404
-
 import uuid  # Use built-in uuid module
 
+logger = logging.getLogger(__name__)
+channel_layer = get_channel_layer()
 
 def validate_uuid(value):
     """Validate that the value is a valid UUID"""
@@ -21,15 +21,14 @@ def validate_uuid(value):
     except (ValueError, TypeError):
         raise ValidationError("Invalid UUID format")
 
-
-logger = logging.getLogger(__name__)
-channel_layer = get_channel_layer()
-
-
-
-
-
-
+def validate_and_get_object(model_class, uuid_value):
+    """Validate UUID and get object safely"""
+    try:
+        # Validate UUID format
+        uuid.UUID(str(uuid_value))
+        return get_object_or_404(model_class, uuid=uuid_value)
+    except (ValueError, AttributeError, TypeError):
+        raise Http404("Invalid UUID format")
 
 def validate_uuid_param(uuid_value):
     """Validate UUID parameter and raise 404 if invalid"""
@@ -47,8 +46,6 @@ def safe_uuid_filter(queryset, field_name, uuid_value):
         return queryset.filter(**filter_kwargs)
     except ValidationError:
         return queryset.none()
-
-
 
 # Cache utilities
 def get_or_set_cache(key, func, timeout=3600):
@@ -154,7 +151,6 @@ def calculate_course_progress(enrollment):
     
     return round((completed_lessons / total_lessons) * 100, 2)
 
-
 def update_enrollment_progress(enrollment):
     """Update enrollment progress percentage with real-time calculation"""
     progress = calculate_course_progress(enrollment)
@@ -179,8 +175,6 @@ def update_enrollment_progress(enrollment):
     enrollment.save()
     return progress
 
-
-    
 # Quiz scoring
 def calculate_quiz_score(quiz_attempt):
     """Calculate score for a quiz attempt"""
