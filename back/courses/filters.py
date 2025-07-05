@@ -1,21 +1,26 @@
-# back/courses/filters.py - Add UUID validation and improve filters
-
+# back/courses/filters.py - Fixed UUID validation
 import django_filters
 from django.db.models import Q
 from django.core.exceptions import ValidationError
 from .models import Course, Lesson, Quiz, Certificate
-import uuid  # Use built-in uuid module
+import uuid
+
+def validate_uuid(value):
+    """Validate UUID format"""
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (ValueError, TypeError):
+        return False
 
 class UUIDFilter(django_filters.CharFilter):
     """Custom filter for UUID fields with validation"""
     
     def filter(self, qs, value):
         if value:
-            try:
-                # Validate UUID format
-                validate_uuid(value)
+            if validate_uuid(value):
                 return super().filter(qs, value)
-            except ValidationError:
+            else:
                 # Return empty queryset for invalid UUIDs
                 return qs.none()
         return qs
@@ -25,7 +30,7 @@ class CourseFilter(django_filters.FilterSet):
     category = django_filters.CharFilter(field_name='category__slug')
     level = django_filters.ChoiceFilter(choices=Course.LEVEL_CHOICES)
     language = django_filters.CharFilter()
-    instructor = UUIDFilter(field_name='instructor__uuid')  # Use custom UUID filter
+    instructor = UUIDFilter(field_name='instructor__uuid')
     min_duration = django_filters.NumberFilter(field_name='duration_hours', lookup_expr='gte')
     max_duration = django_filters.NumberFilter(field_name='duration_hours', lookup_expr='lte')
     is_featured = django_filters.BooleanFilter()
@@ -54,8 +59,8 @@ class CourseFilter(django_filters.FilterSet):
         ).distinct()
 
 class LessonFilter(django_filters.FilterSet):
-    module = UUIDFilter(field_name='module__uuid')  # Use custom UUID filter
-    course = UUIDFilter(field_name='module__course__uuid')  # Use custom UUID filter
+    module = UUIDFilter(field_name='module__uuid')
+    course = UUIDFilter(field_name='module__course__uuid')
     content_type = django_filters.ChoiceFilter(choices=Lesson.CONTENT_TYPE_CHOICES)
     is_preview = django_filters.BooleanFilter()
     is_published = django_filters.BooleanFilter()
@@ -65,7 +70,7 @@ class LessonFilter(django_filters.FilterSet):
         fields = ['module', 'course', 'content_type', 'is_preview', 'is_published']
 
 class QuizFilter(django_filters.FilterSet):
-    course = UUIDFilter(field_name='course__uuid')  # Use custom UUID filter
+    course = UUIDFilter(field_name='course__uuid')
     quiz_type = django_filters.ChoiceFilter(choices=Quiz.QUIZ_TYPE_CHOICES)
     is_published = django_filters.BooleanFilter()
     
