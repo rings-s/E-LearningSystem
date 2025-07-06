@@ -11,6 +11,7 @@
 	import { APP_NAME } from '$lib/utils/constants.js';
 	import { browser } from '$app/environment';
 	import { locale, t } from '$lib/i18n/index.js';
+	import { replaceState } from '$app/navigation'; // Use SvelteKit's navigation
 
 	// Components
 	import YouTubePlayer from '$lib/components/course/YouTubePlayer.svelte';
@@ -64,42 +65,60 @@
 	let showKeyboardShortcuts = $state(false);
 	let isMobile = $state(false);
 
-	// Fixed: Convert to $derived instead of manually updating variables
+	// Fixed: Enhanced derived state with better error handling and null checks
 	let lessons = $derived(() => {
-		if (course?.modules) {
-			return course.modules.flatMap(module => 
-				(module.lessons || []).map(lesson => ({
+		if (!course?.modules || !Array.isArray(course.modules)) return [];
+		
+		return course.modules.flatMap(module => {
+			if (!module || !module.lessons || !Array.isArray(module.lessons)) return [];
+			return module.lessons
+				.filter(lesson => lesson && typeof lesson === 'object' && lesson.uuid)
+				.map(lesson => ({
 					...lesson,
-					moduleTitle: module.title
-				}))
-			);
-		}
-		return [];
+					moduleTitle: module.title || 'Unknown Module',
+					is_completed: Boolean(lesson.is_completed)
+				}));
+		});
 	});
 
 	let currentLessonIndex = $derived(() => {
-		if (currentLesson && lessons.length > 0) {
-			return lessons.findIndex(lesson => lesson.uuid === currentLesson.uuid);
-		}
-		return -1;
+		if (!currentLesson || !currentLesson.uuid || !Array.isArray(lessons) || lessons.length === 0) return -1;
+		return lessons.findIndex(lesson => lesson && lesson.uuid === currentLesson.uuid);
 	});
 
 	let previousLesson = $derived(() => {
-		return currentLessonIndex > 0 ? lessons[currentLessonIndex - 1] : null;
+		const index = currentLessonIndex;
+		if (index <= 0 || !Array.isArray(lessons)) return null;
+		return lessons[index - 1] || null;
 	});
 
 	let nextLesson = $derived(() => {
-		return currentLessonIndex < lessons.length - 1 ? lessons[currentLessonIndex + 1] : null;
+		const index = currentLessonIndex;
+		if (index < 0 || !Array.isArray(lessons) || index >= lessons.length - 1) return null;
+		return lessons[index + 1] || null;
 	});
 
-	let totalLessonsCount = $derived(() => lessons.length);
-
-	let completedLessonsCount = $derived(() => {
-		return lessons.filter(l => l.is_completed).length;
+	let totalLessonsCount = $derived.by(() => {
+		return Array.isArray(lessons) ? lessons.length : 0;
 	});
 
-	let calculatedProgress = $derived(() => {
-		return totalLessonsCount > 0 ? Math.round((completedLessonsCount / totalLessonsCount) * 100) : 0;
+	let completedLessonsCount = $derived.by(() => {
+		if (!Array.isArray(lessons)) return 0;
+		return lessons.filter(lesson => 
+			lesson && 
+			typeof lesson === 'object' && 
+			'is_completed' in lesson && 
+			lesson.is_completed === true
+		).length;
+	});
+
+	// Fixed: Safe progress calculation to avoid NaN
+	let progressValue = $derived.by(() => {
+		const total = totalLessonsCount;
+		const completed = completedLessonsCount;
+		
+		if (!total || total === 0) return 0;
+		return Math.round((completed / total) * 100);
 	});
 
 	onMount(async () => {
@@ -115,11 +134,14 @@
 
 	async function initializePage() {
 		try {
+			// Load course and enrollment first
 			await Promise.all([
 				loadCourse(),
-				loadEnrollment(),
-				loadNotes()
+				loadEnrollment()
 			]);
+			
+			// Then load general notes (not lesson-specific)
+			await loadNotes();
 		} catch (err) {
 			error = err.message || $t('course.somethingWentWrong');
 			console.error('Initialization error:', err);
@@ -160,12 +182,22 @@
 		}
 	}
 
+	// Fixed: Handle enrollment response properly
 	async function loadEnrollment() {
 		try {
-			const enrollments = await coursesApi.getMyEnrollments();
-			enrollment = enrollments.find(e => e.course.uuid === courseId) || null;
+			const response = await coursesApi.getMyEnrollments();
+			// Handle different response formats
+			const enrollmentsList = Array.isArray(response) ? response : (response.results || response.enrollments || []);
+			
+			if (Array.isArray(enrollmentsList)) {
+				enrollment = enrollmentsList.find(e => e.course?.uuid === courseId) || null;
+			} else {
+				console.warn('Enrollment response is not an array:', response);
+				enrollment = null;
+			}
 		} catch (err) {
 			console.warn('Could not load enrollment:', err);
+			enrollment = null;
 		}
 	}
 
@@ -180,11 +212,11 @@
 			currentLesson = await coursesApi.getCourseLesson(courseId, lesson.uuid);
 			videoProgress = { currentTime: 0, duration: 0, progress: 0 };
 			
-			// Update URL
+			// Fixed: Use SvelteKit's replaceState instead of history API
 			if (browser) {
 				const url = new URL(window.location);
 				url.searchParams.set('lesson', lesson.uuid);
-				window.history.replaceState({}, '', url);
+				replaceState(url.toString(), {});
 			}
 
 			// Load lesson-specific data
@@ -235,29 +267,41 @@
 		console.log('Ended lesson tracking. Time spent:', Math.floor(timeSpent / 1000), 'seconds');
 	}
 
-	// Enhanced notes functionality with auto-save
+	// Enhanced notes functionality with auto-save and better error handling
 	async function loadLessonNotes() {
-		if (!currentLesson) return;
+		if (!currentLesson) {
+			console.log('loadLessonNotes: No current lesson');
+			return;
+		}
 		
+		console.log('loadLessonNotes: Loading notes for lesson:', currentLesson.uuid);
 		loadingNotes = true;
 		try {
 			const response = await coursesApi.getLessonNotes(courseId, currentLesson.uuid);
-			notes = notes.filter(n => n.lessonId !== currentLesson.uuid);
+			console.log('loadLessonNotes: API response:', response);
 			
-			if (response.notes) {
+			// Filter out existing notes for this lesson to avoid duplicates
+			const existingNotes = notes.filter(n => n.lessonId !== currentLesson.uuid);
+			console.log('loadLessonNotes: Existing notes after filtering:', existingNotes);
+			
+			if (response && response.notes) {
 				let lessonNotes = [];
 				try {
 					const parsedNotes = JSON.parse(response.notes);
+					console.log('loadLessonNotes: Parsed notes:', parsedNotes);
 					if (Array.isArray(parsedNotes)) {
-						lessonNotes = parsedNotes.map(n => ({
-							...n,
-							lessonId: currentLesson.uuid,
-							lessonTitle: currentLesson.title
-						}));
-					} else {
+						lessonNotes = parsedNotes
+							.filter(n => n && n.content) // Filter out empty notes
+							.map(n => ({
+								...n,
+								lessonId: currentLesson.uuid,
+								lessonTitle: currentLesson.title
+							}));
+					} else if (typeof parsedNotes === 'string' && parsedNotes.trim()) {
+						// Handle single string note
 						lessonNotes = [{
 							id: Date.now(),
-							content: response.notes,
+							content: parsedNotes,
 							lessonId: currentLesson.uuid,
 							lessonTitle: currentLesson.title,
 							timestamp: 0,
@@ -265,6 +309,8 @@
 						}];
 					}
 				} catch (parseError) {
+					console.log('loadLessonNotes: JSON parse error, treating as plain text');
+					// Handle plain text notes
 					if (response.notes.trim()) {
 						lessonNotes = [{
 							id: Date.now(),
@@ -276,7 +322,17 @@
 						}];
 					}
 				}
-				notes = [...notes, ...lessonNotes];
+				
+				if (lessonNotes.length > 0) {
+					notes = [...existingNotes, ...lessonNotes];
+					console.log('loadLessonNotes: Final notes array:', notes);
+				} else {
+					notes = existingNotes;
+					console.log('loadLessonNotes: No lesson notes found, keeping existing notes');
+				}
+			} else {
+				notes = existingNotes;
+				console.log('loadLessonNotes: No response notes, keeping existing notes');
 			}
 		} catch (err) {
 			console.warn('Could not load lesson notes:', err);
@@ -289,12 +345,18 @@
 		try {
 			if (browser) {
 				const saved = localStorage.getItem(`course_notes_${courseId}`);
+				console.log('loadNotes: localStorage data:', saved);
 				if (saved) {
-					notes = JSON.parse(saved);
+					const parsedNotes = JSON.parse(saved);
+					console.log('loadNotes: Parsed localStorage notes:', parsedNotes);
+					if (Array.isArray(parsedNotes)) {
+						notes = parsedNotes;
+						console.log('loadNotes: Set notes from localStorage:', notes);
+					}
 				}
 			}
 		} catch (err) {
-			console.warn('Could not load notes:', err);
+			console.warn('Could not load notes from localStorage:', err);
 		}
 	}
 
@@ -313,7 +375,7 @@
 				console.log('Session update:', {
 					timeSpent: Date.now() - learningSession.startTime,
 					videoProgress,
-					lessonProgress: calculatedProgress
+					lessonProgress: progressValue
 				});
 			}
 		}, 30000);
@@ -356,7 +418,11 @@
 
 	const saveNotes = debounce(async () => {
 		if (browser) {
-			localStorage.setItem(`course_notes_${courseId}`, JSON.stringify(notes));
+			try {
+				localStorage.setItem(`course_notes_${courseId}`, JSON.stringify(notes));
+			} catch (err) {
+				console.warn('Could not save notes to localStorage:', err);
+			}
 		}
 		
 		if (currentLesson) {
@@ -377,9 +443,9 @@
 			await coursesApi.completeLesson(courseId, currentLesson.uuid);
 			currentLesson.is_completed = true;
 
-			// Update enrollment progress
+			// Update enrollment progress safely
 			if (enrollment) {
-				enrollment.progress_percentage = calculatedProgress;
+				enrollment.progress_percentage = progressValue;
 			}
 
 			uiStore.showNotification({
@@ -539,16 +605,23 @@
 		};
 	}
 
-	// Fixed: Convert to $derived and ensure filteredNotes is reactive
-	let filteredNotes = $derived(() => {
-		if (!noteSearchQuery) {
+	// Fixed: Safe filteredNotes to avoid errors
+	let filteredNotes = $derived.by(() => {
+		if (!Array.isArray(notes)) return [];
+		
+		if (!noteSearchQuery || !noteSearchQuery.trim()) {
 			return notes;
-		} else {
-			return notes.filter(note => 
-				note.content.toLowerCase().includes(noteSearchQuery.toLowerCase()) ||
-				note.lessonTitle?.toLowerCase().includes(noteSearchQuery.toLowerCase())
-			);
 		}
+		
+		const query = noteSearchQuery.toLowerCase();
+		return notes.filter(note => {
+			if (!note) return false;
+			
+			const contentMatch = note.content && note.content.toLowerCase().includes(query);
+			const titleMatch = note.lessonTitle && note.lessonTitle.toLowerCase().includes(query);
+			
+			return contentMatch || titleMatch;
+		});
 	});
 </script>
 
@@ -657,14 +730,14 @@
 						<div class="space-y-4">
 							<div>
 								<h3 class="mb-2 font-medium text-gray-900 dark:text-white">{$t('course.progress')} {$t('course.overview')}</h3>
-								<CourseProgress progress={calculatedProgress} showLabel={true} size="large" />
+								<CourseProgress progress={progressValue} showLabel={true} size="large" />
 								<div class="mt-2 grid grid-cols-2 gap-2 text-sm">
 									<div class="text-center">
 										<div class="font-semibold text-green-600">{completedLessonsCount}</div>
 										<div class="text-gray-500">{$t('course.completed')}</div>
 									</div>
 									<div class="text-center">
-										<div class="font-semibold text-blue-600">{totalLessonsCount - completedLessonsCount}</div>
+										<div class="font-semibold text-blue-600">{Math.max(0, totalLessonsCount - completedLessonsCount)}</div>
 										<div class="text-gray-500">{$t('course.remaining')}</div>
 									</div>
 								</div>
@@ -714,7 +787,7 @@
 										{#if loadingNotes}
 											<div class="h-4 w-4 animate-spin rounded-full border-2 border-primary-600 border-t-transparent"></div>
 										{/if}
-										<Badge variant="info" size="small">{notes.length}</Badge>
+										<Badge variant="info" size="small">{Array.isArray(notes) ? notes.length : 0}</Badge>
 									</div>
 								</div>
 								
@@ -739,7 +812,7 @@
 								</div>
 
 								<!-- Note Search -->
-								{#if notes.length > 0}
+								{#if Array.isArray(notes) && notes.length > 0}
 									<Input
 										bind:value={noteSearchQuery}
 										placeholder={$t('course.searchNotes')}
@@ -796,7 +869,7 @@
 							<!-- Course Completion -->
 							<div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
 								<div class="text-2xl font-bold text-blue-600 dark:text-blue-400">
-									{calculatedProgress}%
+									{progressValue || 0}%
 								</div>
 								<div class="text-sm text-blue-800 dark:text-blue-200">Course Completion</div>
 							</div>
@@ -821,12 +894,12 @@
 							<div class="space-y-2">
 								<div class="text-sm font-medium">Lesson Progress</div>
 								<div class="text-xs text-gray-600 dark:text-gray-400">
-									Lesson {currentLessonIndex + 1} of {totalLessonsCount}
+									Lesson {Math.max(1, currentLessonIndex + 1)} of {totalLessonsCount}
 								</div>
 								<div class="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
 									<div 
 										class="bg-gradient-to-r from-primary-500 to-secondary-500 h-2 rounded-full transition-all duration-300" 
-										style="width: {((currentLessonIndex + 1) / totalLessonsCount) * 100}%"
+										style="width: {totalLessonsCount > 0 ? ((currentLessonIndex + 1) / totalLessonsCount) * 100 : 0}%"
 									></div>
 								</div>
 							</div>
@@ -862,7 +935,7 @@
 							{currentLesson.title}
 						</h1>
 						<Badge variant="info" size="small">
-							{currentLessonIndex + 1} of {totalLessonsCount}
+							{Math.max(1, currentLessonIndex + 1)} of {totalLessonsCount}
 						</Badge>
 						{#if currentLesson.is_completed}
 							<Badge variant="success" size="small">
@@ -893,7 +966,7 @@
 					
 					<!-- Progress Indicator -->
 					<div class="text-sm text-gray-500 dark:text-gray-400">
-						{Math.round(calculatedProgress)}% Complete
+						{progressValue}% Complete
 					</div>
 				</div>
 			</div>
@@ -943,9 +1016,9 @@
 						</Card>
 					</div>
 
-					<!-- Enhanced Lesson Controls - Fixed Position on Large Screens -->
-					<div class="mb-6 lg:fixed lg:bottom-6 lg:left-[320px] lg:right-6 lg:z-40">
-						<Card variant="bordered" class="bg-white/95 backdrop-blur-sm shadow-md dark:bg-gray-800/95 lg:shadow-2xl">
+					<!-- Fixed: Enhanced Lesson Controls - Centered Container -->
+					<div class="mb-6 lg:fixed lg:bottom-6 lg:left-1/2 lg:transform lg:-translate-x-1/2 lg:z-40" style="lg:max-width: calc(100vw - 400px);">
+						<Card variant="bordered" class="bg-white/95 backdrop-blur-sm shadow-md dark:bg-gray-800/95 lg:shadow-2xl mx-auto max-w-4xl">
 							<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 								<div class="flex flex-wrap items-center gap-4">
 									{#if !currentLesson.is_completed}

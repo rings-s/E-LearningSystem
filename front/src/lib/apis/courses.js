@@ -177,6 +177,37 @@ export const coursesApi = {
         return api.get(`/certificates/${uuid}/verify/`);
     },
 
+    // Favorites
+    async isFavorite(courseUuid) {
+        try {
+            const response = await api.get(`/courses/${courseUuid}/is-favorite/`);
+            return response.is_favorite;
+        } catch (error) {
+            console.error('Failed to check favorite status:', error);
+            return false;
+        }
+    },
+
+    async addToFavorites(courseUuid) {
+        try {
+            const response = await api.post(`/courses/${courseUuid}/add-to-favorites/`);
+            return response;
+        } catch (error) {
+            console.error('Failed to add to favorites:', error);
+            throw error;
+        }
+    },
+
+    async removeFromFavorites(courseUuid) {
+        try {
+            const response = await api.delete(`/courses/${courseUuid}/remove-from-favorites/`);
+            return response;
+        } catch (error) {
+            console.error('Failed to remove from favorites:', error);
+            throw error;
+        }
+    },
+
     // Convenience method for lesson creation with file
     async createLessonWithFile(courseUuid, lessonData, file = null) {
         try {

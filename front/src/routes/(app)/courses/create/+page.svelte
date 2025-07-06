@@ -1,12 +1,15 @@
 <!-- front/src/routes/(app)/courses/create/+page.svelte -->
 <script>
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
+	import { fade, fly } from 'svelte/transition';
+	import { browser } from '$app/environment';
 	import { coursesApi } from '$lib/apis/courses.js';
 	import { uiStore } from '$lib/stores/ui.store.js';
 	import { currentUser } from '$lib/stores/auth.store.js';
-	import { onMount } from 'svelte';
-	import { fade, fly } from 'svelte/transition';
-	import { classNames } from '$lib/utils/helpers.js';
+	import { t, locale } from '$lib/i18n/index.js';
+	import { classNames, debounce } from '$lib/utils/helpers.js';
+	import { APP_NAME } from '$lib/utils/constants.js';
 	
 	// Components
 	import Card from '$lib/components/common/Card.svelte';
@@ -14,11 +17,10 @@
 	import Input from '$lib/components/common/Input.svelte';
 	import Badge from '$lib/components/common/Badge.svelte';
 
-	// Check if user can create courses
-	let canCreateCourse = $derived($currentUser?.role === 'teacher' || $currentUser?.is_staff);
-
+	// State management with Svelte 5 runes
 	let currentStep = $state(1);
 	let saving = $state(false);
+	let loading = $state(false);
 	let validationErrors = $state({});
 
 	let courseData = $state({
@@ -31,6 +33,9 @@
 		// Category & Tags
 		category: '',
 		tags: [],
+
+		// Media
+		thumbnail: null,
 
 		// Settings
 		level: 'beginner',
@@ -52,29 +57,71 @@
 
 	let categories = $state([]);
 	let tagInput = $state('');
+	let thumbnailFile = $state(null);
+	let thumbnailPreview = $state(null);
+	let uploading = $state(false);
+
+	// Derived states for better reactivity
+	let isFormValid = $derived.by(() => {
+		const errors = {};
+		
+		// Basic validation
+		if (!courseData.title?.trim()) errors.title = true;
+		if (!courseData.short_description?.trim()) errors.short_description = true;
+		if (!courseData.description?.trim()) errors.description = true;
+		if (!courseData.category) errors.category = true;
+		if (!courseData.learning_outcomes?.trim()) errors.learning_outcomes = true;
+		
+		return Object.keys(errors).length === 0;
+	});
+
+	let currentStepValid = $derived.by(() => {
+		return validateStep(currentStep);
+	});
+
+	let canProceed = $derived(() => currentStepValid && !loading);
+	let canCreateCourse = $derived(() => $currentUser?.role === 'teacher' || $currentUser?.is_staff);
 
 	onMount(async () => {
 		// Redirect if user can't create courses
 		if (!canCreateCourse) {
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Access Denied',
-				message: 'You need to be a teacher to create courses.'
+				title: $t('errors.unauthorized'),
+				message: $t('course.teacherRequired')
 			});
 			goto('/courses');
 			return;
 		}
 
-		await fetchCategories();
+		loading = true;
+		try {
+			await fetchCategories();
+		} catch (err) {
+			console.error('Initialization error:', err);
+			uiStore.showNotification({
+				type: 'error',
+				title: $t('common.error'),
+				message: $t('errors.somethingWentWrong')
+			});
+		} finally {
+			loading = false;
+		}
 	});
 
-	// Auto-generate slug from title
-	$effect(() => {
-		if (courseData.title && !courseData.slug) {
-			courseData.slug = courseData.title
+	// Auto-generate slug from title with debouncing
+	const generateSlug = debounce((title) => {
+		if (title && !courseData.slug) {
+			courseData.slug = title
 				.toLowerCase()
 				.replace(/[^a-z0-9]+/g, '-')
 				.replace(/(^-|-$)/g, '');
+		}
+	}, 500);
+
+	$effect(() => {
+		if (courseData.title) {
+			generateSlug(courseData.title);
 		}
 	});
 
@@ -100,38 +147,81 @@
 		courseData.tags = courseData.tags.filter((t) => t !== tag);
 	}
 
+	// File handling functions
+	function handleThumbnailChange(event) {
+		const file = event.target.files[0];
+		if (!file) return;
+
+		// Validate file type
+		const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+		if (!allowedTypes.includes(file.type)) {
+			uiStore.showNotification({
+				type: 'error',
+				title: $t('errors.invalidFileType'),
+				message: $t('errors.uploadImageOnly')
+			});
+			return;
+		}
+
+		// Validate file size (5MB max)
+		const maxSize = 5 * 1024 * 1024; // 5MB
+		if (file.size > maxSize) {
+			uiStore.showNotification({
+				type: 'error',
+				title: $t('errors.fileTooLarge'),
+				message: $t('errors.maxFileSize5MB')
+			});
+			return;
+		}
+
+		thumbnailFile = file;
+		
+		// Create preview
+		const reader = new FileReader();
+		reader.onload = (e) => {
+			thumbnailPreview = e.target.result;
+		};
+		reader.readAsDataURL(file);
+	}
+
+	function removeThumbnail() {
+		thumbnailFile = null;
+		thumbnailPreview = null;
+		courseData.thumbnail = null;
+	}
+
 	function validateStep(step) {
 		const errors = {};
 
 		switch (step) {
 			case 1:
 				if (!courseData.title?.trim()) {
-					errors.title = 'Course title is required';
+					errors.title = $t('course.titleRequired');
 				}
 				if (!courseData.short_description?.trim()) {
-					errors.short_description = 'Short description is required';
+					errors.short_description = $t('course.shortDescriptionRequired');
 				}
 				if (!courseData.description?.trim()) {
-					errors.description = 'Full description is required';
+					errors.description = $t('course.fullDescriptionRequired');
 				}
 				if (courseData.short_description?.length > 255) {
-					errors.short_description = 'Short description must be less than 255 characters';
+					errors.short_description = $t('course.shortDescriptionTooLong');
 				}
 				break;
 			case 2:
 				if (!courseData.category) {
-					errors.category = 'Please select a category';
+					errors.category = $t('course.categoryRequired');
 				}
 				if (courseData.duration_hours < 1) {
-					errors.duration_hours = 'Duration must be at least 1 hour';
+					errors.duration_hours = $t('course.durationMinimum');
 				}
 				if (courseData.enrollment_limit && courseData.enrollment_limit < 1) {
-					errors.enrollment_limit = 'Enrollment limit must be at least 1';
+					errors.enrollment_limit = $t('course.enrollmentLimitMinimum');
 				}
 				break;
 			case 3:
 				if (!courseData.learning_outcomes?.trim()) {
-					errors.learning_outcomes = 'Learning outcomes are required';
+					errors.learning_outcomes = $t('course.learningOutcomesRequired');
 				}
 				break;
 		}
@@ -146,8 +236,8 @@
 		} else {
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Validation Error',
-				message: 'Please fix the errors before continuing'
+				title: $t('errors.validationError'),
+				message: $t('course.fixErrorsBeforeContinuing')
 			});
 		}
 	}
@@ -164,8 +254,8 @@
 				currentStep = step;
 				uiStore.showNotification({
 					type: 'error',
-					title: 'Validation Error',
-					message: 'Please fix all errors before creating the course'
+					title: $t('errors.validationError'),
+					message: $t('course.fixAllErrorsBeforeCreating')
 				});
 				return;
 			}
@@ -173,35 +263,65 @@
 
 		saving = true;
 		try {
-			// Prepare data for API
+			// Prepare clean data for API - remove null/undefined fields and invalid values
 			const coursePayload = {
-				...courseData,
-				// Convert tags to proper format
-				tags: courseData.tags.map((tag) => ({ name: tag, slug: tag.toLowerCase().replace(/\s+/g, '-') })),
-				// Ensure instructor is set
-				instructor: $currentUser.uuid,
-				// Convert price to number
-				price: parseFloat(courseData.price) || 0,
-				// Convert duration to number
+				title: courseData.title.trim(),
+				slug: courseData.slug.trim(),
+				short_description: courseData.short_description.trim(),
+				description: courseData.description.trim(),
+				category: courseData.category,
+				level: courseData.level,
+				language: courseData.language,
 				duration_hours: parseInt(courseData.duration_hours) || 1,
-				// Convert enrollment limit
-				enrollment_limit: courseData.enrollment_limit ? parseInt(courseData.enrollment_limit) : null
+				price: parseFloat(courseData.price) || 0,
+				status: 'draft',
+				prerequisites: courseData.prerequisites?.trim() || '',
+				learning_outcomes: courseData.learning_outcomes?.trim() || '',
+				is_featured: false
 			};
 
+			// Add optional fields only if they have values
+			if (courseData.enrollment_limit && parseInt(courseData.enrollment_limit) > 0) {
+				coursePayload.enrollment_limit = parseInt(courseData.enrollment_limit);
+			}
+
+			// Handle tags properly
+			if (courseData.tags && courseData.tags.length > 0) {
+				coursePayload.tags = courseData.tags.map(tag => tag.trim()).filter(tag => tag.length > 0);
+			}
+
+			console.log('Course payload:', coursePayload);
+
+			// Create course first
 			const response = await coursesApi.createCourse(coursePayload);
+			console.log('Course created:', response);
+
+			// Upload thumbnail if provided
+			if (thumbnailFile && response.uuid) {
+				try {
+					uploading = true;
+					await coursesApi.uploadCourseImage(response.uuid, thumbnailFile);
+				} catch (uploadError) {
+					console.warn('Failed to upload thumbnail:', uploadError);
+					// Don't fail the entire creation for image upload failure
+				} finally {
+					uploading = false;
+				}
+			}
 
 			uiStore.showNotification({
 				type: 'success',
-				title: 'Course Created Successfully!',
-				message: 'Your course has been created. You can now add modules and lessons.'
+				title: $t('course.courseCreatedSuccessfully'),
+				message: $t('course.courseCreatedMessage')
 			});
 
-			// Redirect to course management page
-			goto(`/teacher/courses/${response.uuid}/manage`);
+			// Redirect to course management page or course view
+			goto(`/courses/${response.uuid}`);
 		} catch (error) {
 			console.error('Failed to create course:', error);
+			console.error('Error details:', error.response?.data);
 			
-			let errorMessage = 'Failed to create course. Please try again.';
+			let errorMessage = $t('course.createCourseFailed');
 			
 			// Handle specific API errors
 			if (error.response?.data) {
@@ -210,12 +330,21 @@
 				} else if (error.response.data.detail) {
 					errorMessage = error.response.data.detail;
 				} else if (error.response.data.non_field_errors) {
-					errorMessage = error.response.data.non_field_errors[0];
+					errorMessage = Array.isArray(error.response.data.non_field_errors) 
+						? error.response.data.non_field_errors.join(', ')
+						: error.response.data.non_field_errors;
 				} else {
 					// Handle field-specific errors
-					const fieldErrors = Object.values(error.response.data).flat();
+					const fieldErrors = [];
+					Object.entries(error.response.data).forEach(([field, errors]) => {
+						if (Array.isArray(errors)) {
+							fieldErrors.push(`${field}: ${errors.join(', ')}`);
+						} else {
+							fieldErrors.push(`${field}: ${errors}`);
+						}
+					});
 					if (fieldErrors.length > 0) {
-						errorMessage = fieldErrors[0];
+						errorMessage = fieldErrors.join('; ');
 					}
 				}
 			} else if (error.message) {
@@ -224,7 +353,7 @@
 
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Creation Failed',
+				title: $t('course.creationFailed'),
 				message: errorMessage
 			});
 		} finally {
@@ -232,23 +361,24 @@
 		}
 	}
 
-	const steps = [
-		{ number: 1, title: 'Basic Information', icon: '📝', description: 'Course title and description' },
-		{ number: 2, title: 'Category & Settings', icon: '⚙️', description: 'Category, level, and settings' },
-		{ number: 3, title: 'Learning Outcomes', icon: '🎯', description: 'What students will learn' },
-		{ number: 4, title: 'Review & Create', icon: '✅', description: 'Review and create course' }
-	];
+	// Derived step configuration with i18n
+	let steps = $derived(() => [
+		{ number: 1, title: $t('course.basicInformation'), icon: '📝', description: $t('course.basicInformationDesc') },
+		{ number: 2, title: $t('course.categoryAndSettings'), icon: '⚙️', description: $t('course.categoryAndSettingsDesc') },
+		{ number: 3, title: $t('course.learningOutcomes'), icon: '🎯', description: $t('course.learningOutcomesDesc') },
+		{ number: 4, title: $t('course.reviewAndCreate'), icon: '✅', description: $t('course.reviewAndCreateDesc') }
+	]);
 
-	const levelOptions = [
-		{ value: 'beginner', label: 'Beginner', description: 'No prior experience required' },
-		{ value: 'intermediate', label: 'Intermediate', description: 'Some experience helpful' },
-		{ value: 'advanced', label: 'Advanced', description: 'Significant experience required' }
-	];
+	let levelOptions = $derived(() => [
+		{ value: 'beginner', label: $t('course.beginner'), description: $t('course.beginnerDesc') },
+		{ value: 'intermediate', label: $t('course.intermediate'), description: $t('course.intermediateDesc') },
+		{ value: 'advanced', label: $t('course.advanced'), description: $t('course.advancedDesc') }
+	]);
 </script>
 
 <svelte:head>
-	<title>Create New Course - 244SCHOOL</title>
-	<meta name="description" content="Create and share your knowledge with students around the world" />
+	<title>{$t('course.createNewCourse')} - {APP_NAME}</title>
+	<meta name="description" content={$t('course.createCourseDescription')} />
 </svelte:head>
 
 {#if !canCreateCourse}
@@ -355,6 +485,56 @@
 								placeholder="complete-web-development-bootcamp"
 								helperText="This will be used in the course URL. It's automatically generated from your title."
 							/>
+
+							<!-- Course Thumbnail -->
+							<div>
+								<label class="mb-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
+									{$t('course.courseThumbnail')}
+								</label>
+								
+								{#if thumbnailPreview}
+									<div class="mb-4">
+										<div class="relative inline-block">
+											<img 
+												src={thumbnailPreview} 
+												alt="Course thumbnail preview" 
+												class="h-32 w-48 rounded-lg object-cover shadow-md"
+											/>
+											<button
+												type="button"
+												onclick={removeThumbnail}
+												class="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700"
+												aria-label="Remove thumbnail"
+											>
+												×
+											</button>
+										</div>
+									</div>
+								{/if}
+
+								<div class="flex items-center justify-center w-full">
+									<label class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 transition-colors">
+										<div class="flex flex-col items-center justify-center pt-5 pb-6">
+											<svg class="w-8 h-8 mb-2 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+											</svg>
+											<p class="mb-2 text-sm text-gray-500 dark:text-gray-400">
+												<span class="font-semibold">{$t('course.clickToUpload')}</span> {$t('course.dragAndDrop')}
+											</p>
+											<p class="text-xs text-gray-500 dark:text-gray-400">{$t('course.imageFormats')}</p>
+										</div>
+										<input 
+											type="file" 
+											class="hidden" 
+											accept="image/*"
+											onchange={handleThumbnailChange}
+										/>
+									</label>
+								</div>
+								<p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+									{$t('course.thumbnailDescription')}
+								</p>
+							</div>
 
 							<div>
 								<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">

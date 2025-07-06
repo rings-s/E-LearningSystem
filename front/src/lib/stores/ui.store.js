@@ -1,6 +1,7 @@
 // front/src/lib/stores/ui.store.js - Add showNotification method
 import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
+import { setLocale } from '$lib/i18n/index.js';
 
 function createUIStore() {
 	const { subscribe, set, update } = writable({
@@ -53,6 +54,8 @@ function createUIStore() {
 					document.documentElement.lang = lang;
 					document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
 				}
+				// Update the i18n locale as well
+				setLocale(lang);
 				return { ...state, language: lang };
 			});
 		},

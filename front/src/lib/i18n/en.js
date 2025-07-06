@@ -190,7 +190,8 @@ export default {
 		maxFileSize5MB: 'Maximum file size is 5MB',
 		uploadFailed: 'Failed to upload file',
 		updateFailed: 'Failed to update profile',
-		fixErrors: 'Please fix the errors before submitting'
+		fixErrors: 'Please fix the errors before submitting',
+		validationError: 'Validation Error'
 	},
 	navigation: {
 		home: 'Home',
@@ -277,7 +278,71 @@ export default {
 		courseNotFound: 'Course Not Found',
 		courseNotFoundDesc: "The course you're looking for doesn't exist or has been removed.",
 		browseAllCourses: 'Browse All Courses',
-		viewMyCourses: 'View My Courses'
+		viewMyCourses: 'View My Courses',
+		loading: 'Loading...',
+		preparingExperience: 'Please wait while we prepare your learning experience',
+		somethingWentWrong: 'Something went wrong',
+		tryAgain: 'Try Again',
+		browseCourses: 'Browse Courses',
+		lessonCompleted: 'Lesson Completed!',
+		greatJob: 'Great job! Keep up the excellent learning.',
+		noteAdded: 'Note Added',
+		notesSaved: 'Notes Saved',
+		addNotePlaceholder: 'Add a note at this moment...',
+		addNote: 'Add Note',
+		searchNotes: 'Search notes...',
+		noNotesFound: 'No notes found',
+		noNotesYet: 'No notes yet',
+		learningStats: 'Learning Statistics',
+		remaining: 'Remaining',
+		keyboardShortcuts: 'Keyboard Shortcuts',
+		contentNotAvailable: 'Content not available',
+		completing: 'Completing...',
+		videoProgress: 'Video Progress',
+		previousLesson: 'Previous Lesson',
+		nextLesson: 'Next Lesson',
+		aboutThisLesson: 'About This Lesson',
+		additionalResources: 'Additional Resources',
+		showShortcuts: 'Keyboard Shortcuts',
+		previous: 'Previous',
+		next: 'Next',
+		notes: 'Notes',
+		// Course creation
+		createNewCourse: 'Create New Course',
+		createCourseDescription: 'Create and share your knowledge with students around the world',
+		teacherRequired: 'You need to be a teacher to create courses',
+		basicInformation: 'Basic Information',
+		basicInformationDesc: 'Course title and description',
+		categoryAndSettings: 'Category & Settings',
+		categoryAndSettingsDesc: 'Category, level, and settings',
+		reviewAndCreate: 'Review & Create',
+		reviewAndCreateDesc: 'Review and create course',
+		learningOutcomesDesc: 'What students will learn',
+		beginnerDesc: 'No prior experience required',
+		intermediateDesc: 'Some experience helpful',
+		advancedDesc: 'Significant experience required',
+		// Validation messages
+		titleRequired: 'Course title is required',
+		shortDescriptionRequired: 'Short description is required',
+		fullDescriptionRequired: 'Full description is required',
+		shortDescriptionTooLong: 'Short description must be less than 255 characters',
+		categoryRequired: 'Please select a category',
+		durationMinimum: 'Duration must be at least 1 hour',
+		enrollmentLimitMinimum: 'Enrollment limit must be at least 1',
+		learningOutcomesRequired: 'Learning outcomes are required',
+		fixErrorsBeforeContinuing: 'Please fix the errors before continuing',
+		fixAllErrorsBeforeCreating: 'Please fix all errors before creating the course',
+		// Success messages
+		courseCreatedSuccessfully: 'Course Created Successfully!',
+		courseCreatedMessage: 'Your course has been created. You can now add modules and lessons.',
+		createCourseFailed: 'Failed to create course. Please try again.',
+		creationFailed: 'Creation Failed',
+		// Thumbnail upload
+		courseThumbnail: 'Course Thumbnail',
+		clickToUpload: 'Click to upload',
+		dragAndDrop: 'or drag and drop',
+		imageFormats: 'PNG, JPG, JPEG or WebP (MAX. 5MB)',
+		thumbnailDescription: 'Upload an attractive thumbnail image for your course. This will be displayed in course listings.'
 	},
 
 	dashboard: {
@@ -335,5 +400,12 @@ export default {
 		linkCopied: 'Link Copied!',
 		shareMessage: 'Check out this amazing course: {title}',
 		shareFailed: 'Failed to share'
+	},
+
+	shortcuts: {
+		previousLesson: 'Go to previous lesson',
+		nextLesson: 'Go to next lesson',
+		showShortcuts: 'Show keyboard shortcuts',
+		closeModal: 'Close modal'
 	}
 };

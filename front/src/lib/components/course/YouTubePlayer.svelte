@@ -113,10 +113,13 @@
 		try {
 			// Get current origin for security
 			const currentOrigin = window.location.origin;
+			const currentHost = window.location.host;
 			debugLog('Current origin:', currentOrigin);
+			debugLog('Current host:', currentHost);
 			
 			player = new window.YT.Player(playerElement, {
 				videoId: actualVideoId,
+				host: 'https://www.youtube-nocookie.com', // Use privacy-enhanced mode
 				playerVars: {
 					autoplay: autoplay ? 1 : 0,
 					mute: muted ? 1 : 0,
@@ -130,7 +133,12 @@
 					origin: currentOrigin, // Fix origin mismatch
 					enablejsapi: 1,
 					fs: 1, // Allow fullscreen
-					hl: 'en' // Set language to avoid locale issues
+					hl: 'en', // Set language to avoid locale issues
+					disablekb: 0, // Enable keyboard controls
+					widget_referrer: currentOrigin, // Set referrer to avoid warnings
+					// Disable problematic features to prevent warnings
+					'web-share': 0,
+					'picture-in-picture': 0
 				},
 				events: {
 					onReady: handlePlayerReady,
