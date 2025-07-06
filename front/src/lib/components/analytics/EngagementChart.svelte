@@ -95,7 +95,7 @@
 					afterBody: (context) => {
 						const dataPoint = data[context[0].dataIndex];
 						if (dataPoint.engagement_rate !== undefined) {
-							return `Engagement Rate: ${Math.round(dataPoint.engagement_rate)}%`;
+							return `Engagement Rate: ${Math.round(dataPoint.engagement_rate || 0) || 0}%`;
 						}
 						return '';
 					}
@@ -135,7 +135,7 @@
 		}
 
 		const activeStudents = data.map(d => d.active_students || 0);
-		const avgActive = Math.round(activeStudents.reduce((sum, val) => sum + val, 0) / activeStudents.length);
+		const avgActive = activeStudents.length > 0 ? Math.round(activeStudents.reduce((sum, val) => sum + val, 0) / activeStudents.length) || 0 : 0;
 		const maxActive = Math.max(...activeStudents);
 		
 		// Calculate trend (simple linear regression slope)
@@ -257,7 +257,7 @@
 			{/if}
 			
 			{#if summaryStats.maxActive > summaryStats.avgActive * 1.5}
-				Peak activity was {Math.round((summaryStats.maxActive / summaryStats.avgActive - 1) * 100)}% above average - analyze what drove this spike.
+				Peak activity was {summaryStats.avgActive > 0 ? Math.round((summaryStats.maxActive / summaryStats.avgActive - 1) * 100) || 0 : 0}% above average - analyze what drove this spike.
 			{/if}
 		</div>
 	{/if}

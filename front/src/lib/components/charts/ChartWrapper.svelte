@@ -78,8 +78,8 @@
 	});
 
 	$effect(() => {
-		// Recreate chart when data or theme changes
-		if (chartInstance) {
+		// Watch for data and theme changes
+		if (chartInstance && canvasElement) {
 			destroyChart();
 			createChart();
 		}
@@ -89,16 +89,13 @@
 		if (!canvasElement) return;
 
 		const ctx = canvasElement.getContext('2d');
+		
+		// Create a deep copy of data to avoid Svelte 5 $state descriptor issues
+		const chartData = JSON.parse(JSON.stringify(data));
+
 		chartInstance = new Chart(ctx, {
 			type,
-			data: {
-				...data,
-				datasets: data.datasets?.map((dataset) => ({
-					...dataset,
-					borderWidth: dataset.borderWidth || 2,
-					tension: dataset.tension || 0.4
-				}))
-			},
+			data: chartData,
 			options: {
 				...defaultOptions,
 				...options,
@@ -118,7 +115,6 @@
 	}
 </script>
 
-// front/src/lib/components/charts/ChartWrapper.svelte
 <div class="chart-container {className}" style="height: {height}">
 	<canvas bind:this={canvasElement}></canvas>
 </div>

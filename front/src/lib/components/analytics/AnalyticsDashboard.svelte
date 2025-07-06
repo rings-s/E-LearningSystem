@@ -178,7 +178,7 @@
 				},
 				{
 					title: 'Engagement Rate',
-					value: `${Math.round(summary.engagement_rate || 0)}%`,
+					value: `${Math.round(summary.engagement_rate || 0) || 0}%`,
 					change: '+3%',
 					trend: 'up',
 					icon: '⚡',

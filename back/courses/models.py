@@ -497,3 +497,20 @@ class CourseReview(models.Model):
 
     def __str__(self):
         return f"{self.course.title} - {self.student.email} ({self.rating}★)"
+
+
+# Favorites
+class CourseFavorite(models.Model):
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='favorites')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='favorite_courses')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('Course Favorite')
+        verbose_name_plural = _('Course Favorites')
+        unique_together = ['course', 'user']
+        ordering = ['-created_at', 'id']
+
+    def __str__(self):
+        return f"{self.user.email} - {self.course.title}"

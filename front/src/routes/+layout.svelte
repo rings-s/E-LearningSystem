@@ -56,16 +56,14 @@
 		if ($isInitialized && browser) {
 			const currentPath = $page.url.pathname;
 
-			// For now, allow all routes (since auth is not fully implemented)
-			// You can uncomment this later when auth is ready:
-			/*
-            if (!$isAuthenticated && !isPublicRoute(currentPath)) {
-                goto('/login');
-            }
-            else if ($isAuthenticated && isAuthRoute(currentPath)) {
-                goto('/dashboard');
-            }
-            */
+			// Redirect to login if not authenticated and accessing protected routes
+			if (!$isAuthenticated && !isPublicRoute(currentPath)) {
+				goto('/login');
+			}
+			// Redirect to dashboard if authenticated and on auth pages
+			else if ($isAuthenticated && isAuthRoute(currentPath)) {
+				goto('/dashboard');
+			}
 		}
 	});
 </script>

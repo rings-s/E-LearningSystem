@@ -4,22 +4,22 @@ import { api } from './index.js';
 export const coursesApi = {
     // Categories
     async getCategories() {
-        return api.get('/categories/');
+        return api.get('/api/categories/');
     },
 
     async getCategory(slug) {
-        return api.get(`/categories/${slug}/`);
+        return api.get(`/api/categories/${slug}/`);
     },
 
     // Courses - Main CRUD (following DRF conventions)
     async getCourses(params = {}) {
         const queryString = new URLSearchParams(params).toString();
-        return api.get(`/courses/?${queryString}`);
+        return api.get(`/api/courses/?${queryString}`);
     },
 
     async getCourse(uuid) {
         try {
-            const response = await api.get(`/courses/${uuid}/`);
+            const response = await api.get(`/api/courses/${uuid}/`);
             return response;
         } catch (error) {
             console.error('Failed to get course:', error);
@@ -28,44 +28,44 @@ export const coursesApi = {
     },
 
     async createCourse(data) {
-        return api.post('/courses/', data);
+        return api.post('/api/courses/', data);
     },
 
     async updateCourse(uuid, data) {
-        return api.patch(`/courses/${uuid}/`, data);
+        return api.patch(`/api/courses/${uuid}/`, data);
     },
 
     async deleteCourse(uuid) {
-        return api.delete(`/courses/${uuid}/`);
+        return api.delete(`/api/courses/${uuid}/`);
     },
 
     // Course Actions
     async enrollInCourse(uuid) {
-        return api.post(`/courses/${uuid}/enroll/`);
+        return api.post(`/api/courses/${uuid}/enroll/`);
     },
 
     async publishCourse(uuid) {
-        return api.post(`/courses/${uuid}/publish/`);
+        return api.post(`/api/courses/${uuid}/publish/`);
     },
 
     async getCourseAnalytics(uuid) {
-        return api.get(`/courses/${uuid}/analytics/`);
+        return api.get(`/api/courses/${uuid}/analytics/`);
     },
 
     async uploadCourseImage(uuid, file) {
         const formData = new FormData();
         formData.append('thumbnail', file);
-        return api.upload(`/courses/${uuid}/upload-image/`, formData);
+        return api.upload(`/api/courses/${uuid}/upload-image/`, formData);
     },
 
     // Lessons under Course (nested)
     async getCourseLessons(courseUuid) {
-        return api.get(`/courses/${courseUuid}/lessons/`);
+        return api.get(`/api/courses/${courseUuid}/lessons/`);
     },
 
     async getCourseLesson(courseUuid, lessonUuid) {
         try {
-            const response = await api.get(`/courses/${courseUuid}/lessons/${lessonUuid}/`);
+            const response = await api.get(`/api/courses/${courseUuid}/lessons/${lessonUuid}/`);
             return response;
         } catch (error) {
             console.error('Failed to get lesson:', error);
@@ -74,30 +74,30 @@ export const coursesApi = {
     },
 
     async createCourseLesson(courseUuid, lessonData) {
-        return api.post(`/courses/${courseUuid}/lessons/`, lessonData);
+        return api.post(`/api/courses/${courseUuid}/lessons/`, lessonData);
     },
 
     async updateCourseLesson(courseUuid, lessonUuid, data) {
-        return api.patch(`/courses/${courseUuid}/lessons/${lessonUuid}/`, data);
+        return api.patch(`/api/courses/${courseUuid}/lessons/${lessonUuid}/`, data);
     },
 
     async deleteCourseLesson(courseUuid, lessonUuid) {
-        return api.delete(`/courses/${courseUuid}/lessons/${lessonUuid}/`);
+        return api.delete(`/api/courses/${courseUuid}/lessons/${lessonUuid}/`);
     },
 
     async uploadLessonFile(courseUuid, lessonUuid, file) {
         const formData = new FormData();
         formData.append('file', file);
-        return api.upload(`/courses/${courseUuid}/lessons/${lessonUuid}/upload/`, formData);
+        return api.upload(`/api/courses/${courseUuid}/lessons/${lessonUuid}/upload/`, formData);
     },
 
     async completeLesson(courseUuid, lessonUuid) {
-        return api.post(`/courses/${courseUuid}/lessons/${lessonUuid}/complete/`);
+        return api.post(`/api/courses/${courseUuid}/lessons/${lessonUuid}/complete/`);
     },
 
     async getLessonNotes(courseUuid, lessonUuid) {
         try {
-            const response = await api.get(`/courses/${courseUuid}/lessons/${lessonUuid}/notes/`);
+            const response = await api.get(`/api/courses/${courseUuid}/lessons/${lessonUuid}/notes/`);
             return response;
         } catch (error) {
             console.error('Failed to get lesson notes:', error);
@@ -107,7 +107,7 @@ export const coursesApi = {
 
     async saveLessonNotes(courseUuid, lessonUuid, notes) {
         try {
-            const response = await api.post(`/courses/${courseUuid}/lessons/${lessonUuid}/notes/`, { notes });
+            const response = await api.post(`/api/courses/${courseUuid}/lessons/${lessonUuid}/notes/`, { notes });
             return response;
         } catch (error) {
             console.error('Failed to save lesson notes:', error);
@@ -118,7 +118,7 @@ export const coursesApi = {
     // Enrollments
     async getMyEnrollments() {
         try {
-            const response = await api.get('/enrollments/my-courses/');
+            const response = await api.get('/api/enrollments/my-courses/');
             return response;
         } catch (error) {
             console.error('Failed to get enrollments:', error);
@@ -126,61 +126,73 @@ export const coursesApi = {
         }
     },
 
+    // Teacher-specific courses (courses where user is instructor)
+    async getMyCourses() {
+        try {
+            // Get courses where the authenticated user is the instructor
+            const response = await api.get('/api/courses/?my_courses=true');
+            return response;
+        } catch (error) {
+            console.error('Failed to get teacher courses:', error);
+            throw error;
+        }
+    },
+
     async getEnrollments() {
-        return api.get('/enrollments/');
+        return api.get('/api/enrollments/');
     },
 
     // Modules
     async getModules(courseUuid) {
-        return api.get(`/modules/?course=${courseUuid}`);
+        return api.get(`/api/modules/?course=${courseUuid}`);
     },
 
     async createModule(data) {
-        return api.post('/modules/', data);
+        return api.post('/api/modules/', data);
     },
 
     async updateModule(uuid, data) {
-        return api.patch(`/modules/${uuid}/`, data);
+        return api.patch(`/api/modules/${uuid}/`, data);
     },
 
     async deleteModule(uuid) {
-        return api.delete(`/modules/${uuid}/`);
+        return api.delete(`/api/modules/${uuid}/`);
     },
 
     // Reviews
     async getCourseReviews(courseUuid) {
-        return api.get(`/reviews/?course=${courseUuid}`);
+        return api.get(`/api/reviews/?course=${courseUuid}`);
     },
 
     async createReview(data) {
-        return api.post('/reviews/', data);
+        return api.post('/api/reviews/', data);
     },
 
     async updateReview(uuid, data) {
-        return api.patch(`/reviews/${uuid}/`, data);
+        return api.patch(`/api/reviews/${uuid}/`, data);
     },
 
     async deleteReview(uuid) {
-        return api.delete(`/reviews/${uuid}/`);
+        return api.delete(`/api/reviews/${uuid}/`);
     },
 
     // Certificates
     async getMyCertificates() {
-        return api.get('/certificates/');
+        return api.get('/api/certificates/');
     },
 
     async getCertificate(uuid) {
-        return api.get(`/certificates/${uuid}/`);
+        return api.get(`/api/certificates/${uuid}/`);
     },
 
     async verifyCertificate(uuid) {
-        return api.get(`/certificates/${uuid}/verify/`);
+        return api.get(`/api/certificates/${uuid}/verify/`);
     },
 
     // Favorites
     async isFavorite(courseUuid) {
         try {
-            const response = await api.get(`/courses/${courseUuid}/is-favorite/`);
+            const response = await api.get(`/api/courses/${courseUuid}/is-favorite/`);
             return response.is_favorite;
         } catch (error) {
             console.error('Failed to check favorite status:', error);
@@ -190,7 +202,7 @@ export const coursesApi = {
 
     async addToFavorites(courseUuid) {
         try {
-            const response = await api.post(`/courses/${courseUuid}/add-to-favorites/`);
+            const response = await api.post(`/api/courses/${courseUuid}/add-to-favorites/`);
             return response;
         } catch (error) {
             console.error('Failed to add to favorites:', error);
@@ -200,7 +212,7 @@ export const coursesApi = {
 
     async removeFromFavorites(courseUuid) {
         try {
-            const response = await api.delete(`/courses/${courseUuid}/remove-from-favorites/`);
+            const response = await api.delete(`/api/courses/${courseUuid}/remove-from-favorites/`);
             return response;
         } catch (error) {
             console.error('Failed to remove from favorites:', error);
@@ -229,6 +241,6 @@ export const coursesApi = {
     // Course Students Management
     async getCourseStudents(courseUuid, params = {}) {
         const queryString = new URLSearchParams(params).toString();
-        return api.get(`/courses/${courseUuid}/students/?${queryString}`);
+        return api.get(`/api/courses/${courseUuid}/students/?${queryString}`);
     }
 };

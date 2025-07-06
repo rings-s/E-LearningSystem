@@ -4,6 +4,7 @@ from .views import (
     CategoryListView, CategoryDetailView,
     CourseListCreateView, CourseDetailView, CourseEnrollView,
     CoursePublishView, CourseAnalyticsView, CourseImageUploadView,
+    CourseFavoriteCheckView, CourseFavoriteAddView, CourseFavoriteRemoveView,
     CourseLessonListCreateView, CourseLessonDetailView, LessonFileUploadView,
     LessonCompleteView, LessonNotesView,
     EnrollmentListView, MyEnrollmentsView,
@@ -28,6 +29,9 @@ urlpatterns = [
     path('courses/<uuid:uuid>/publish/', CoursePublishView.as_view(), name='course-publish'),
     path('courses/<uuid:uuid>/analytics/', CourseAnalyticsView.as_view(), name='course-analytics'),
     path('courses/<uuid:uuid>/upload-image/', CourseImageUploadView.as_view(), name='course-image-upload'),
+    path('courses/<uuid:uuid>/is-favorite/', CourseFavoriteCheckView.as_view(), name='course-is-favorite'),
+    path('courses/<uuid:uuid>/add-to-favorites/', CourseFavoriteAddView.as_view(), name='course-add-favorite'),
+    path('courses/<uuid:uuid>/remove-from-favorites/', CourseFavoriteRemoveView.as_view(), name='course-remove-favorite'),
     
     # Lessons under Course
     path('courses/<uuid:course_uuid>/lessons/', CourseLessonListCreateView.as_view(), name='course-lessons'),

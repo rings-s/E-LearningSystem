@@ -86,5 +86,19 @@ export const formatters = {
 	truncate(text, length = 100) {
 		if (!text || text.length <= length) return text;
 		return text.substring(0, length) + '...';
+	},
+
+	// Safe percentage calculation that prevents NaN
+	safePercent(numerator, denominator, precision = 0) {
+		if (!numerator || !denominator || denominator === 0) return 0;
+		const result = (numerator / denominator) * 100;
+		return isNaN(result) ? 0 : Math.round(result * Math.pow(10, precision)) / Math.pow(10, precision);
+	},
+
+	// Safe Math.round that returns 0 for NaN
+	safeRound(value, fallback = 0) {
+		if (value === null || value === undefined || isNaN(value)) return fallback;
+		const rounded = Math.round(value);
+		return isNaN(rounded) ? fallback : rounded;
 	}
 };

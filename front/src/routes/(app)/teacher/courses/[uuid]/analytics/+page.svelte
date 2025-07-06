@@ -207,11 +207,11 @@
 
 	async function loadStudentsData() {
 		try {
-			const response = await coreApi.getCourseStudents(courseId, {
+			const response = await coursesApi.getCourseStudents(courseId, {
 				time_range: selectedTimeRange,
 				include_progress: true
 			});
-			studentsData = response.students || [];
+			studentsData = response.students || response.results || [];
 		} catch (err) {
 			console.error('Failed to load students data:', err);
 			studentsData = [];
@@ -220,10 +220,8 @@
 
 	async function loadProgressData() {
 		try {
-			const response = await coreApi.getProgressAnalytics(courseId, {
-				time_range: selectedTimeRange
-			});
-			progressData = response.progress_data || [];
+			const response = await coursesApi.getCourseAnalytics(courseId);
+			progressData = response.progress_data || response.enrollments || [];
 		} catch (err) {
 			console.error('Failed to load progress data:', err);
 			progressData = [];
@@ -232,10 +230,8 @@
 
 	async function loadEngagementData() {
 		try {
-			const response = await coreApi.getEngagementAnalytics(courseId, {
-				time_range: selectedTimeRange
-			});
-			engagementData = response.engagement_data || [];
+			const response = await coursesApi.getCourseAnalytics(courseId);
+			engagementData = response.engagement_data || response.student_activity || [];
 		} catch (err) {
 			console.error('Failed to load engagement data:', err);
 			engagementData = [];
@@ -244,10 +240,8 @@
 
 	async function loadPerformanceMetrics() {
 		try {
-			const response = await coreApi.getPerformanceMetrics(courseId, {
-				time_range: selectedTimeRange
-			});
-			performanceMetrics = response;
+			const response = await coursesApi.getCourseAnalytics(courseId);
+			performanceMetrics = response.performance_metrics || response;
 		} catch (err) {
 			console.error('Failed to load performance metrics:', err);
 			performanceMetrics = null;
@@ -687,7 +681,7 @@
 					/>
 					<StatsCard
 						title="Engagement Rate"
-						value="{engagementRate}%"
+						value="{engagementRate()}%"
 						trend="-2%"
 						trendDirection="down"
 						icon="⚡"

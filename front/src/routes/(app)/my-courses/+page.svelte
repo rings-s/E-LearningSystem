@@ -152,7 +152,7 @@
 			
 			if (isTeacher) {
 				// For teachers, get courses they created
-				const response = await coursesApi.getCourses({ instructor: $currentUser?.uuid });
+				const response = await coursesApi.getMyCourses();
 				console.log('Teacher courses response:', response);
 				courses = Array.isArray(response.results) ? response.results : Array.isArray(response) ? response : [];
 			} else {

@@ -88,14 +88,16 @@
 
 	let previousLesson = $derived(() => {
 		const index = currentLessonIndex;
-		if (index <= 0 || !Array.isArray(lessons)) return null;
-		return lessons[index - 1] || null;
+		if (index <= 0 || !Array.isArray(lessons) || lessons.length === 0) return null;
+		const prevLesson = lessons[index - 1];
+		return (prevLesson && prevLesson.uuid) ? prevLesson : null;
 	});
 
 	let nextLesson = $derived(() => {
 		const index = currentLessonIndex;
-		if (index < 0 || !Array.isArray(lessons) || index >= lessons.length - 1) return null;
-		return lessons[index + 1] || null;
+		if (index < 0 || !Array.isArray(lessons) || lessons.length === 0 || index >= lessons.length - 1) return null;
+		const nextLesson = lessons[index + 1];
+		return (nextLesson && nextLesson.uuid) ? nextLesson : null;
 	});
 
 	let totalLessonsCount = $derived.by(() => {
@@ -203,6 +205,12 @@
 
 	async function loadLesson(lesson) {
 		try {
+			// Validate lesson object
+			if (!lesson || !lesson.uuid) {
+				console.error('loadLesson: Invalid lesson object:', lesson);
+				throw new Error('Invalid lesson: lesson object or UUID is missing');
+			}
+
 			// End previous lesson tracking
 			if (currentLesson) {
 				await endLessonTracking();
@@ -227,10 +235,27 @@
 			
 		} catch (err) {
 			console.error('Failed to load lesson:', err);
+			
+			// Provide specific error messages based on error type
+			let errorMessage = 'Failed to load lesson';
+			if (err.message) {
+				if (err.message.includes('Invalid lesson')) {
+					errorMessage = err.message;
+				} else if (err.message.includes('404') || err.message.includes('Not Found')) {
+					errorMessage = 'Lesson not found. It may have been removed or you may not have access to it.';
+				} else if (err.message.includes('403') || err.message.includes('Forbidden')) {
+					errorMessage = 'You do not have permission to access this lesson.';
+				} else if (err.message.includes('500') || err.message.includes('Server Error')) {
+					errorMessage = 'Server error. Please try again later.';
+				} else {
+					errorMessage = err.message;
+				}
+			}
+			
 			uiStore.showNotification({
 				type: 'error',
 				title: $t('common.error'),
-				message: err.message
+				message: errorMessage
 			});
 		}
 	}
@@ -282,7 +307,7 @@
 			
 			// Filter out existing notes for this lesson to avoid duplicates
 			const existingNotes = notes.filter(n => n.lessonId !== currentLesson.uuid);
-			console.log('loadLessonNotes: Existing notes after filtering:', existingNotes);
+			console.log('loadLessonNotes: Existing notes after filtering:', $state.snapshot(existingNotes));
 			
 			if (response && response.notes) {
 				let lessonNotes = [];
@@ -325,7 +350,7 @@
 				
 				if (lessonNotes.length > 0) {
 					notes = [...existingNotes, ...lessonNotes];
-					console.log('loadLessonNotes: Final notes array:', notes);
+					console.log('loadLessonNotes: Final notes array:', $state.snapshot(notes));
 				} else {
 					notes = existingNotes;
 					console.log('loadLessonNotes: No lesson notes found, keeping existing notes');
@@ -351,7 +376,7 @@
 					console.log('loadNotes: Parsed localStorage notes:', parsedNotes);
 					if (Array.isArray(parsedNotes)) {
 						notes = parsedNotes;
-						console.log('loadNotes: Set notes from localStorage:', notes);
+						console.log('loadNotes: Set notes from localStorage:', $state.snapshot(notes));
 					}
 				}
 			}
@@ -538,29 +563,57 @@
 
 	// Enhanced navigation with analytics tracking
 	async function navigateToLesson(lesson) {
-		if (lesson) {
-			try {
-				await loadLesson(lesson);
-			} catch (err) {
-				console.error('Navigation error:', err);
-				uiStore.showNotification({
-					type: 'error',
-					title: $t('common.error'),
-					message: 'Failed to load lesson'
-				});
-			}
+		// Validate lesson object before attempting navigation
+		if (!lesson) {
+			console.warn('navigateToLesson: No lesson provided');
+			return;
+		}
+
+		if (!lesson.uuid) {
+			console.error('navigateToLesson: Lesson missing UUID:', lesson);
+			uiStore.showNotification({
+				type: 'error',
+				title: $t('common.error'),
+				message: 'Invalid lesson: missing identifier'
+			});
+			return;
+		}
+
+		try {
+			await loadLesson(lesson);
+		} catch (err) {
+			console.error('Navigation error:', err);
+			uiStore.showNotification({
+				type: 'error',
+				title: $t('common.error'),
+				message: err.message || 'Failed to load lesson'
+			});
 		}
 	}
 
 	function navigatePrevious() {
-		if (previousLesson) {
+		if (previousLesson && previousLesson.uuid) {
 			navigateToLesson(previousLesson);
+		} else {
+			console.warn('navigatePrevious: No valid previous lesson available');
+			uiStore.showNotification({
+				type: 'info',
+				title: $t('course.navigation'),
+				message: 'This is the first lesson'
+			});
 		}
 	}
 
 	function navigateNext() {
-		if (nextLesson) {
+		if (nextLesson && nextLesson.uuid) {
 			navigateToLesson(nextLesson);
+		} else {
+			console.warn('navigateNext: No valid next lesson available');
+			uiStore.showNotification({
+				type: 'info',
+				title: $t('course.navigation'),
+				message: 'This is the last lesson'
+			});
 		}
 	}
 

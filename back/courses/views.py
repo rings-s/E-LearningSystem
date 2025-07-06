@@ -11,7 +11,7 @@ from django.utils import timezone
 from .models import (
     Category, Course, Enrollment, Module, Lesson, LessonProgress,
     Resource, Quiz, Question, Answer, QuizAttempt, QuestionResponse,
-    Certificate, CourseReview
+    Certificate, CourseReview, CourseFavorite
 )
 from .serializers import (
     CategorySerializer, CourseListSerializer, CourseDetailSerializer,
@@ -62,8 +62,16 @@ class CourseListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         queryset = super().get_queryset()
         
+        # Check if user wants their own courses (for teachers/instructors)
+        my_courses = self.request.query_params.get('my_courses', 'false').lower() == 'true'
+        
         if self.request.method == 'GET':
-            queryset = queryset.filter(status='published')
+            if my_courses and self.request.user.is_authenticated:
+                # For teachers viewing their own courses - include all statuses
+                queryset = queryset.filter(instructor=self.request.user)
+            else:
+                # For public course browsing - only published courses
+                queryset = queryset.filter(status='published')
         
         return queryset.select_related(
             'instructor', 'category'
@@ -204,12 +212,12 @@ class CourseAnalyticsView(APIView):
             'total_enrollments': course.enrollments.count(),
             'active_students': course.enrollments.filter(is_active=True).count(),
             'completed_students': course.enrollments.filter(status='completed').count(),
-            'average_progress': course.enrollments.aggregate(
+            'average_progress': float(course.enrollments.aggregate(
                 avg_progress=Avg('progress_percentage')
-            )['avg_progress'] or 0,
-            'average_rating': course.reviews.aggregate(
+            )['avg_progress'] or 0),
+            'average_rating': float(course.reviews.aggregate(
                 avg_rating=Avg('rating')
-            )['avg_rating'] or 0,
+            )['avg_rating'] or 0),
             'total_reviews': course.reviews.count(),
         }
         
@@ -657,3 +665,43 @@ class CertificateVerifyView(APIView):
             'issue_date': certificate.issue_date,
             'completion_date': certificate.completion_date,
         })
+
+
+# Course Favorites
+class CourseFavoriteCheckView(APIView):
+    """GET /api/courses/{uuid}/is-favorite/ - Check if course is in user's favorites"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, uuid):
+        course = validate_and_get_object(Course, uuid)
+        is_favorite = CourseFavorite.objects.filter(course=course, user=request.user).exists()
+        return Response({'is_favorite': is_favorite})
+
+
+class CourseFavoriteAddView(APIView):
+    """POST /api/courses/{uuid}/add-to-favorites/ - Add course to user's favorites"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, uuid):
+        course = validate_and_get_object(Course, uuid)
+        favorite, created = CourseFavorite.objects.get_or_create(
+            course=course, 
+            user=request.user
+        )
+        if created:
+            return Response({'message': 'Course added to favorites'}, status=status.HTTP_201_CREATED)
+        else:
+            return Response({'message': 'Course already in favorites'}, status=status.HTTP_200_OK)
+
+
+class CourseFavoriteRemoveView(APIView):
+    """DELETE /api/courses/{uuid}/remove-from-favorites/ - Remove course from user's favorites"""
+    permission_classes = [IsAuthenticated]
+    
+    def delete(self, request, uuid):
+        course = validate_and_get_object(Course, uuid)
+        deleted_count, _ = CourseFavorite.objects.filter(course=course, user=request.user).delete()
+        if deleted_count > 0:
+            return Response({'message': 'Course removed from favorites'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'message': 'Course not in favorites'}, status=status.HTTP_404_NOT_FOUND)

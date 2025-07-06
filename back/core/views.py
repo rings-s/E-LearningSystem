@@ -491,168 +491,218 @@ class StudentAnalyticsView(APIView):
         user = request.user
         
         if user.role != 'student':
-            return Response({'error': 'Student access only'}, status=403)
+            return Response({'detail': 'Student access only'}, status=status.HTTP_403_FORBIDDEN)
         
-        # Get student enrollments
-        enrollments = Enrollment.objects.filter(student=user, is_active=True)
-        
-        # Course progress data
-        course_progress = []
-        for enrollment in enrollments:
-            course_progress.append({
-                'course_id': str(enrollment.course.uuid),
-                'course_title': enrollment.course.title,
-                'progress': float(enrollment.progress_percentage),
-                'status': enrollment.status,
-                'enrolled_date': enrollment.enrolled_at.date().isoformat(),
-                'instructor': enrollment.course.instructor.get_full_name()
-            })
-        
-        # Learning streak calculation
-        today = timezone.now().date()
-        streak_days = 0
-        for i in range(30):
-            check_date = today - timedelta(days=i)
-            has_activity = ActivityLog.objects.filter(
-                user=user,
-                created_at__date=check_date
-            ).exists()
-            if has_activity:
-                streak_days += 1
-            else:
-                break
-        
-        # Study time last 30 days
-        last_30_days = timezone.now() - timedelta(days=30)
-        daily_study = []
-        for i in range(30):
-            day = (timezone.now() - timedelta(days=i)).date()
+        try:
+            # Get student enrollments
+            enrollments = Enrollment.objects.filter(student=user, is_active=True)
             
-            time_spent = LessonProgress.objects.filter(
-                enrollment__student=user,
-                started_at__date=day
-            ).aggregate(
-                total=Sum('time_spent_seconds')
-            )['total'] or 0
-            
-            daily_study.append({
-                'date': day.isoformat(),
-                'minutes': round(time_spent / 60, 1)
-            })
-        
-        daily_study.reverse()
-        
-        # Recent quiz performance
-        recent_quizzes = QuizAttempt.objects.filter(
-            student=user,
-            completed_at__isnull=False
-        ).order_by('-completed_at')[:10]
-        
-        quiz_performance = []
-        for attempt in recent_quizzes:
-            quiz_performance.append({
-                'quiz_title': attempt.quiz.title,
-                'course': attempt.quiz.course.title,
-                'score': float(attempt.score) if attempt.score else 0,
-                'passed': attempt.passed,
-                'date': attempt.completed_at.date().isoformat()
-            })
-        
-        # Subject performance
-        subject_performance = recent_quizzes.values(
-            'quiz__course__category__name'
-        ).annotate(
-            avg_score=Avg('score'),
-            total_attempts=Count('id'),
-            passed_count=Count('id', filter=Q(passed=True))
-        ).order_by('-avg_score')
-        
-        subject_data = []
-        for subject in subject_performance:
-            if subject['quiz__course__category__name']:
-                subject_data.append({
-                    'subject': subject['quiz__course__category__name'],
-                    'avg_score': round(float(subject['avg_score'] or 0), 1),
-                    'success_rate': round(
-                        (subject['passed_count'] / subject['total_attempts'] * 100) 
-                        if subject['total_attempts'] > 0 else 0, 1
-                    )
+            # Course progress data
+            course_progress = []
+            for enrollment in enrollments:
+                course_progress.append({
+                    'course_id': str(enrollment.course.uuid),
+                    'course_title': enrollment.course.title,
+                    'progress': float(enrollment.progress_percentage),
+                    'status': enrollment.status,
+                    'enrolled_date': enrollment.enrolled_at.date().isoformat(),
+                    'instructor': enrollment.course.instructor.get_full_name()
                 })
-        
-        # Generate chart data
-        charts = {
-            'course_progress': {
-                'type': 'bar',
-                'title': 'Course Progress',
-                'data': {
-                    'labels': [course['course_title'][:20] + '...' if len(course['course_title']) > 20 
-                              else course['course_title'] for course in course_progress],
-                    'datasets': [{
-                        'label': 'Progress %',
-                        'data': [course['progress'] for course in course_progress],
-                        'backgroundColor': [
-                            '#10B981' if course['progress'] >= 80 else
-                            '#F59E0B' if course['progress'] >= 50 else
-                            '#EF4444' for course in course_progress
-                        ]
-                    }]
-                }
-            },
-            'study_time_trend': {
-                'type': 'line',
-                'title': 'Daily Study Time (Last 30 Days)',
-                'data': {
-                    'labels': [day['date'][-5:] for day in daily_study],  # Show MM-DD
-                    'datasets': [{
-                        'label': 'Minutes',
-                        'data': [day['minutes'] for day in daily_study],
-                        'borderColor': '#3B82F6',
-                        'backgroundColor': 'rgba(59, 130, 246, 0.1)',
-                        'fill': True
-                    }]
-                }
-            },
-            'quiz_performance': {
-                'type': 'line',
-                'title': 'Recent Quiz Scores',
-                'data': {
-                    'labels': [quiz['quiz_title'][:15] + '...' if len(quiz['quiz_title']) > 15 
-                              else quiz['quiz_title'] for quiz in quiz_performance],
-                    'datasets': [{
-                        'label': 'Score %',
-                        'data': [quiz['score'] for quiz in quiz_performance],
-                        'borderColor': '#8B5CF6',
-                        'backgroundColor': [
-                            '#10B981' if quiz['passed'] else '#EF4444' 
-                            for quiz in quiz_performance
-                        ]
-                    }]
+            
+            # Learning streak calculation
+            today = timezone.now().date()
+            streak_days = 0
+            for i in range(30):
+                check_date = today - timedelta(days=i)
+                has_activity = ActivityLog.objects.filter(
+                    user=user,
+                    created_at__date=check_date
+                ).exists()
+                if has_activity:
+                    streak_days += 1
+                else:
+                    break
+            
+            # Study time last 30 days
+            last_30_days = timezone.now() - timedelta(days=30)
+            daily_study = []
+            for i in range(30):
+                day = (timezone.now() - timedelta(days=i)).date()
+                
+                time_spent = LessonProgress.objects.filter(
+                    enrollment__student=user,
+                    started_at__date=day
+                ).aggregate(
+                    total=Sum('time_spent_seconds')
+                )['total'] or 0
+                
+                daily_study.append({
+                    'date': day.isoformat(),
+                    'minutes': round(time_spent / 60, 1)
+                })
+            
+            daily_study.reverse()
+            
+            # Recent quiz performance
+            recent_quizzes = QuizAttempt.objects.filter(
+                student=user,
+                completed_at__isnull=False
+            ).order_by('-completed_at')[:10]
+            
+            quiz_performance = []
+            for attempt in recent_quizzes:
+                quiz_performance.append({
+                    'quiz_title': attempt.quiz.title,
+                    'course': attempt.quiz.course.title,
+                    'score': float(attempt.score) if attempt.score else 0,
+                    'passed': attempt.passed,
+                    'date': attempt.completed_at.date().isoformat()
+                })
+            
+            # Subject performance
+            subject_performance = recent_quizzes.values(
+                'quiz__course__category__name'
+            ).annotate(
+                avg_score=Avg('score'),
+                total_attempts=Count('id'),
+                passed_count=Count('id', filter=Q(passed=True))
+            ).order_by('-avg_score')
+            
+            subject_data = []
+            for subject in subject_performance:
+                if subject['quiz__course__category__name']:
+                    subject_data.append({
+                        'subject': subject['quiz__course__category__name'],
+                        'avg_score': round(float(subject['avg_score'] or 0), 1),
+                        'success_rate': round(
+                            (subject['passed_count'] / subject['total_attempts'] * 100) 
+                            if subject['total_attempts'] > 0 else 0, 1
+                        )
+                    })
+            
+            # Generate chart data
+            charts = {
+                'course_progress': {
+                    'type': 'bar',
+                    'title': 'Course Progress',
+                    'data': {
+                        'labels': [course['course_title'][:20] + '...' if len(course['course_title']) > 20 
+                                  else course['course_title'] for course in course_progress],
+                        'datasets': [{
+                            'label': 'Progress %',
+                            'data': [course['progress'] for course in course_progress],
+                            'backgroundColor': [
+                                '#10B981' if course['progress'] >= 80 else
+                                '#F59E0B' if course['progress'] >= 50 else
+                                '#EF4444' for course in course_progress
+                            ]
+                        }]
+                    }
+                },
+                'study_time_trend': {
+                    'type': 'line',
+                    'title': 'Daily Study Time (Last 30 Days)',
+                    'data': {
+                        'labels': [day['date'][-5:] for day in daily_study],  # Show MM-DD
+                        'datasets': [{
+                            'label': 'Minutes',
+                            'data': [day['minutes'] for day in daily_study],
+                            'borderColor': '#3B82F6',
+                            'backgroundColor': 'rgba(59, 130, 246, 0.1)',
+                            'fill': True
+                        }]
+                    }
+                },
+                'quiz_performance': {
+                    'type': 'line',
+                    'title': 'Recent Quiz Scores',
+                    'data': {
+                        'labels': [quiz['quiz_title'][:15] + '...' if len(quiz['quiz_title']) > 15 
+                                  else quiz['quiz_title'] for quiz in quiz_performance],
+                        'datasets': [{
+                            'label': 'Score %',
+                            'data': [quiz['score'] for quiz in quiz_performance],
+                            'borderColor': '#8B5CF6',
+                            'backgroundColor': [
+                                '#10B981' if quiz['passed'] else '#EF4444' 
+                                for quiz in quiz_performance
+                            ]
+                        }]
+                    }
                 }
             }
-        }
+            
+            # Summary metrics
+            total_courses = enrollments.count()
+            avg_progress = float(enrollments.aggregate(avg=Avg('progress_percentage'))['avg'] or 0)
+            total_study_time = sum(day['minutes'] for day in daily_study)
+            
+            return Response({
+                'summary': {
+                    'total_courses': total_courses,
+                    'completed_courses': enrollments.filter(status='completed').count(),
+                    'in_progress_courses': enrollments.filter(status='in_progress').count(),
+                    'average_progress': round(avg_progress, 1),
+                    'study_hours_30d': round(total_study_time / 60, 1),
+                    'learning_streak': streak_days
+                },
+                'performance': {
+                    'total_quizzes': recent_quizzes.count(),
+                    'avg_quiz_score': float(recent_quizzes.aggregate(avg=Avg('score'))['avg'] or 0),
+                    'quiz_pass_rate': recent_quizzes.filter(passed=True).count() / max(recent_quizzes.count(), 1) * 100
+                },
+                'study_time': {
+                    'daily_breakdown': daily_study,
+                    'weekly_average': round(total_study_time / 4, 1),  # Assuming 4 weeks
+                    'total_30d': round(total_study_time / 60, 1)
+                },
+                'courses': course_progress,
+                'charts': charts,
+                'subject_performance': subject_data
+            })
         
-        # Summary metrics
-        total_courses = enrollments.count()
-        avg_progress = enrollments.aggregate(avg=Avg('progress_percentage'))['avg'] or 0
-        total_study_time = sum(day['minutes'] for day in daily_study)
-        
-        return Response({
-            'summary': {
-                'total_courses': total_courses,
-                'completed_courses': enrollments.filter(status='completed').count(),
-                'in_progress_courses': enrollments.filter(status='in_progress').count(),
-                'average_progress': round(avg_progress, 1),
-                'study_hours_30d': round(total_study_time / 60, 1),
-                'learning_streak': streak_days
-            },
-            'performance': {
-                'total_quizzes': recent_quizzes.count(),
-                'avg_quiz_score': recent_quizzes.aggregate(avg=Avg('score'))['avg'] or 0,
-                'quiz_pass_rate': recent_quizzes.filter(passed=True).count() / max(recent_quizzes.count(), 1) * 100
-            },
-            'charts': charts,
-            'subject_performance': subject_data
-        })
+        except Exception as e:
+            # Log the error for debugging
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Student analytics error for user {user.id}: {str(e)}")
+            
+            # Return fallback data with error indication
+            return Response({
+                'summary': {
+                    'total_courses': 0,
+                    'completed_courses': 0,
+                    'in_progress_courses': 0,
+                    'average_progress': 0,
+                    'study_hours_30d': 0,
+                    'learning_streak': 0
+                },
+                'performance': {
+                    'total_quizzes': 0,
+                    'avg_quiz_score': 0,
+                    'quiz_pass_rate': 0
+                },
+                'study_time': {
+                    'daily_breakdown': [],
+                    'weekly_average': 0,
+                    'total_30d': 0
+                },
+                'courses': [],
+                'charts': {
+                    'course_progress': {
+                        'type': 'bar',
+                        'title': 'Course Progress',
+                        'data': {'labels': [], 'datasets': []}
+                    },
+                    'study_time_trend': {
+                        'type': 'line',
+                        'title': 'Daily Study Time',
+                        'data': {'labels': [], 'datasets': []}
+                    }
+                },
+                'subject_performance': [],
+                'error': 'Unable to load analytics data'
+            }, status=status.HTTP_200_OK)  # Return 200 with fallback data
 
 class TeacherAnalyticsView(APIView):
     """Complete teacher analytics dashboard"""
@@ -662,7 +712,7 @@ class TeacherAnalyticsView(APIView):
         user = request.user
         
         if user.role != 'teacher' and not user.is_staff:
-            return Response({'error': 'Teacher access only'}, status=403)
+            return Response({'detail': 'Teacher access only'}, status=status.HTTP_403_FORBIDDEN)
         
         # Get teacher courses
         courses = Course.objects.filter(instructor=user)
@@ -674,7 +724,7 @@ class TeacherAnalyticsView(APIView):
             
             # Calculate engagement score
             completion_rate = enrollments.filter(status='completed').count() / max(enrollments.count(), 1)
-            avg_progress = enrollments.aggregate(avg=Avg('progress_percentage'))['avg'] or 0
+            avg_progress = float(enrollments.aggregate(avg=Avg('progress_percentage'))['avg'] or 0)
             forum_activity = Discussion.objects.filter(forum__course=course).count()
             quiz_participation = QuizAttempt.objects.filter(quiz__course=course).count()
             
@@ -691,7 +741,7 @@ class TeacherAnalyticsView(APIView):
                 'total_students': enrollments.count(),
                 'completed_students': enrollments.filter(status='completed').count(),
                 'avg_progress': round(avg_progress, 1),
-                'avg_rating': course.reviews.aggregate(avg=Avg('rating'))['avg'] or 0,
+                'avg_rating': float(course.reviews.aggregate(avg=Avg('rating'))['avg'] or 0),
                 'engagement_score': round(engagement, 1)
             })
         
@@ -756,7 +806,7 @@ class TeacherAnalyticsView(APIView):
                 'published_courses': courses.filter(status='published').count(),
                 'total_students': total_enrollments.values('student').distinct().count(),
                 'active_students_7d': active_students,
-                'avg_course_rating': courses.aggregate(avg=Avg('reviews__rating'))['avg'] or 0
+                'avg_course_rating': float(courses.aggregate(avg=Avg('reviews__rating'))['avg'] or 0)
             },
             'course_performance': course_stats,
             'student_activity': {
@@ -775,7 +825,7 @@ class PlatformAnalyticsView(APIView):
         user = request.user
         
         if user.role not in ['manager', 'admin'] and not user.is_staff:
-            return Response({'error': 'Manager access only'}, status=403)
+            return Response({'detail': 'Manager access only'}, status=status.HTTP_403_FORBIDDEN)
         
         # Platform overview
         total_users = User.objects.filter(is_active=True).count()
@@ -904,7 +954,7 @@ class DashboardView(APIView):
         elif user.role in ['manager', 'admin'] or user.is_staff:
             return self.get_manager_dashboard(user)
         
-        return Response({'error': 'Invalid user role'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'detail': 'Invalid user role'}, status=status.HTTP_400_BAD_REQUEST)
     
     def get_student_dashboard(self, user):
         """Simple student dashboard overview"""
@@ -929,9 +979,9 @@ class DashboardView(APIView):
             'enrolled_courses': enrollments.count(),
             'completed_courses': enrollments.filter(status='completed').count(),
             'in_progress_courses': enrollments.filter(status='in_progress').count(),
-            'average_progress': enrollments.aggregate(
+            'average_progress': float(enrollments.aggregate(
                 avg=Avg('progress_percentage')
-            )['avg'] or 0,
+            )['avg'] or 0),
             'recent_activities': activities_data
         })
     
@@ -952,9 +1002,9 @@ class DashboardView(APIView):
                 discussion_type='question',
                 is_resolved=False
             ).count(),
-            'average_rating': courses.aggregate(
+            'average_rating': float(courses.aggregate(
                 avg_rating=Avg('reviews__rating')
-            )['avg_rating'] or 0
+            )['avg_rating'] or 0)
         })
     
     def get_manager_dashboard(self, user):

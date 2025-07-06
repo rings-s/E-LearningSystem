@@ -2,6 +2,7 @@
 <script>
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
+	import { replaceState } from '$app/navigation';
 	import { fade, fly, scale } from 'svelte/transition';
 	import { coursesApi } from '$lib/apis/courses.js';
 	import { debounce, classNames } from '$lib/utils/helpers.js';
@@ -129,7 +130,7 @@
 			url.searchParams.delete('page');
 		}
 
-		window.history.replaceState({}, '', url);
+		replaceState(url.toString(), {});
 	};
 
 	const debouncedSearch = debounce(() => {
