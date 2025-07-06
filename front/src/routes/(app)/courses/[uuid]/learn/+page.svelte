@@ -4,8 +4,6 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { fade, fly, slide } from 'svelte/transition';
 	import { coursesApi } from '$lib/apis/courses.js';
-	import { coreApi } from '$lib/apis/core.js';
-	import { analyticsService } from '$lib/services/analytics.service.js';
 	import { currentUser } from '$lib/stores/auth.store.js';
 	import { uiStore } from '$lib/stores/ui.store.js';
 	import { debounce, classNames } from '$lib/utils/helpers.js';
@@ -35,7 +33,7 @@
 	let error = $state('');
 	let completingLesson = $state(false);
 
-	// Enhanced Analytics Tracking
+	// Enhanced Analytics Tracking (simplified without API calls)
 	let analytics = $state({
 		sessionStartTime: null,
 		totalTimeSpent: 0,
@@ -66,46 +64,42 @@
 	let showKeyboardShortcuts = $state(false);
 	let isMobile = $state(false);
 
-	// Computed values with proper null checks
-	let lessons = [];
-	let currentLessonIndex = -1;
-	let previousLesson = null;
-	let nextLesson = null;
-	let totalLessonsCount = 0;
-	let completedLessonsCount = 0;
-	let calculatedProgress = 0;
-
-	// Reactive updates for computed values
-	$effect(() => {
+	// Fixed: Convert to $derived instead of manually updating variables
+	let lessons = $derived(() => {
 		if (course?.modules) {
-			lessons = course.modules.flatMap(module => 
+			return course.modules.flatMap(module => 
 				(module.lessons || []).map(lesson => ({
 					...lesson,
 					moduleTitle: module.title
 				}))
 			);
-		} else {
-			lessons = [];
 		}
+		return [];
 	});
 
-	$effect(() => {
+	let currentLessonIndex = $derived(() => {
 		if (currentLesson && lessons.length > 0) {
-			currentLessonIndex = lessons.findIndex(lesson => lesson.uuid === currentLesson.uuid);
-		} else {
-			currentLessonIndex = -1;
+			return lessons.findIndex(lesson => lesson.uuid === currentLesson.uuid);
 		}
+		return -1;
 	});
 
-	$effect(() => {
-		previousLesson = currentLessonIndex > 0 ? lessons[currentLessonIndex - 1] : null;
-		nextLesson = currentLessonIndex < lessons.length - 1 ? lessons[currentLessonIndex + 1] : null;
+	let previousLesson = $derived(() => {
+		return currentLessonIndex > 0 ? lessons[currentLessonIndex - 1] : null;
 	});
 
-	$effect(() => {
-		totalLessonsCount = lessons.length;
-		completedLessonsCount = lessons.filter(l => l.is_completed).length;
-		calculatedProgress = totalLessonsCount > 0 ? Math.round((completedLessonsCount / totalLessonsCount) * 100) : 0;
+	let nextLesson = $derived(() => {
+		return currentLessonIndex < lessons.length - 1 ? lessons[currentLessonIndex + 1] : null;
+	});
+
+	let totalLessonsCount = $derived(() => lessons.length);
+
+	let completedLessonsCount = $derived(() => {
+		return lessons.filter(l => l.is_completed).length;
+	});
+
+	let calculatedProgress = $derived(() => {
+		return totalLessonsCount > 0 ? Math.round((completedLessonsCount / totalLessonsCount) * 100) : 0;
 	});
 
 	onMount(async () => {
@@ -209,7 +203,7 @@
 		}
 	}
 
-	// Enhanced Analytics Functions
+	// Enhanced Analytics Functions (simplified without API calls)
 	function startAnalyticsTracking() {
 		analytics.sessionStartTime = Date.now();
 		analytics.interactionCount = 0;
@@ -231,43 +225,14 @@
 		if (!currentLesson) return;
 
 		analytics.lessonTimeSpent = 0;
-		
-		// Track lesson start with backend
-		try {
-			await coreApi.trackActivity({
-				activity_type: 'lesson_start',
-				course_id: courseId,
-				lesson_id: currentLesson.uuid,
-				metadata: {
-					lesson_title: currentLesson.title,
-					session_start: Date.now()
-				}
-			});
-		} catch (error) {
-			console.warn('Failed to track lesson start:', error);
-		}
+		console.log('Started lesson tracking for:', currentLesson.title);
 	}
 
 	async function endLessonTracking() {
 		if (!currentLesson || !analytics.sessionStartTime) return;
 
 		const timeSpent = Date.now() - analytics.sessionStartTime;
-		
-		try {
-			await coreApi.trackActivity({
-				activity_type: 'lesson_progress',
-				course_id: courseId,
-				lesson_id: currentLesson.uuid,
-				metadata: {
-					time_spent_seconds: Math.floor(timeSpent / 1000),
-					progress_percentage: videoProgress.progress,
-					interactions: analytics.interactionCount,
-					video_progress: videoProgress
-				}
-			});
-		} catch (error) {
-			console.warn('Failed to track lesson progress:', error);
-		}
+		console.log('Ended lesson tracking. Time spent:', Math.floor(timeSpent / 1000), 'seconds');
 	}
 
 	// Enhanced notes functionality with auto-save
@@ -335,15 +300,20 @@
 
 	// Enhanced Learning session management with analytics
 	function startLearningSession() {
-		learningSession = analyticsService.startStudySession(courseId, currentLesson?.uuid);
+		learningSession = {
+			startTime: Date.now(),
+			courseId,
+			lessonId: currentLesson?.uuid
+		};
 		
 		// Update session every 30 seconds
 		setInterval(() => {
 			if (learningSession) {
-				analyticsService.updateStudySession({
+				// Simple session tracking without API calls
+				console.log('Session update:', {
+					timeSpent: Date.now() - learningSession.startTime,
 					videoProgress,
-					lessonProgress: calculatedProgress,
-					timeSpent: Date.now() - learningSession.startTime
+					lessonProgress: calculatedProgress
 				});
 			}
 		}, 30000);
@@ -351,7 +321,7 @@
 
 	function cleanup() {
 		if (learningSession) {
-			analyticsService.endStudySession();
+			console.log('Learning session ended');
 		}
 		
 		if (autoSaveTimer) {
@@ -381,13 +351,6 @@
 			};
 			
 			localStorage.setItem(`lesson_progress_${currentLesson.uuid}`, JSON.stringify(progressData));
-
-			// Enhanced backend sync with analytics
-			try {
-				await analyticsService.trackLessonProgress(currentLesson.uuid, progressData);
-			} catch (err) {
-				console.warn('Failed to sync progress:', err);
-			}
 		}
 	}, 2000);
 
@@ -419,18 +382,6 @@
 				enrollment.progress_percentage = calculatedProgress;
 			}
 
-			// Track completion with analytics
-			await coreApi.trackActivity({
-				activity_type: 'lesson_complete',
-				course_id: courseId,
-				lesson_id: currentLesson.uuid,
-				metadata: {
-					completion_time: Date.now(),
-					time_spent: Date.now() - (analytics.sessionStartTime || Date.now()),
-					video_completion_rate: videoProgress.progress
-				}
-			});
-
 			uiStore.showNotification({
 				type: 'success',
 				title: $t('course.lessonCompleted'),
@@ -457,13 +408,6 @@
 	function handleVideoProgress(data) {
 		videoProgress = data;
 		analytics.lastProgressUpdate = Date.now();
-
-		// Track detailed video analytics
-		analyticsService.updateStudySession({
-			...data,
-			interactionCount: analytics.interactionCount,
-			lessonId: currentLesson?.uuid
-		});
 
 		// Auto-complete at 95%
 		if (data.progress >= 95 && !currentLesson.is_completed && !completingLesson) {
@@ -530,17 +474,6 @@
 	async function navigateToLesson(lesson) {
 		if (lesson) {
 			try {
-				// Track navigation
-				await coreApi.trackActivity({
-					activity_type: 'lesson_navigation',
-					course_id: courseId,
-					lesson_id: lesson.uuid,
-					metadata: {
-						from_lesson: currentLesson?.uuid,
-						navigation_type: 'manual'
-					}
-				});
-
 				await loadLesson(lesson);
 			} catch (err) {
 				console.error('Navigation error:', err);
@@ -606,13 +539,12 @@
 		};
 	}
 
-	// Filter notes
-	let filteredNotes = [];
-	$effect(() => {
+	// Fixed: Convert to $derived and ensure filteredNotes is reactive
+	let filteredNotes = $derived(() => {
 		if (!noteSearchQuery) {
-			filteredNotes = notes;
+			return notes;
 		} else {
-			filteredNotes = notes.filter(note => 
+			return notes.filter(note => 
 				note.content.toLowerCase().includes(noteSearchQuery.toLowerCase()) ||
 				note.lessonTitle?.toLowerCase().includes(noteSearchQuery.toLowerCase())
 			);
@@ -683,7 +615,7 @@
 				<button
 					onclick={() => sidebar.collapsed = !sidebar.collapsed}
 					class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-					title={sidebar.collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+					aria-label={sidebar.collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
 				>
 					<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
@@ -709,6 +641,7 @@
 									? 'border-b-2 border-primary-600 text-primary-600 dark:text-primary-400'
 									: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
 							)}
+							aria-label={`Switch to ${tab.label} tab`}
 						>
 							<span class="mr-1">{tab.icon}</span>
 							{tab.label}
@@ -837,6 +770,7 @@
 											<button
 												onclick={() => deleteNote(note.id)}
 												class="ml-2 text-gray-400 hover:text-red-500"
+												aria-label="Delete note"
 											>
 												<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -913,6 +847,7 @@
 					<button
 						onclick={() => sidebar.mobileMenuOpen = !sidebar.mobileMenuOpen}
 						class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+						aria-label="Toggle mobile menu"
 					>
 						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
@@ -949,7 +884,7 @@
 						onclick={() => showKeyboardShortcuts = true}
 						variant="ghost"
 						size="small"
-						title={$t('course.keyboardShortcuts')}
+						aria-label={$t('course.keyboardShortcuts')}
 					>
 						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -963,17 +898,18 @@
 				</div>
 			</div>
 
-			<!-- Content Area -->
+			<!-- Content Area with Fixed Spacing for Large Screens -->
 			<div class="flex-1 overflow-hidden">
 				<div class="h-full p-4 md:p-6">
 					
-					<!-- Video/Content Player with Enhanced Analytics -->
+					<!-- Video/Content Player with Fixed Height for Large Screens -->
 					<div class="mb-6">
 						<Card variant="bordered" class="overflow-hidden shadow-lg">
 							<div class="-m-6">
 								{#if currentLesson.content_type === 'video' && currentLesson.video_url}
-									<div class="aspect-video w-full bg-black flex items-center justify-center">
-										<div class="w-full h-full">
+									<!-- Fixed: Set max height to ensure controls are always visible on large screens -->
+									<div class="relative w-full bg-black" style="max-height: calc(100vh - 300px); min-height: 400px;">
+										<div class="aspect-video w-full h-full max-h-full flex items-center justify-center">
 											<YouTubePlayer
 												videoId={currentLesson.video_url}
 												onProgress={handleVideoProgress}
@@ -982,7 +918,7 @@
 										</div>
 									</div>
 								{:else if currentLesson.content_type === 'pdf' && currentLesson.file_attachment}
-									<div class="h-[600px] w-full">
+									<div class="w-full" style="height: calc(100vh - 300px); max-height: 600px;">
 										<PDFViewer
 											src={currentLesson.file_attachment}
 											title={currentLesson.title}
@@ -990,7 +926,7 @@
 										/>
 									</div>
 								{:else if currentLesson.content_type === 'text' && currentLesson.text_content}
-									<div class="prose prose-lg dark:prose-invert max-w-none p-6">
+									<div class="prose prose-lg dark:prose-invert max-w-none p-6 max-h-96 overflow-y-auto">
 										{@html currentLesson.text_content}
 									</div>
 								{:else}
@@ -1007,17 +943,18 @@
 						</Card>
 					</div>
 
-					<!-- Enhanced Lesson Controls with Analytics -->
-					<div class="mb-6">
-						<Card variant="bordered" class="bg-white/95 backdrop-blur-sm shadow-md dark:bg-gray-800/95">
-							<div class="flex items-center justify-between">
-								<div class="flex items-center gap-4">
+					<!-- Enhanced Lesson Controls - Fixed Position on Large Screens -->
+					<div class="mb-6 lg:fixed lg:bottom-6 lg:left-[320px] lg:right-6 lg:z-40">
+						<Card variant="bordered" class="bg-white/95 backdrop-blur-sm shadow-md dark:bg-gray-800/95 lg:shadow-2xl">
+							<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+								<div class="flex flex-wrap items-center gap-4">
 									{#if !currentLesson.is_completed}
 										<Button
 											onclick={completeLesson}
 											variant="primary"
 											loading={completingLesson}
 											disabled={completingLesson}
+											size="large"
 										>
 											{completingLesson ? $t('course.completing') : $t('course.markComplete')}
 										</Button>
@@ -1043,9 +980,9 @@
 									<Button
 										onclick={navigatePrevious}
 										variant="outline"
-										size="small"
+										size="large"
 										disabled={!previousLesson}
-										title={$t('course.previousLesson')}
+										aria-label={$t('course.previousLesson')}
 									>
 										<svg class="mr-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
@@ -1056,9 +993,9 @@
 									<Button
 										onclick={navigateNext}
 										variant="primary"
-										size="small"
+										size="large"
 										disabled={!nextLesson}
-										title={$t('course.nextLesson')}
+										aria-label={$t('course.nextLesson')}
 									>
 										{$t('course.next')}
 										<svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1070,9 +1007,12 @@
 						</Card>
 					</div>
 
+					<!-- Bottom Spacer for Fixed Controls -->
+					<div class="hidden lg:block lg:h-24"></div>
+
 					<!-- Lesson Description -->
 					{#if currentLesson.description}
-						<div class="mb-6">
+						<div class="mb-6 lg:mb-32">
 							<Card variant="bordered" class="shadow-md">
 								<div class="flex items-start gap-4">
 									<div class="rounded-lg bg-blue-100 p-3 dark:bg-blue-900/30">
@@ -1095,7 +1035,7 @@
 
 					<!-- Resources -->
 					{#if currentLesson.resources?.length > 0}
-						<div class="mb-6">
+						<div class="mb-6 lg:mb-32">
 							<Card variant="bordered" class="shadow-md">
 								<div class="flex items-start gap-4">
 									<div class="rounded-lg bg-purple-100 p-3 dark:bg-purple-900/30">
@@ -1178,9 +1118,12 @@
 
 <!-- Mobile Sidebar Overlay -->
 {#if isMobile && sidebar.mobileMenuOpen}
-	<div 
+	<!-- Fixed: Convert to button with proper event handlers -->
+	<button 
 		class="fixed inset-0 z-40 bg-black/50"
 		onclick={() => sidebar.mobileMenuOpen = false}
+		onkeydown={(e) => e.key === 'Enter' && (sidebar.mobileMenuOpen = false)}
 		transition:fade
-	></div>
+		aria-label="Close mobile menu"
+	></button>
 {/if}
