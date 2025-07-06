@@ -31,8 +31,25 @@ export const coreApi = {
 	},
 
 	// Progress Analytics
-	async getProgressAnalytics(courseId) {
-		return api.get(`/core/progress-analytics/${courseId}/`);
+	async getProgressAnalytics(courseId, params = {}) {
+		const queryString = new URLSearchParams(params).toString();
+		return api.get(`/core/progress-analytics/${courseId}/?${queryString}`);
+	},
+
+	// Course-specific Analytics
+	async getCourseStudents(courseId, params = {}) {
+		const queryString = new URLSearchParams(params).toString();
+		return api.get(`/core/courses/${courseId}/students/?${queryString}`);
+	},
+
+	async getEngagementAnalytics(courseId, params = {}) {
+		const queryString = new URLSearchParams(params).toString();
+		return api.get(`/core/courses/${courseId}/engagement/?${queryString}`);
+	},
+
+	async getPerformanceMetrics(courseId, params = {}) {
+		const queryString = new URLSearchParams(params).toString();
+		return api.get(`/core/courses/${courseId}/performance/?${queryString}`);
 	},
 
 	// Forums & Discussions
@@ -97,5 +114,16 @@ export const coreApi = {
 			formData.append(key, data[key]);
 		});
 		return api.upload('/core/media/', formData);
+	},
+
+	// Course Management for Teachers
+	async getCourseAnalytics(courseId, params = {}) {
+		const queryString = new URLSearchParams(params).toString();
+		return api.get(`/core/courses/${courseId}/analytics/?${queryString}`);
+	},
+
+	async getCourseActivity(courseId, params = {}) {
+		const queryString = new URLSearchParams(params).toString();
+		return api.get(`/core/courses/${courseId}/activity/?${queryString}`);
 	}
 };

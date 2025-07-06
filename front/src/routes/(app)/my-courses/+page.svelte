@@ -216,7 +216,7 @@
 
 	const getCourseActionUrl = (course) => {
 		if (isTeacher) {
-			return `/teacher/courses/${course.uuid}`;
+			return `/teacher/courses/${course.uuid}/manage`;
 		} else {
 			return `/courses/${course.uuid}/learn`;
 		}
@@ -240,7 +240,7 @@
 	<!-- Enhanced Hero Section with Fixed Animated Background -->
 	<div class="relative overflow-hidden" in:fade={{ duration: 800 }}>
 		<!-- Fixed Animated Background -->
-		<div class="absolute inset-0 bg-gradient-to-br from-primary-600 via-primary-700 to-secondary-600">
+		<div class="absolute inset-0 bg-gradient-to-br from-blue-600 via-blue-700 to-purple-600">
 			<!-- Animated geometric pattern -->
 			<div class="absolute inset-0 opacity-10">
 				<svg class="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -372,7 +372,7 @@
 							<!-- Sort Dropdown -->
 							<select 
 								bind:value={sortBy}
-								class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+								class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
 							>
 								{#each sortOptions as option}
 									<option value={option.id}>{option.label}</option>
@@ -406,7 +406,7 @@
 									class={classNames(
 										"flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all whitespace-nowrap",
 										activeFilter === filter.id
-											? "bg-white text-primary-600 shadow-sm dark:bg-gray-700 dark:text-primary-400"
+											? "bg-white text-blue-600 shadow-sm dark:bg-gray-700 dark:text-blue-400"
 											: "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
 									)}
 								>
@@ -417,7 +417,7 @@
 									<span class={classNames(
 										"ml-1 rounded-full px-2 py-0.5 text-xs",
 										activeFilter === filter.id 
-											? "bg-primary-100 text-primary-800 dark:bg-primary-900/20 dark:text-primary-400"
+											? "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400"
 											: "bg-gray-200 dark:bg-gray-600"
 									)}>
 										{count}
@@ -475,8 +475,8 @@
 			<div in:fade={{ duration: 500 }}>
 				<Card variant="bordered" class="py-20 text-center shadow-xl">
 					<div in:scale={{ duration: 600, start: 0.8 }}>
-						<div class="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900 dark:to-primary-800">
-							<svg class="h-12 w-12 text-primary-600 dark:text-primary-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<div class="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900 dark:to-blue-800">
+							<svg class="h-12 w-12 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={isTeacher ? "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" : "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"} />
 							</svg>
 						</div>
@@ -565,7 +565,7 @@
 									/>
 								{:else}
 									<div class={classNames(
-										"bg-gradient-to-br from-primary-400 to-primary-600 transition-all duration-300 group-hover:from-primary-500 group-hover:to-primary-700",
+										"bg-gradient-to-br from-blue-400 to-blue-600 transition-all duration-300 group-hover:from-blue-500 group-hover:to-blue-700",
 										viewMode === 'grid' ? "h-48 w-full" : "h-full w-full"
 									)}>
 										<div class="flex h-full items-center justify-center">
@@ -611,7 +611,7 @@
 							<!-- Course Content -->
 							<div class="flex flex-1 flex-col space-y-4 p-6">
 								<!-- Course Title -->
-								<h3 class="text-lg font-bold text-gray-900 dark:text-white group-hover:text-primary-600 dark:group-hover:text-primary-400 transition-colors line-clamp-2">
+								<h3 class="text-lg font-bold text-gray-900 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors line-clamp-2">
 									{course.title}
 								</h3>
 

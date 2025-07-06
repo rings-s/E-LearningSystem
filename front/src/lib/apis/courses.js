@@ -224,5 +224,11 @@ export const coursesApi = {
             console.error('Failed to create lesson with file:', error);
             throw error;
         }
+    },
+
+    // Course Students Management
+    async getCourseStudents(courseUuid, params = {}) {
+        const queryString = new URLSearchParams(params).toString();
+        return api.get(`/courses/${courseUuid}/students/?${queryString}`);
     }
 };

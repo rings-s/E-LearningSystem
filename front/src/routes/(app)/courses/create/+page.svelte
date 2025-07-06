@@ -46,8 +46,7 @@
 		prerequisites: '',
 		learning_outcomes: '',
 
-		// Pricing & Access
-		price: 0,
+		// Access Settings
 		enrollment_limit: null,
 
 		// Status
@@ -263,34 +262,75 @@
 
 		saving = true;
 		try {
-			// Prepare clean data for API - remove null/undefined fields and invalid values
+			// Prepare clean data for API - match backend Course model exactly
 			const coursePayload = {
+				// Required fields (backend validation)
 				title: courseData.title.trim(),
-				slug: courseData.slug.trim(),
-				short_description: courseData.short_description.trim(),
 				description: courseData.description.trim(),
-				category: courseData.category,
-				level: courseData.level,
-				language: courseData.language,
-				duration_hours: parseInt(courseData.duration_hours) || 1,
-				price: parseFloat(courseData.price) || 0,
-				status: 'draft',
-				prerequisites: courseData.prerequisites?.trim() || '',
+				short_description: courseData.short_description.trim(),
 				learning_outcomes: courseData.learning_outcomes?.trim() || '',
+				
+				// Optional fields with proper validation
+				level: courseData.level || 'beginner',
+				language: courseData.language || 'en',
+				duration_hours: Math.max(1, parseInt(courseData.duration_hours) || 1),
+				status: 'draft',
 				is_featured: false
 			};
 
-			// Add optional fields only if they have values
+			// Add slug only if provided (backend will auto-generate from title if not provided)
+			if (courseData.slug?.trim()) {
+				coursePayload.slug = courseData.slug.trim();
+			}
+
+			// Add category if valid UUID (send null instead of empty string)
+			if (courseData.category && courseData.category.length > 0) {
+				coursePayload.category = courseData.category;
+			} else {
+				coursePayload.category = null;
+			}
+
+			// Add enrollment limit if provided
 			if (courseData.enrollment_limit && parseInt(courseData.enrollment_limit) > 0) {
 				coursePayload.enrollment_limit = parseInt(courseData.enrollment_limit);
 			}
 
-			// Handle tags properly
-			if (courseData.tags && courseData.tags.length > 0) {
-				coursePayload.tags = courseData.tags.map(tag => tag.trim()).filter(tag => tag.length > 0);
+			// Add prerequisites if provided
+			if (courseData.prerequisites?.trim()) {
+				coursePayload.prerequisites = courseData.prerequisites.trim();
 			}
 
-			console.log('Course payload:', coursePayload);
+			// Handle tags properly - backend expects array of strings
+			if (courseData.tags && courseData.tags.length > 0) {
+				coursePayload.tags = courseData.tags
+					.map(tag => typeof tag === 'string' ? tag.trim() : String(tag).trim())
+					.filter(tag => tag.length > 0);
+			}
+
+			// IMPORTANT: Remove price field - it's not in the backend Course model
+			// The backend Course model doesn't have a price field, instructor is auto-set
+
+			// Debug: Log the exact payload being sent
+			console.log('=== COURSE CREATION DEBUG ===');
+			console.log('Course payload:', JSON.stringify(coursePayload, null, 2));
+			console.log('Required fields check:');
+			console.log('- title:', coursePayload.title);
+			console.log('- description:', coursePayload.description);
+			console.log('- short_description:', coursePayload.short_description);
+			console.log('- learning_outcomes:', coursePayload.learning_outcomes);
+			console.log('- category:', coursePayload.category);
+			console.log('==============================');
+
+			// Validate required fields before sending
+			if (!coursePayload.title?.trim()) {
+				throw new Error('Title is required but empty');
+			}
+			if (!coursePayload.description?.trim()) {
+				throw new Error('Description is required but empty');
+			}
+			if (!coursePayload.short_description?.trim()) {
+				throw new Error('Short description is required but empty');
+			}
 
 			// Create course first
 			const response = await coursesApi.createCourse(coursePayload);
@@ -318,8 +358,12 @@
 			// Redirect to course management page or course view
 			goto(`/courses/${response.uuid}`);
 		} catch (error) {
-			console.error('Failed to create course:', error);
-			console.error('Error details:', error.response?.data);
+			console.error('=== COURSE CREATION ERROR ===');
+			console.error('Error object:', error);
+			console.error('Response status:', error.response?.status);
+			console.error('Response data:', error.response?.data);
+			console.error('Request payload that failed:', JSON.stringify(coursePayload, null, 2));
+			console.error('=============================');
 			
 			let errorMessage = $t('course.createCourseFailed');
 			
@@ -405,7 +449,7 @@
 						href="/my-courses"
 						variant="ghost"
 						size="medium"
-						class="text-gray-600 hover:text-primary-600 dark:text-gray-400 dark:hover:text-primary-400"
+						class="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
 					>
 						<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
@@ -428,7 +472,7 @@
 							<div class="flex items-center">
 								<div
 									class="relative z-10 flex h-12 w-12 items-center justify-center rounded-full {currentStep >= step.number
-										? 'bg-primary-600 text-white shadow-lg'
+										? 'bg-blue-600 text-white shadow-lg'
 										: 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'} transition-all duration-300"
 								>
 									{#if currentStep > step.number}
@@ -442,7 +486,7 @@
 								{#if index < steps.length - 1}
 									<div
 										class="mx-2 h-1 flex-1 {currentStep > step.number
-											? 'bg-primary-600'
+											? 'bg-blue-600'
 											: 'bg-gray-200 dark:bg-gray-700'} transition-all duration-300"
 									></div>
 								{/if}
@@ -548,7 +592,7 @@
 										"w-full rounded-lg border bg-white px-3 py-2 text-sm focus:ring-2 dark:bg-gray-800",
 										validationErrors.short_description
 											? "border-red-300 focus:border-red-500 focus:ring-red-500"
-											: "border-gray-300 focus:border-primary-500 focus:ring-primary-500 dark:border-gray-600"
+											: "border-gray-300 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600"
 									)}
 									placeholder="A brief, compelling description that appears in course listings"
 								></textarea>
@@ -573,7 +617,7 @@
 										"w-full rounded-lg border bg-white px-3 py-2 text-sm focus:ring-2 dark:bg-gray-800",
 										validationErrors.description
 											? "border-red-300 focus:border-red-500 focus:ring-red-500"
-											: "border-gray-300 focus:border-primary-500 focus:ring-primary-500 dark:border-gray-600"
+											: "border-gray-300 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600"
 									)}
 									placeholder="Provide a detailed description of what students will learn, including key topics, projects, and outcomes"
 								></textarea>
@@ -597,7 +641,7 @@
 										"w-full rounded-lg border bg-white px-3 py-2 text-sm focus:ring-2 dark:bg-gray-800",
 										validationErrors.category
 											? "border-red-300 focus:border-red-500 focus:ring-red-500"
-											: "border-gray-300 focus:border-primary-500 focus:ring-primary-500 dark:border-gray-600"
+											: "border-gray-300 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600"
 									)}
 								>
 									<option value="">Select a category</option>
@@ -624,7 +668,7 @@
 											}
 										}}
 										placeholder="Add tags to help students find your course"
-										class="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800"
+										class="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
 									/>
 									<Button type="button" onclick={addTag} variant="outline" size="small">
 										Add
@@ -653,7 +697,7 @@
 									</label>
 									<select
 										bind:value={courseData.level}
-										class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800"
+										class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
 									>
 										{#each levelOptions as option}
 											<option value={option.value}>{option.label} - {option.description}</option>
@@ -667,7 +711,7 @@
 									</label>
 									<select
 										bind:value={courseData.language}
-										class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800"
+										class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
 									>
 										<option value="en">English</option>
 										<option value="ar">Arabic</option>
@@ -719,7 +763,7 @@
 								<textarea
 									bind:value={courseData.prerequisites}
 									rows="4"
-									class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary-500 focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-800"
+									class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800"
 									placeholder="What should students know before taking this course? (optional)&#10;&#10;Example:&#10;• Basic computer skills&#10;• No programming experience required&#10;• Access to a computer with internet"
 								></textarea>
 							</div>
@@ -735,7 +779,7 @@
 										"w-full rounded-lg border bg-white px-3 py-2 text-sm focus:ring-2 dark:bg-gray-800",
 										validationErrors.learning_outcomes
 											? "border-red-300 focus:border-red-500 focus:ring-red-500"
-											: "border-gray-300 focus:border-primary-500 focus:ring-primary-500 dark:border-gray-600"
+											: "border-gray-300 focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600"
 									)}
 									placeholder="What will students be able to do after completing this course?&#10;&#10;Example:&#10;• Build responsive websites using HTML, CSS, and JavaScript&#10;• Create dynamic web applications with React&#10;• Deploy applications to the cloud&#10;• Understand modern web development best practices"
 								></textarea>
