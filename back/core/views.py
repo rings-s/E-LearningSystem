@@ -1,10 +1,11 @@
+# back/core/views.py - Complete version with all views
 from rest_framework import generics, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import get_object_or_404
-from django.db.models import Count, Q, Avg, Sum
+from django.db.models import Count, Q, Avg, Sum, Prefetch
 from django.utils import timezone
 from datetime import timedelta
 from django.contrib.auth import get_user_model
@@ -14,101 +15,88 @@ from .models import (
     ActivityLog, MediaContent, Announcement, SupportTicket
 )
 from courses.models import Course, Enrollment, QuizAttempt, LessonProgress
-from courses.serializers import CourseListSerializer
-
 from .serializers import (
-    ForumSerializer, DiscussionSerializer, DiscussionDetailSerializer,
-    DiscussionCreateSerializer, ReplySerializer, ReplyCreateSerializer,
-    NotificationSerializer, NotificationUpdateSerializer,
-    LearningAnalyticsSerializer, ActivityLogSerializer,
-    MediaContentSerializer, MediaContentUploadSerializer,
-    AnnouncementSerializer, AnnouncementCreateSerializer,
-    SupportTicketSerializer, SupportTicketCreateSerializer,
-    SupportTicketUpdateSerializer, StudentDashboardSerializer,
-    TeacherDashboardSerializer, ManagerDashboardSerializer
+    ForumSerializer, DiscussionSerializer, ReplySerializer,
+    NotificationSerializer, LearningAnalyticsSerializer, ActivityLogSerializer,
+    MediaContentSerializer, AnnouncementSerializer, SupportTicketSerializer
 )
 from .filters import DiscussionFilter, NotificationFilter, ActivityLogFilter
-from accounts.permissions import (
-    IsOwnerOrReadOnly, IsModeratorOrUp, IsManagerOrAdmin, IsVerifiedUser
-)
+from accounts.permissions import IsOwnerOrReadOnly, IsModeratorOrUp, IsManagerOrAdmin
 from .utils import (
     send_notification, track_activity, increment_view_count, 
-    validate_and_get_object
+    validate_and_get_object, format_api_response
 )
 
 User = get_user_model()
 
-# =============================================================================
-# FORUM VIEWS
-# =============================================================================
-
+# Forums
 class ForumListView(generics.ListAPIView):
-    """List all active forums"""
-    queryset = Forum.objects.filter(is_active=True).order_by('-created_at', 'id')
+    """GET /api/core/forums/ - List all forums"""
     serializer_class = ForumSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return super().get_queryset().select_related(
+        return Forum.objects.filter(is_active=True).select_related(
             'course'
         ).annotate(
             discussions_count=Count('discussions')
         ).order_by('-created_at', 'id')
 
 class ForumDetailView(generics.RetrieveAPIView):
-    """Get forum details"""
-    queryset = Forum.objects.filter(is_active=True)
+    """GET /api/core/forums/{uuid}/ - Get forum details"""
+    queryset = Forum.objects.filter(is_active=True).select_related('course')
     serializer_class = ForumSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'uuid'
 
-# =============================================================================
-# DISCUSSION VIEWS
-# =============================================================================
-
+# Discussions
 class DiscussionListCreateView(generics.ListCreateAPIView):
-    """List and create discussions"""
-    queryset = Discussion.objects.all()
+    """
+    GET /api/core/discussions/ - List discussions
+    POST /api/core/discussions/ - Create discussion
+    """
+    serializer_class = DiscussionSerializer
+    permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
     filterset_class = DiscussionFilter
-    permission_classes = [IsAuthenticated, IsVerifiedUser]
     
     def get_queryset(self):
-        return super().get_queryset().select_related(
+        return Discussion.objects.select_related(
             'forum', 'author'
-        ).prefetch_related('replies').order_by('-is_pinned', '-created_at')
-    
-    def get_serializer_class(self):
-        if self.request.method == 'POST':
-            return DiscussionCreateSerializer
-        return DiscussionSerializer
+        ).prefetch_related('replies').order_by('-is_pinned', '-created_at', 'id')
     
     def perform_create(self, serializer):
-        discussion = serializer.save(author=self.request.user)
+        discussion = serializer.save()
         
         # Notify course instructor for questions
         if discussion.discussion_type == 'question':
             course = discussion.forum.course
             send_notification(
-                course.instructor,
-                'forum_reply',
+                course.instructor, 'forum_reply',
                 f'New question in {course.title}',
                 f'{self.request.user.get_full_name()} asked: {discussion.title}',
-                course=course,
-                discussion=discussion
+                course=course, discussion=discussion
             )
 
 class DiscussionDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Retrieve, update or delete discussion"""
-    queryset = Discussion.objects.all()
-    serializer_class = DiscussionDetailSerializer
+    """
+    GET /api/core/discussions/{uuid}/ - Get discussion details
+    PUT/PATCH /api/core/discussions/{uuid}/ - Update discussion
+    DELETE /api/core/discussions/{uuid}/ - Delete discussion
+    """
+    serializer_class = DiscussionSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'uuid'
     
+    def get_queryset(self):
+        return Discussion.objects.select_related('forum', 'author').prefetch_related(
+            Prefetch('replies', queryset=Reply.objects.select_related('author').order_by('created_at'))
+        )
+    
     def get_object(self):
         uuid_value = self.kwargs.get('uuid')
-        return validate_and_get_object(Discussion, uuid_value)
-
+        return validate_and_get_object(Discussion, uuid_value, queryset=self.get_queryset())
+    
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
             return [IsAuthenticated(), IsOwnerOrReadOnly()]
@@ -120,8 +108,9 @@ class DiscussionDetailView(generics.RetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(discussion)
         return Response(serializer.data)
 
+# Discussion Actions
 class DiscussionPinView(APIView):
-    """Pin/unpin discussion"""
+    """POST /api/core/discussions/{uuid}/pin/ - Pin/unpin discussion"""
     permission_classes = [IsAuthenticated, IsModeratorOrUp]
     
     def post(self, request, uuid):
@@ -129,13 +118,13 @@ class DiscussionPinView(APIView):
         discussion.is_pinned = not discussion.is_pinned
         discussion.save()
         
-        return Response({
-            'is_pinned': discussion.is_pinned,
-            'message': f'Discussion {"pinned" if discussion.is_pinned else "unpinned"}'
-        })
+        return format_api_response(
+            data={'is_pinned': discussion.is_pinned},
+            message=f'Discussion {"pinned" if discussion.is_pinned else "unpinned"}'
+        )
 
 class DiscussionLockView(APIView):
-    """Lock/unlock discussion"""
+    """POST /api/core/discussions/{uuid}/lock/ - Lock/unlock discussion"""
     permission_classes = [IsAuthenticated, IsModeratorOrUp]
     
     def post(self, request, uuid):
@@ -143,110 +132,106 @@ class DiscussionLockView(APIView):
         discussion.is_locked = not discussion.is_locked
         discussion.save()
         
-        return Response({
-            'is_locked': discussion.is_locked,
-            'message': f'Discussion {"locked" if discussion.is_locked else "unlocked"}'
-        })
+        return format_api_response(
+            data={'is_locked': discussion.is_locked},
+            message=f'Discussion {"locked" if discussion.is_locked else "unlocked"}'
+        )
 
 class DiscussionResolveView(APIView):
-    """Mark discussion as resolved"""
+    """POST /api/core/discussions/{uuid}/resolve/ - Mark as resolved"""
     permission_classes = [IsAuthenticated]
     
     def post(self, request, uuid):
         discussion = validate_and_get_object(Discussion, uuid)
         
         if discussion.author != request.user and not request.user.is_staff:
-            return Response(
-                {'error': 'Only discussion author can mark as resolved'},
-                status=status.HTTP_403_FORBIDDEN
+            return format_api_response(
+                errors={'permission': ['Only discussion author can mark as resolved']},
+                status_code=status.HTTP_403_FORBIDDEN
             )
         
         discussion.is_resolved = True
         discussion.save()
         
-        return Response({'message': 'Discussion marked as resolved'})
+        return format_api_response(message='Discussion marked as resolved')
 
-# =============================================================================
-# REPLY VIEWS
-# =============================================================================
-
+# Replies
 class ReplyListCreateView(generics.ListCreateAPIView):
-    """List and create replies"""
-    queryset = Reply.objects.all()
+    """
+    GET /api/core/replies/ - List replies
+    POST /api/core/replies/ - Create reply
+    """
+    serializer_class = ReplySerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         discussion_uuid = self.request.query_params.get('discussion')
-        queryset = super().get_queryset().select_related(
-            'discussion', 'author', 'parent'
-        ).prefetch_related('children')
+        queryset = Reply.objects.select_related('discussion', 'author', 'parent')
         
         if discussion_uuid:
             queryset = queryset.filter(discussion__uuid=discussion_uuid)
         
-        return queryset
-    
-    def get_serializer_class(self):
-        if self.request.method == 'POST':
-            return ReplyCreateSerializer
-        return ReplySerializer
+        return queryset.order_by('created_at', 'id')
     
     def perform_create(self, serializer):
-        reply = serializer.save(author=self.request.user)
+        reply = serializer.save()
         
         # Notify discussion author
         if reply.discussion.author != self.request.user:
             send_notification(
-                reply.discussion.author,
-                'forum_reply',
-                f'New reply to your discussion',
+                reply.discussion.author, 'forum_reply',
+                'New reply to your discussion',
                 f'{self.request.user.get_full_name()} replied to: {reply.discussion.title}',
                 discussion=reply.discussion
             )
         
-        # Track activity
         track_activity(
-            self.request.user,
-            'forum_reply',
+            self.request.user, 'forum_reply',
             course=reply.discussion.forum.course
         )
 
 class ReplyDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Retrieve, update or delete reply"""
-    queryset = Reply.objects.all()
+    """
+    GET /api/core/replies/{uuid}/ - Get reply details
+    PUT/PATCH /api/core/replies/{uuid}/ - Update reply
+    DELETE /api/core/replies/{uuid}/ - Delete reply
+    """
+    queryset = Reply.objects.select_related('discussion', 'author')
     serializer_class = ReplySerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     lookup_field = 'uuid'
 
+# Reply Actions
 class ReplyUpvoteView(APIView):
-    """Upvote reply"""
+    """POST /api/core/replies/{uuid}/upvote/ - Upvote reply"""
     permission_classes = [IsAuthenticated]
     
     def post(self, request, uuid):
-        reply = get_object_or_404(Reply, uuid=uuid)
+        reply = validate_and_get_object(Reply, uuid)
         reply.upvotes += 1
         reply.save()
-        return Response({'upvotes': reply.upvotes})
+        
+        return format_api_response(
+            data={'upvotes': reply.upvotes},
+            message='Reply upvoted'
+        )
 
 class ReplyMarkSolutionView(APIView):
-    """Mark reply as solution"""
+    """POST /api/core/replies/{uuid}/mark-solution/ - Mark as solution"""
     permission_classes = [IsAuthenticated]
     
     def post(self, request, uuid):
-        reply = get_object_or_404(Reply, uuid=uuid)
+        reply = validate_and_get_object(Reply, uuid)
         discussion = reply.discussion
         
         if discussion.author != request.user and not request.user.is_staff:
-            return Response(
-                {'error': 'Only discussion author can mark solution'},
-                status=status.HTTP_403_FORBIDDEN
+            return format_api_response(
+                errors={'permission': ['Only discussion author can mark solution']},
+                status_code=status.HTTP_403_FORBIDDEN
             )
         
         # Remove previous solution
-        Reply.objects.filter(
-            discussion=discussion,
-            is_solution=True
-        ).update(is_solution=False)
+        Reply.objects.filter(discussion=discussion, is_solution=True).update(is_solution=False)
         
         # Mark new solution
         reply.is_solution = True
@@ -256,14 +241,11 @@ class ReplyMarkSolutionView(APIView):
         discussion.is_resolved = True
         discussion.save()
         
-        return Response({'message': 'Reply marked as solution'})
+        return format_api_response(message='Reply marked as solution')
 
-# =============================================================================
-# NOTIFICATION VIEWS
-# =============================================================================
-
+# Notifications
 class NotificationListView(generics.ListAPIView):
-    """List user notifications"""
+    """GET /api/core/notifications/ - List user notifications"""
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
@@ -272,58 +254,49 @@ class NotificationListView(generics.ListAPIView):
     def get_queryset(self):
         return Notification.objects.filter(
             recipient=self.request.user
-        ).select_related('course', 'lesson', 'discussion')
+        ).select_related('course', 'lesson', 'discussion').order_by('-created_at', 'id')
 
 class NotificationDetailView(generics.RetrieveUpdateAPIView):
-    """Get and update notification"""
+    """
+    GET /api/core/notifications/{uuid}/ - Get notification details
+    PUT/PATCH /api/core/notifications/{uuid}/ - Update notification
+    """
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'uuid'
     
     def get_queryset(self):
         return Notification.objects.filter(recipient=self.request.user)
-    
-    def get_serializer_class(self):
-        if self.request.method in ['PUT', 'PATCH']:
-            return NotificationUpdateSerializer
-        return NotificationSerializer
 
+# Notification Actions
 class NotificationMarkAllReadView(APIView):
-    """Mark all notifications as read"""
+    """POST /api/core/notifications/mark-all-read/ - Mark all as read"""
     permission_classes = [IsAuthenticated]
     
     def post(self, request):
         updated = Notification.objects.filter(
-            recipient=request.user,
-            is_read=False
-        ).update(
-            is_read=True,
-            read_at=timezone.now()
-        )
+            recipient=request.user, is_read=False
+        ).update(is_read=True, read_at=timezone.now())
         
-        return Response({
-            'message': f'{updated} notifications marked as read'
-        })
+        return format_api_response(
+            data={'updated_count': updated},
+            message=f'{updated} notifications marked as read'
+        )
 
 class NotificationUnreadCountView(APIView):
-    """Get unread notification count"""
+    """GET /api/core/notifications/unread-count/ - Get unread count"""
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
         count = Notification.objects.filter(
-            recipient=request.user,
-            is_read=False
+            recipient=request.user, is_read=False
         ).count()
         
-        return Response({'unread_count': count})
+        return format_api_response(data={'unread_count': count})
 
-# =============================================================================
-# ACTIVITY LOG VIEWS
-# =============================================================================
-
+# Activity Logs
 class ActivityLogListView(generics.ListAPIView):
-    """List activity logs"""
-    queryset = ActivityLog.objects.all()
+    """GET /api/core/activities/ - List activity logs"""
     serializer_class = ActivityLogSerializer
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend]
@@ -333,35 +306,34 @@ class ActivityLogListView(generics.ListAPIView):
         user = self.request.user
         
         if user.is_staff or user.role == 'manager':
-            return super().get_queryset()
+            return ActivityLog.objects.select_related('user', 'course', 'lesson').order_by('-created_at', 'id')
         
-        return ActivityLog.objects.filter(user=user)
+        return ActivityLog.objects.filter(user=user).select_related('course', 'lesson').order_by('-created_at', 'id')
 
-# =============================================================================
-# MEDIA CONTENT VIEWS
-# =============================================================================
-
+# Media Content
 class MediaContentListCreateView(generics.ListCreateAPIView):
-    """List and upload media content"""
-    queryset = MediaContent.objects.all()
+    """
+    GET /api/core/media/ - List media content
+    POST /api/core/media/ - Upload media content
+    """
+    serializer_class = MediaContentSerializer
     permission_classes = [IsAuthenticated]
     
-    def get_serializer_class(self):
-        if self.request.method == 'POST':
-            return MediaContentUploadSerializer
-        return MediaContentSerializer
+    def get_queryset(self):
+        return MediaContent.objects.select_related('uploaded_by', 'course', 'lesson').order_by('-created_at', 'id')
     
     def get_permissions(self):
         if self.request.method == 'POST':
             return [IsAuthenticated(), IsModeratorOrUp()]
         return super().get_permissions()
-    
-    def perform_create(self, serializer):
-        serializer.save(uploaded_by=self.request.user)
 
 class MediaContentDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Retrieve, update or delete media content"""
-    queryset = MediaContent.objects.all()
+    """
+    GET /api/core/media/{uuid}/ - Get media details
+    PUT/PATCH /api/core/media/{uuid}/ - Update media
+    DELETE /api/core/media/{uuid}/ - Delete media
+    """
+    queryset = MediaContent.objects.select_related('uploaded_by', 'course', 'lesson')
     serializer_class = MediaContentSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'uuid'
@@ -371,16 +343,17 @@ class MediaContentDetailView(generics.RetrieveUpdateDestroyAPIView):
             return [IsAuthenticated(), IsModeratorOrUp()]
         return super().get_permissions()
 
-# =============================================================================
-# ANNOUNCEMENT VIEWS
-# =============================================================================
-
+# Announcements
 class AnnouncementListCreateView(generics.ListCreateAPIView):
-    """List and create announcements"""
+    """
+    GET /api/core/announcements/ - List announcements
+    POST /api/core/announcements/ - Create announcement
+    """
+    serializer_class = AnnouncementSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        queryset = Announcement.objects.filter(is_active=True)
+        queryset = Announcement.objects.filter(is_active=True).select_related('author', 'course')
         now = timezone.now()
         
         # Filter by display time
@@ -396,24 +369,20 @@ class AnnouncementListCreateView(generics.ListCreateAPIView):
                 Q(target_roles__contains=[]) | Q(target_roles__contains=[user.role])
             )
         
-        return queryset.select_related('author', 'course')
-    
-    def get_serializer_class(self):
-        if self.request.method == 'POST':
-            return AnnouncementCreateSerializer
-        return AnnouncementSerializer
+        return queryset.order_by('-is_pinned', '-created_at', 'id')
     
     def get_permissions(self):
         if self.request.method == 'POST':
             return [IsAuthenticated(), IsManagerOrAdmin()]
         return super().get_permissions()
-    
-    def perform_create(self, serializer):
-        serializer.save(author=self.request.user)
 
 class AnnouncementDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Retrieve, update or delete announcement"""
-    queryset = Announcement.objects.all()
+    """
+    GET /api/core/announcements/{uuid}/ - Get announcement details
+    PUT/PATCH /api/core/announcements/{uuid}/ - Update announcement
+    DELETE /api/core/announcements/{uuid}/ - Delete announcement
+    """
+    queryset = Announcement.objects.select_related('author', 'course')
     serializer_class = AnnouncementSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'uuid'
@@ -423,622 +392,221 @@ class AnnouncementDetailView(generics.RetrieveUpdateDestroyAPIView):
             return [IsAuthenticated(), IsManagerOrAdmin()]
         return super().get_permissions()
 
-# =============================================================================
-# SUPPORT TICKET VIEWS
-# =============================================================================
-
+# Support Tickets
 class SupportTicketListCreateView(generics.ListCreateAPIView):
-    """List and create support tickets"""
+    """
+    GET /api/core/support-tickets/ - List support tickets
+    POST /api/core/support-tickets/ - Create support ticket
+    """
+    serializer_class = SupportTicketSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         user = self.request.user
         
         if user.is_staff or user.role in ['manager', 'moderator']:
-            return SupportTicket.objects.all()
+            return SupportTicket.objects.select_related('user', 'assigned_to', 'course').order_by('-created_at', 'id')
         
-        return SupportTicket.objects.filter(user=user)
-    
-    def get_serializer_class(self):
-        if self.request.method == 'POST':
-            return SupportTicketCreateSerializer
-        return SupportTicketSerializer
+        return SupportTicket.objects.filter(user=user).select_related('assigned_to', 'course').order_by('-created_at', 'id')
     
     def perform_create(self, serializer):
-        ticket = serializer.save(user=self.request.user)
+        ticket = serializer.save()
         
         # Notify support team
-        managers = User.objects.filter(
-            Q(is_staff=True) | Q(role='manager')
-        )
+        managers = User.objects.filter(Q(is_staff=True) | Q(role='manager'))
         
         for manager in managers:
             send_notification(
-                manager,
-                'system',
+                manager, 'system',
                 f'New support ticket: {ticket.subject}',
                 f'Priority: {ticket.get_priority_display()}',
             )
 
 class SupportTicketDetailView(generics.RetrieveUpdateAPIView):
-    """Retrieve and update support ticket"""
-    queryset = SupportTicket.objects.all()
+    """
+    GET /api/core/support-tickets/{uuid}/ - Get ticket details
+    PUT/PATCH /api/core/support-tickets/{uuid}/ - Update ticket
+    """
+    serializer_class = SupportTicketSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'uuid'
-    
-    def get_serializer_class(self):
-        if self.request.method in ['PUT', 'PATCH']:
-            return SupportTicketUpdateSerializer
-        return SupportTicketSerializer
     
     def get_queryset(self):
         user = self.request.user
         
         if user.is_staff or user.role in ['manager', 'moderator']:
-            return super().get_queryset()
+            return SupportTicket.objects.select_related('user', 'assigned_to', 'course')
         
-        return SupportTicket.objects.filter(user=user)
+        return SupportTicket.objects.filter(user=user).select_related('assigned_to', 'course')
 
-# =============================================================================
-# ANALYTICS VIEWS - SIMPLIFIED FOR E-LEARNING
-# =============================================================================
-
+# Analytics Views
 class StudentAnalyticsView(APIView):
-    """Complete student analytics dashboard"""
+    """GET /api/core/student-analytics/ - Student analytics dashboard"""
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
         user = request.user
-        target_user_id = request.query_params.get('user_id')
-
-        if user.role not in ['manager', 'admin'] and not user.is_staff:
-            if target_user_id and str(user.id) != target_user_id:
-                return Response({'detail': 'You can only view your own analytics.'}, status=status.HTTP_403_FORBIDDEN)
-            analytics_user = user
-        else:
-            if target_user_id:
-                try:
-                    analytics_user = User.objects.get(id=target_user_id)
-                except User.DoesNotExist:
-                    return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get basic metrics
+        enrollments = Enrollment.objects.filter(student=user, is_active=True)
+        
+        # Study streak
+        today = timezone.now().date()
+        streak_days = 0
+        for i in range(30):
+            check_date = today - timedelta(days=i)
+            has_activity = ActivityLog.objects.filter(
+                user=user, created_at__date=check_date
+            ).exists()
+            if has_activity:
+                streak_days += 1
             else:
-                return Response({'detail': 'Please provide a user_id for analytics.'}, status=status.HTTP_400_BAD_REQUEST)
+                break
         
-        try:
-            # Get student enrollments
-            enrollments = Enrollment.objects.filter(student=user, is_active=True)
-            
-            # Course progress data
-            course_progress = []
-            for enrollment in enrollments:
-                course_progress.append({
-                    'course_id': str(enrollment.course.uuid),
-                    'course_title': enrollment.course.title,
-                    'progress': float(enrollment.progress_percentage),
-                    'status': enrollment.status,
-                    'enrolled_date': enrollment.enrolled_at.date().isoformat(),
-                    'instructor': enrollment.course.instructor.get_full_name()
-                })
-            
-            # Learning streak calculation
-            today = timezone.now().date()
-            streak_days = 0
-            for i in range(30):
-                check_date = today - timedelta(days=i)
-                has_activity = ActivityLog.objects.filter(
-                    user=user,
-                    created_at__date=check_date
-                ).exists()
-                if has_activity:
-                    streak_days += 1
-                else:
-                    break
-            
-            # Study time last 30 days
-            last_30_days = timezone.now() - timedelta(days=30)
-            daily_study = []
-            for i in range(30):
-                day = (timezone.now() - timedelta(days=i)).date()
-                
-                time_spent = LessonProgress.objects.filter(
-                    enrollment__student=user,
-                    started_at__date=day
-                ).aggregate(
-                    total=Sum('time_spent_seconds')
-                )['total'] or 0
-                
-                daily_study.append({
-                    'date': day.isoformat(),
-                    'minutes': round(time_spent / 60, 1)
-                })
-            
-            daily_study.reverse()
-            
-            # Recent quiz performance
-            recent_quizzes = QuizAttempt.objects.filter(
-                student=user,
-                completed_at__isnull=False
-            ).order_by('-completed_at')[:10]
-            
-            quiz_performance = []
-            for attempt in recent_quizzes:
-                quiz_performance.append({
-                    'quiz_title': attempt.quiz.title,
-                    'course': attempt.quiz.course.title,
-                    'score': float(attempt.score) if attempt.score else 0,
-                    'passed': attempt.passed,
-                    'date': attempt.completed_at.date().isoformat()
-                })
-            
-            # Subject performance
-            subject_performance = recent_quizzes.values(
-                'quiz__course__category__name'
-            ).annotate(
-                avg_score=Avg('score'),
-                total_attempts=Count('id'),
-                passed_count=Count('id', filter=Q(passed=True))
-            ).order_by('-avg_score')
-            
-            subject_data = []
-            for subject in subject_performance:
-                if subject['quiz__course__category__name']:
-                    subject_data.append({
-                        'subject': subject['quiz__course__category__name'],
-                        'avg_score': round(float(subject['avg_score'] or 0), 1),
-                        'success_rate': round(
-                            (subject['passed_count'] / subject['total_attempts'] * 100) 
-                            if subject['total_attempts'] > 0 else 0, 1
-                        )
-                    })
-            
-            # Generate chart data
-            charts = {
-                'course_progress': {
-                    'type': 'bar',
-                    'title': 'Course Progress',
-                    'data': {
-                        'labels': [course['course_title'][:20] + '...' if len(course['course_title']) > 20 
-                                  else course['course_title'] for course in course_progress],
-                        'datasets': [{
-                            'label': 'Progress %',
-                            'data': [course['progress'] for course in course_progress],
-                            'backgroundColor': [
-                                '#10B981' if course['progress'] >= 80 else
-                                '#F59E0B' if course['progress'] >= 50 else
-                                '#EF4444' for course in course_progress
-                            ]
-                        }]
-                    }
-                },
-                'study_time_trend': {
-                    'type': 'line',
-                    'title': 'Daily Study Time (Last 30 Days)',
-                    'data': {
-                        'labels': [day['date'][-5:] for day in daily_study],  # Show MM-DD
-                        'datasets': [{
-                            'label': 'Minutes',
-                            'data': [day['minutes'] for day in daily_study],
-                            'borderColor': '#3B82F6',
-                            'backgroundColor': 'rgba(59, 130, 246, 0.1)',
-                            'fill': True
-                        }]
-                    }
-                },
-                'quiz_performance': {
-                    'type': 'line',
-                    'title': 'Recent Quiz Scores',
-                    'data': {
-                        'labels': [quiz['quiz_title'][:15] + '...' if len(quiz['quiz_title']) > 15 
-                                  else quiz['quiz_title'] for quiz in quiz_performance],
-                        'datasets': [{
-                            'label': 'Score %',
-                            'data': [quiz['score'] for quiz in quiz_performance],
-                            'borderColor': '#8B5CF6',
-                            'backgroundColor': [
-                                '#10B981' if quiz['passed'] else '#EF4444' 
-                                for quiz in quiz_performance
-                            ]
-                        }]
-                    }
-                }
-            }
-            
-            # Summary metrics
-            total_courses = enrollments.count()
-            avg_progress = float(enrollments.aggregate(avg=Avg('progress_percentage'))['avg'] or 0)
-            total_study_time = sum(day['minutes'] for day in daily_study)
-            
-            return Response({
-                'summary': {
-                    'total_courses': total_courses,
-                    'completed_courses': enrollments.filter(status='completed').count(),
-                    'in_progress_courses': enrollments.filter(status='in_progress').count(),
-                    'average_progress': round(avg_progress, 1),
-                    'study_hours_30d': round(total_study_time / 60, 1),
-                    'learning_streak': streak_days
-                },
-                'performance': {
-                    'total_quizzes': recent_quizzes.count(),
-                    'avg_quiz_score': float(recent_quizzes.aggregate(avg=Avg('score'))['avg'] or 0),
-                    'quiz_pass_rate': recent_quizzes.filter(passed=True).count() / max(recent_quizzes.count(), 1) * 100
-                },
-                'study_time': {
-                    'daily_breakdown': daily_study,
-                    'weekly_average': round(total_study_time / 4, 1),  # Assuming 4 weeks
-                    'total_30d': round(total_study_time / 60, 1)
-                },
-                'courses': course_progress,
-                'charts': charts,
-                'subject_performance': subject_data
-            })
+        # Recent quiz performance
+        recent_quizzes = QuizAttempt.objects.filter(
+            student=user, completed_at__isnull=False
+        ).order_by('-completed_at')[:10]
         
-        except Exception as e:
-            # Log the error for debugging
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Student analytics error for user {user.id}: {str(e)}")
-            
-            # Return fallback data with error indication
-            return Response({
-                'summary': {
-                    'total_courses': 0,
-                    'completed_courses': 0,
-                    'in_progress_courses': 0,
-                    'average_progress': 0,
-                    'study_hours_30d': 0,
-                    'learning_streak': 0
-                },
-                'performance': {
-                    'total_quizzes': 0,
-                    'avg_quiz_score': 0,
-                    'quiz_pass_rate': 0
-                },
-                'study_time': {
-                    'daily_breakdown': [],
-                    'weekly_average': 0,
-                    'total_30d': 0
-                },
-                'courses': [],
-                'charts': {
-                    'course_progress': {
-                        'type': 'bar',
-                        'title': 'Course Progress',
-                        'data': {'labels': [], 'datasets': []}
-                    },
-                    'study_time_trend': {
-                        'type': 'line',
-                        'title': 'Daily Study Time',
-                        'data': {'labels': [], 'datasets': []}
-                    }
-                },
-                'subject_performance': [],
-                'error': 'Unable to load analytics data'
-            }, status=status.HTTP_200_OK)  # Return 200 with fallback data
+        return format_api_response(data={
+            'summary': {
+                'total_courses': enrollments.count(),
+                'completed_courses': enrollments.filter(status='completed').count(),
+                'average_progress': float(enrollments.aggregate(avg=Avg('progress_percentage'))['avg'] or 0),
+                'learning_streak': streak_days,
+                'total_quizzes': recent_quizzes.count(),
+                'avg_quiz_score': float(recent_quizzes.aggregate(avg=Avg('score'))['avg'] or 0)
+            },
+            'recent_activity': list(ActivityLog.objects.filter(
+                user=user
+            ).order_by('-created_at')[:5].values(
+                'activity_type', 'created_at', 'course__title'
+            ))
+        })
 
 class TeacherAnalyticsView(APIView):
-    """Complete teacher analytics dashboard"""
+    """GET /api/core/teacher-analytics/ - Teacher analytics dashboard"""
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
         user = request.user
         
         if user.role != 'teacher' and not user.is_staff:
-            return Response({'detail': 'Teacher access only'}, status=status.HTTP_403_FORBIDDEN)
+            return format_api_response(
+                errors={'permission': ['Teacher access only']},
+                status_code=status.HTTP_403_FORBIDDEN
+            )
         
-        # Get teacher courses
         courses = Course.objects.filter(instructor=user)
+        total_enrollments = Enrollment.objects.filter(course__instructor=user, is_active=True)
         
-        # Course performance data
-        course_stats = []
-        for course in courses:
-            enrollments = course.enrollments.filter(is_active=True)
-            
-            # Calculate engagement score
-            completion_rate = enrollments.filter(status='completed').count() / max(enrollments.count(), 1)
-            avg_progress = float(enrollments.aggregate(avg=Avg('progress_percentage'))['avg'] or 0)
-            forum_activity = Discussion.objects.filter(forum__course=course).count()
-            quiz_participation = QuizAttempt.objects.filter(quiz__course=course).count()
-            
-            engagement = (
-                completion_rate * 40 +
-                (avg_progress / 100) * 30 +
-                min(forum_activity / max(enrollments.count(), 1), 1) * 20 +
-                min(quiz_participation / max(enrollments.count(), 1), 1) * 10
-            ) * 100
-            
-            course_stats.append({
-                'course_id': str(course.uuid),
-                'title': course.title,
-                'total_students': enrollments.count(),
-                'completed_students': enrollments.filter(status='completed').count(),
-                'avg_progress': round(avg_progress, 1),
-                'avg_rating': float(course.reviews.aggregate(avg=Avg('rating'))['avg'] or 0),
-                'engagement_score': round(engagement, 1)
-            })
-        
-        # Student activity analysis
-        total_enrollments = Enrollment.objects.filter(
-            course__instructor=user,
-            is_active=True
-        )
-        
-        week_ago = timezone.now() - timedelta(days=7)
-        active_students = total_enrollments.filter(
-            last_accessed__gte=week_ago
-        ).count()
-        
-        # Progress distribution
-        progress_distribution = {
-            'not_started': total_enrollments.filter(progress_percentage=0).count(),
-            'in_progress': total_enrollments.filter(
-                progress_percentage__gt=0, 
-                progress_percentage__lt=100
-            ).count(),
-            'completed': total_enrollments.filter(progress_percentage=100).count()
-        }
-        
-        # Generate charts
-        charts = {
-            'course_performance': {
-                'type': 'scatter',
-                'title': 'Course Performance Overview',
-                'data': {
-                    'datasets': [{
-                        'label': 'Courses',
-                        'data': [{
-                            'x': course['total_students'],
-                            'y': course['avg_progress'],
-                            'label': course['title'][:20]
-                        } for course in course_stats],
-                        'backgroundColor': '#3B82F6'
-                    }]
-                }
-            },
-            'student_progress': {
-                'type': 'doughnut',
-                'title': 'Student Progress Distribution',
-                'data': {
-                    'labels': ['Not Started', 'In Progress', 'Completed'],
-                    'datasets': [{
-                        'data': [
-                            progress_distribution['not_started'],
-                            progress_distribution['in_progress'],
-                            progress_distribution['completed']
-                        ],
-                        'backgroundColor': ['#EF4444', '#F59E0B', '#10B981']
-                    }]
-                }
-            }
-        }
-        
-        return Response({
+        return format_api_response(data={
             'summary': {
                 'total_courses': courses.count(),
                 'published_courses': courses.filter(status='published').count(),
                 'total_students': total_enrollments.values('student').distinct().count(),
-                'active_students_7d': active_students,
-                'avg_course_rating': float(courses.aggregate(avg=Avg('reviews__rating'))['avg'] or 0)
+                'avg_course_rating': float(courses.aggregate(avg=Avg('reviews__rating'))['avg'] or 0),
+                'pending_questions': Discussion.objects.filter(
+                    forum__course__instructor=user,
+                    discussion_type='question',
+                    is_resolved=False
+                ).count()
             },
-            'course_performance': course_stats,
-            'student_activity': {
-                'total_students': total_enrollments.count(),
-                'active_students_7d': active_students,
-                'progress_distribution': progress_distribution
-            },
-            'charts': charts
+            'course_performance': [{
+                'course_title': course.title,
+                'students': course.enrollments.filter(is_active=True).count(),
+                'avg_progress': float(course.enrollments.aggregate(avg=Avg('progress_percentage'))['avg'] or 0),
+                'rating': float(course.reviews.aggregate(avg=Avg('rating'))['avg'] or 0)
+            } for course in courses.select_related().prefetch_related('enrollments', 'reviews')]
         })
 
 class PlatformAnalyticsView(APIView):
-    """Platform-wide analytics for managers"""
-    permission_classes = [IsAuthenticated]
+    """GET /api/core/platform-analytics/ - Platform-wide analytics"""
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
     
     def get(self, request):
-        user = request.user
-        
-        if user.role not in ['manager', 'admin'] and not user.is_staff:
-            return Response({'detail': 'Manager access only'}, status=status.HTTP_403_FORBIDDEN)
-        
-        # Platform overview
+        # Basic platform stats
         total_users = User.objects.filter(is_active=True).count()
-        total_courses = Course.objects.count()
-        total_enrollments = Enrollment.objects.filter(is_active=True).count()
-        
-        # User growth (last 6 months)
-        user_growth = []
-        for i in range(6):
-            month_start = timezone.now().replace(day=1) - timedelta(days=30*i)
-            month_end = (month_start + timedelta(days=32)).replace(day=1)
-            
-            new_users = User.objects.filter(
-                date_joined__gte=month_start,
-                date_joined__lt=month_end
-            ).count()
-            
-            user_growth.append({
-                'month': month_start.strftime('%b %Y'),
-                'new_users': new_users
-            })
-        
-        user_growth.reverse()
-        
-        # Course category distribution
-        category_stats = Course.objects.values(
-            'category__name'
-        ).annotate(
-            course_count=Count('id'),
-            total_enrollments=Count('enrollments', filter=Q(enrollments__is_active=True))
-        ).order_by('-course_count')
-        
-        category_data = []
-        for cat in category_stats:
-            if cat['category__name']:
-                category_data.append({
-                    'category': cat['category__name'],
-                    'courses': cat['course_count'],
-                    'enrollments': cat['total_enrollments']
-                })
-        
-        # User role distribution
-        user_roles = []
-        for role, _ in User.ROLE_CHOICES:
-            count = User.objects.filter(role=role, is_active=True).count()
-            user_roles.append({
-                'role': role.title(),
-                'count': count
-            })
-        
-        # Generate charts
-        charts = {
-            'user_growth': {
-                'type': 'bar',
-                'title': 'User Growth (Last 6 Months)',
-                'data': {
-                    'labels': [month['month'] for month in user_growth],
-                    'datasets': [{
-                        'label': 'New Users',
-                        'data': [month['new_users'] for month in user_growth],
-                        'backgroundColor': '#10B981'
-                    }]
-                }
-            },
-            'category_distribution': {
-                'type': 'doughnut',
-                'title': 'Courses by Category',
-                'data': {
-                    'labels': [cat['category'] for cat in category_data],
-                    'datasets': [{
-                        'data': [cat['courses'] for cat in category_data],
-                        'backgroundColor': ['#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#10B981']
-                    }]
-                }
-            },
-            'user_roles': {
-                'type': 'bar',
-                'title': 'Users by Role',
-                'data': {
-                    'labels': [role['role'] for role in user_roles],
-                    'datasets': [{
-                        'label': 'Users',
-                        'data': [role['count'] for role in user_roles],
-                        'backgroundColor': '#8B5CF6'
-                    }]
-                }
-            }
-        }
-        
-        # Active users
         month_ago = timezone.now() - timedelta(days=30)
         active_users = ActivityLog.objects.filter(
             created_at__gte=month_ago
         ).values('user').distinct().count()
         
-        return Response({
+        return format_api_response(data={
             'platform_health': {
                 'total_users': total_users,
                 'active_users_30d': active_users,
                 'user_engagement_rate': round((active_users / max(total_users, 1)) * 100, 1),
-                'total_courses': total_courses,
-                'published_courses': Course.objects.filter(status='published').count(),
-                'total_enrollments': total_enrollments
+                'total_courses': Course.objects.count(),
+                'total_enrollments': Enrollment.objects.filter(is_active=True).count(),
+                'open_tickets': SupportTicket.objects.filter(status__in=['open', 'in_progress']).count()
             },
-            'growth_metrics': user_growth,
-            'category_insights': category_data,
-            'user_distribution': user_roles,
-            'charts': charts
+            'user_distribution': [{
+                'role': role.title(),
+                'count': User.objects.filter(role=role, is_active=True).count()
+            } for role, _ in User.ROLE_CHOICES]
         })
 
-# =============================================================================
-# DASHBOARD VIEW - MAIN ENTRY POINT
-# =============================================================================
-
+# Dashboard Views
 class DashboardView(APIView):
-    """Main dashboard routing based on user role"""
+    """GET /api/core/dashboard/ - Main dashboard"""
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
         user = request.user
         
         if user.role == 'student':
-            return self.get_student_dashboard(user)
+            return self._student_dashboard(user)
         elif user.role == 'teacher':
-            return self.get_teacher_dashboard(user)
+            return self._teacher_dashboard(user)
         elif user.role in ['manager', 'admin'] or user.is_staff:
-            return self.get_manager_dashboard(user)
+            return self._manager_dashboard(user)
         
-        return Response({'detail': 'Invalid user role'}, status=status.HTTP_400_BAD_REQUEST)
+        return format_api_response(
+            errors={'role': ['Invalid user role']},
+            status_code=status.HTTP_400_BAD_REQUEST
+        )
     
-    def get_student_dashboard(self, user):
-        """Simple student dashboard overview"""
+    def _student_dashboard(self, user):
         enrollments = Enrollment.objects.filter(student=user, is_active=True)
+        recent_activities = ActivityLog.objects.filter(user=user).order_by('-created_at')[:5]
         
-        # Recent activities
-        recent_activities = ActivityLog.objects.filter(
-            user=user
-        ).order_by('-created_at')[:5]
-        
-        activities_data = []
-        for activity in recent_activities:
-            activities_data.append({
-                'activity': activity.get_activity_type_display(),
-                'course': activity.course.title if activity.course else 'General',
-                'date': activity.created_at.date().isoformat(),
-                'time': activity.created_at.time().strftime('%H:%M')
-            })
-        
-        return Response({
+        return format_api_response(data={
             'role': 'student',
             'enrolled_courses': enrollments.count(),
             'completed_courses': enrollments.filter(status='completed').count(),
-            'in_progress_courses': enrollments.filter(status='in_progress').count(),
-            'average_progress': float(enrollments.aggregate(
-                avg=Avg('progress_percentage')
-            )['avg'] or 0),
-            'recent_activities': activities_data
+            'average_progress': float(enrollments.aggregate(avg=Avg('progress_percentage'))['avg'] or 0),
+            'recent_activities': list(recent_activities.values('activity_type', 'created_at', 'course__title'))
         })
     
-    def get_teacher_dashboard(self, user):
-        """Simple teacher dashboard overview"""
+    def _teacher_dashboard(self, user):
         courses = Course.objects.filter(instructor=user)
         
-        return Response({
+        return format_api_response(data={
             'role': 'teacher',
             'total_courses': courses.count(),
             'published_courses': courses.filter(status='published').count(),
             'total_students': Enrollment.objects.filter(
-                course__instructor=user,
-                is_active=True
+                course__instructor=user, is_active=True
             ).values('student').distinct().count(),
             'pending_questions': Discussion.objects.filter(
                 forum__course__instructor=user,
                 discussion_type='question',
                 is_resolved=False
-            ).count(),
-            'average_rating': float(courses.aggregate(
-                avg_rating=Avg('reviews__rating')
-            )['avg_rating'] or 0)
+            ).count()
         })
     
-    def get_manager_dashboard(self, user):
-        """Simple manager dashboard overview"""
-        return Response({
+    def _manager_dashboard(self, user):
+        return format_api_response(data={
             'role': 'manager',
             'total_users': User.objects.filter(is_active=True).count(),
             'total_courses': Course.objects.count(),
             'total_enrollments': Enrollment.objects.filter(is_active=True).count(),
-            'active_users_today': ActivityLog.objects.filter(
-                created_at__date=timezone.now().date()
-            ).values('user').distinct().count(),
-            'open_tickets': SupportTicket.objects.filter(
-                status__in=['open', 'in_progress']
-            ).count()
+            'open_tickets': SupportTicket.objects.filter(status__in=['open', 'in_progress']).count()
         })
 
-# =============================================================================
-# NEW DASHBOARD SUMMARY VIEW
-# =============================================================================
-
 class DashboardSummaryView(APIView):
-    """Provides a high-level, aggregated overview of the entire platform."""
+    """GET /api/core/dashboard/summary/ - Dashboard summary for managers"""
     permission_classes = [IsAuthenticated, IsManagerOrAdmin]
 
     def get(self, request):
@@ -1062,7 +630,6 @@ class DashboardSummaryView(APIView):
         recent_users = User.objects.order_by('-date_joined')[:5]
         recent_tickets = SupportTicket.objects.order_by('-created_at')[:5]
 
-        # Prepare response
         response_data = {
             'platform_stats': {
                 'total_users': total_users,
@@ -1082,7 +649,7 @@ class DashboardSummaryView(APIView):
             },
             'engagement_metrics': {
                 'recent_courses': [
-                    {'title': c.title, 'published_at': c.published_at} for c in recent_courses
+                    {'title': c.title, 'published_at': c.published_at} for c in recent_courses if c.published_at
                 ],
                 'recent_users': [
                     {'email': u.email, 'date_joined': u.date_joined} for u in recent_users
@@ -1092,4 +659,5 @@ class DashboardSummaryView(APIView):
                 ],
             }
         }
-        return Response(response_data)
+        
+        return format_api_response(data=response_data)

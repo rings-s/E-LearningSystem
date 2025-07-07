@@ -5,8 +5,10 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import get_object_or_404
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Q, Prefetch
 from django.utils import timezone
+from django.core.exceptions import ValidationError, PermissionDenied
+from django.db import models
 
 from .models import (
     Category, Course, Enrollment, Module, Lesson, LessonProgress,
@@ -14,12 +16,10 @@ from .models import (
     Certificate, CourseReview, CourseFavorite
 )
 from .serializers import (
-    CategorySerializer, CourseListSerializer, CourseDetailSerializer,
-    CourseCreateUpdateSerializer, EnrollmentSerializer, EnrollmentCreateSerializer,
-    ModuleSerializer, LessonListSerializer, LessonDetailSerializer,
-    LessonProgressSerializer, ResourceSerializer, QuizSerializer,
-    QuizAttemptSerializer, QuizSubmissionSerializer, CertificateSerializer,
-    CourseReviewSerializer, CourseReviewCreateSerializer
+    CategorySerializer, CourseSerializer, EnrollmentSerializer,
+    ModuleSerializer, LessonSerializer, LessonProgressSerializer,
+    ResourceSerializer, QuizSerializer, QuizAttemptSerializer,
+    QuizSubmissionSerializer, CertificateSerializer, CourseReviewSerializer
 )
 from .filters import CourseFilter, LessonFilter, QuizFilter
 from accounts.permissions import (
@@ -29,22 +29,19 @@ from accounts.permissions import (
 from core.utils import (
     send_notification, bulk_notify_enrolled_students,
     track_activity, increment_view_count, update_enrollment_progress,
-    validate_and_get_object
+    validate_and_get_object, format_api_response
 )
 
 # Categories
 class CategoryListView(generics.ListAPIView):
     """GET /api/categories/ - List all categories"""
-    queryset = Category.objects.filter(is_active=True)
+    queryset = Category.objects.filter(is_active=True).select_related('parent').prefetch_related('subcategories')
     serializer_class = CategorySerializer
     permission_classes = [AllowAny]
-    
-    def get_queryset(self):
-        return super().get_queryset().prefetch_related('subcategories')
 
 class CategoryDetailView(generics.RetrieveAPIView):
     """GET /api/categories/{slug}/ - Get category details"""
-    queryset = Category.objects.filter(is_active=True)
+    queryset = Category.objects.filter(is_active=True).select_related('parent').prefetch_related('subcategories')
     serializer_class = CategorySerializer
     permission_classes = [AllowAny]
     lookup_field = 'slug'
@@ -55,43 +52,36 @@ class CourseListCreateView(generics.ListCreateAPIView):
     GET /api/courses/ - List courses
     POST /api/courses/ - Create course
     """
-    queryset = Course.objects.all()
+    serializer_class = CourseSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = CourseFilter
     
     def get_queryset(self):
-        queryset = super().get_queryset()
-        
-        # Check if user wants their own courses (for teachers/instructors)
-        my_courses = self.request.query_params.get('my_courses', 'false').lower() == 'true'
-        
-        if self.request.method == 'GET':
-            if my_courses and self.request.user.is_authenticated:
-                # For teachers viewing their own courses - include all statuses
-                queryset = queryset.filter(instructor=self.request.user)
-            else:
-                # For public course browsing - only published courses
-                queryset = queryset.filter(status='published')
-        
-        return queryset.select_related(
+        queryset = Course.objects.select_related(
             'instructor', 'category'
         ).prefetch_related(
             'tags', 'co_instructors'
         ).annotate(
-            avg_rating=Avg('reviews__rating'),
-            enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True))
-        ).order_by('-created_at', 'id')
-
-    def get_serializer_class(self):
-        if self.request.method == 'POST':
-            return CourseCreateUpdateSerializer
-        return CourseListSerializer
+            enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
+            average_rating=Avg('reviews__rating', filter=Q(reviews__is_verified=True))
+        )
+        
+        # Check if user wants their own courses
+        my_courses = self.request.query_params.get('my_courses', 'false').lower() == 'true'
+        
+        if my_courses and self.request.user.is_authenticated:
+            queryset = queryset.filter(instructor=self.request.user)
+        else:
+            # Public browsing - only published courses
+            queryset = queryset.filter(status='published')
+        
+        return queryset.order_by('-created_at', 'id')
     
     def get_permissions(self):
         if self.request.method == 'POST':
             return [IsAuthenticated(), CanCreateCourse()]
         return [AllowAny()]
-        
+    
     def perform_create(self, serializer):
         serializer.save(instructor=self.request.user)
 
@@ -101,17 +91,49 @@ class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
     PUT/PATCH /api/courses/{uuid}/ - Update course
     DELETE /api/courses/{uuid}/ - Delete course
     """
-    queryset = Course.objects.all()
+    serializer_class = CourseSerializer
     lookup_field = 'uuid'
+    
+    def get_queryset(self):
+        queryset = Course.objects.select_related(
+            'instructor', 'category'
+        ).prefetch_related(
+            'tags', 'co_instructors',
+            Prefetch(
+                'modules',
+                queryset=Module.objects.filter(is_published=True).prefetch_related(
+                    Prefetch(
+                        'lessons',
+                        queryset=Lesson.objects.filter(is_published=True)
+                    )
+                )
+            ),
+            Prefetch(
+                'reviews',
+                queryset=CourseReview.objects.filter(is_verified=True)
+                .select_related('student').order_by('-created_at')[:10]
+            )
+        ).annotate(
+            enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
+            average_rating=Avg('reviews__rating', filter=Q(reviews__is_verified=True))
+        )
+        
+        # Add user-specific data if authenticated
+        user = getattr(self.request, 'user', None)
+        if user and user.is_authenticated:
+            queryset = queryset.prefetch_related(
+                Prefetch(
+                    'enrollments',
+                    queryset=Enrollment.objects.filter(student=user, is_active=True),
+                    to_attr='user_enrollment'
+                )
+            )
+        
+        return queryset
     
     def get_object(self):
         uuid_value = self.kwargs.get('uuid')
-        return validate_and_get_object(Course, uuid_value)
-    
-    def get_serializer_class(self):
-        if self.request.method in ['PUT', 'PATCH']:
-            return CourseCreateUpdateSerializer
-        return CourseDetailSerializer
+        return validate_and_get_object(Course, uuid_value, queryset=self.get_queryset())
     
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
@@ -124,9 +146,7 @@ class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
         
         if request.user.is_authenticated:
             track_activity(
-                request.user,
-                'course_view',
-                course=instance,
+                request.user, 'course_view', course=instance,
                 ip_address=request.META.get('REMOTE_ADDR'),
                 user_agent=request.META.get('HTTP_USER_AGENT', '')
             )
@@ -134,52 +154,70 @@ class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
+# Course Actions
 class CourseEnrollView(APIView):
     """POST /api/courses/{uuid}/enroll/ - Enroll in course"""
     permission_classes = [IsAuthenticated, IsVerifiedUser]
     
     def post(self, request, uuid):
-        course = validate_and_get_object(Course, uuid)
-        
-        # Check enrollment limit
-        if course.enrollment_limit:
-            current_count = course.enrollments.filter(is_active=True).count()
-            if current_count >= course.enrollment_limit:
-                return Response(
-                    {'error': 'Course enrollment limit reached'},
-                    status=status.HTTP_400_BAD_REQUEST
+        try:
+            course = validate_and_get_object(Course, uuid)
+            
+            if course.status != 'published':
+                return format_api_response(
+                    errors={'course': ['Course is not available for enrollment']},
+                    message='This course is not currently available',
+                    status_code=status.HTTP_400_BAD_REQUEST
                 )
-        
-        enrollment, created = Enrollment.objects.get_or_create(
-            student=request.user,
-            course=course,
-            defaults={'status': 'enrolled'}
-        )
-        
-        if not created and enrollment.is_active:
-            return Response(
-                {'error': 'Already enrolled in this course'},
-                status=status.HTTP_400_BAD_REQUEST
+            
+            # Check enrollment limit
+            if course.enrollment_limit:
+                current_count = course.enrollments.filter(is_active=True).count()
+                if current_count >= course.enrollment_limit:
+                    return format_api_response(
+                        errors={'enrollment': ['Course enrollment limit reached']},
+                        message='Sorry, this course has reached its enrollment limit',
+                        status_code=status.HTTP_400_BAD_REQUEST
+                    )
+            
+            enrollment, created = Enrollment.objects.get_or_create(
+                student=request.user, course=course,
+                defaults={'status': 'enrolled'}
             )
-        
-        if not created:
-            enrollment.is_active = True
-            enrollment.status = 'enrolled'
-            enrollment.save()
-        
-        # Send notification and track activity
-        send_notification(
-            request.user,
-            'enrollment',
-            f'Enrolled in {course.title}',
-            f'You have successfully enrolled in {course.title}',
-            course=course
-        )
-        
-        track_activity(request.user, 'course_enrollment', course=course)
-        
-        serializer = EnrollmentSerializer(enrollment, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+            
+            if not created and enrollment.is_active:
+                return format_api_response(
+                    data=EnrollmentSerializer(enrollment, context={'request': request}).data,
+                    message='You are already enrolled in this course',
+                    status_code=status.HTTP_200_OK
+                )
+            
+            if not created:
+                enrollment.is_active = True
+                enrollment.status = 'enrolled'
+                enrollment.save()
+            
+            send_notification(
+                request.user, 'enrollment',
+                f'Enrolled in {course.title}',
+                f'You have successfully enrolled in {course.title}',
+                course=course
+            )
+            
+            track_activity(request.user, 'course_enrollment', course=course)
+            
+            return format_api_response(
+                data=EnrollmentSerializer(enrollment, context={'request': request}).data,
+                message=f'Successfully enrolled in {course.title}',
+                status_code=status.HTTP_201_CREATED
+            )
+            
+        except Exception as e:
+            return format_api_response(
+                errors={'general': ['An unexpected error occurred']},
+                message='Unable to process enrollment at this time',
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class CoursePublishView(APIView):
     """POST /api/courses/{uuid}/publish/ - Publish course"""
@@ -192,13 +230,15 @@ class CoursePublishView(APIView):
         course.publish()
         
         bulk_notify_enrolled_students(
-            course,
-            'course_update',
+            course, 'course_update',
             f'{course.title} is now published',
             'The course you enrolled in is now available'
         )
         
-        return Response({'message': 'Course published successfully'})
+        return format_api_response(
+            message='Course published successfully',
+            status_code=status.HTTP_200_OK
+        )
 
 class CourseAnalyticsView(APIView):
     """GET /api/courses/{uuid}/analytics/ - Get course analytics"""
@@ -221,9 +261,8 @@ class CourseAnalyticsView(APIView):
             'total_reviews': course.reviews.count(),
         }
         
-        return Response(analytics)
+        return format_api_response(data=analytics)
 
-# Course Image Upload
 class CourseImageUploadView(APIView):
     """POST /api/courses/{uuid}/upload-image/ - Upload course thumbnail"""
     permission_classes = [IsAuthenticated, IsCourseInstructor]
@@ -235,78 +274,111 @@ class CourseImageUploadView(APIView):
         
         image = request.FILES.get('thumbnail')
         if not image:
-            return Response(
-                {'error': 'No image file provided'}, 
-                status=status.HTTP_400_BAD_REQUEST
+            return format_api_response(
+                errors={'image': ['No image file provided']},
+                status_code=status.HTTP_400_BAD_REQUEST
             )
         
         # Validate image
         if image.size > 10 * 1024 * 1024:  # 10MB limit
-            return Response(
-                {'error': 'Image file too large. Maximum size is 10MB'}, 
-                status=status.HTTP_400_BAD_REQUEST
+            return format_api_response(
+                errors={'image': ['Image file too large. Maximum size is 10MB']},
+                status_code=status.HTTP_400_BAD_REQUEST
             )
         
         if not image.content_type.startswith('image/'):
-            return Response(
-                {'error': 'File must be an image'}, 
-                status=status.HTTP_400_BAD_REQUEST
+            return format_api_response(
+                errors={'image': ['File must be an image']},
+                status_code=status.HTTP_400_BAD_REQUEST
             )
         
         course.thumbnail = image
         course.save()
         
-        return Response({
-            'message': 'Image uploaded successfully',
-            'thumbnail_url': course.thumbnail.url if course.thumbnail else None
-        })
+        return format_api_response(
+            data={'thumbnail_url': course.thumbnail.url},
+            message='Image uploaded successfully'
+        )
 
-# Lessons under Course
+# Course Favorites
+class CourseFavoriteCheckView(APIView):
+    """GET /api/courses/{uuid}/is-favorite/ - Check if course is favorite"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, uuid):
+        course = validate_and_get_object(Course, uuid)
+        is_favorite = CourseFavorite.objects.filter(course=course, user=request.user).exists()
+        return format_api_response(data={'is_favorite': is_favorite})
+
+class CourseFavoriteAddView(APIView):
+    """POST /api/courses/{uuid}/add-to-favorites/ - Add to favorites"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, uuid):
+        course = validate_and_get_object(Course, uuid)
+        favorite, created = CourseFavorite.objects.get_or_create(course=course, user=request.user)
+        
+        if created:
+            return format_api_response(
+                message='Course added to favorites',
+                status_code=status.HTTP_201_CREATED
+            )
+        return format_api_response(message='Course already in favorites')
+
+class CourseFavoriteRemoveView(APIView):
+    """DELETE /api/courses/{uuid}/remove-from-favorites/ - Remove from favorites"""
+    permission_classes = [IsAuthenticated]
+    
+    def delete(self, request, uuid):
+        course = validate_and_get_object(Course, uuid)
+        deleted_count, _ = CourseFavorite.objects.filter(course=course, user=request.user).delete()
+        
+        if deleted_count > 0:
+            return format_api_response(message='Course removed from favorites')
+        return format_api_response(
+            message='Course not in favorites',
+            status_code=status.HTTP_404_NOT_FOUND
+        )
+
+# Lessons
 class CourseLessonListCreateView(generics.ListCreateAPIView):
     """
-    GET /api/courses/{course_uuid}/lessons/ - List lessons in course
-    POST /api/courses/{course_uuid}/lessons/ - Create lesson in course
+    GET /api/courses/{course_uuid}/lessons/ - List lessons
+    POST /api/courses/{course_uuid}/lessons/ - Create lesson
     """
-    serializer_class = LessonListSerializer
+    serializer_class = LessonSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         course_uuid = self.kwargs['course_uuid']
         course = validate_and_get_object(Course, course_uuid)
         
-        return Lesson.objects.filter(
-            module__course=course,
-            is_published=True
-        ).select_related('module').prefetch_related('resources').order_by('module__order', 'order')
-    
-    def get_serializer_class(self):
-        if self.request.method == 'POST':
-            return LessonDetailSerializer
-        return LessonListSerializer
+        queryset = Lesson.objects.filter(
+            module__course=course, is_published=True
+        ).select_related('module').prefetch_related('resources')
+        
+        # Add user progress data if authenticated
+        user = self.request.user
+        if user.is_authenticated:
+            enrollment = Enrollment.objects.filter(
+                student=user, course=course, is_active=True
+            ).first()
+            
+            if enrollment:
+                queryset = queryset.prefetch_related(
+                    Prefetch(
+                        'progress_records',
+                        queryset=LessonProgress.objects.filter(enrollment=enrollment),
+                        to_attr='user_progress_data'
+                    )
+                )
+        
+        return queryset.order_by('module__order', 'order')
     
     def get_permissions(self):
         if self.request.method == 'POST':
             return [IsAuthenticated(), IsCourseInstructor()]
         return [IsAuthenticated(), IsEnrolledStudent()]
-    
-    def perform_create(self, serializer):
-        course_uuid = self.kwargs['course_uuid']
-        module_uuid = self.request.data.get('module')
-        
-        course = validate_and_get_object(Course, course_uuid)
-        module = validate_and_get_object(Module, module_uuid)
-        
-        # Verify module belongs to course
-        if module.course != course:
-            raise ValidationError("Module does not belong to this course")
-        
-        # Check permissions
-        if course.instructor != self.request.user and not self.request.user.is_staff:
-            raise PermissionDenied("You don't have permission to add lessons to this course")
-        
-        # Set the next order number
-        max_order = module.lessons.aggregate(models.Max('order'))['order__max'] or 0
-        serializer.save(order=max_order + 1)
 
 class CourseLessonDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
@@ -314,18 +386,17 @@ class CourseLessonDetailView(generics.RetrieveUpdateDestroyAPIView):
     PUT/PATCH /api/courses/{course_uuid}/lessons/{uuid}/ - Update lesson
     DELETE /api/courses/{course_uuid}/lessons/{uuid}/ - Delete lesson
     """
-    serializer_class = LessonDetailSerializer
-    permission_classes = [IsAuthenticated]
+    serializer_class = LessonSerializer
     lookup_field = 'uuid'
     
     def get_queryset(self):
         course_uuid = self.kwargs['course_uuid']
         course = validate_and_get_object(Course, course_uuid)
-        return Lesson.objects.filter(module__course=course)
+        return Lesson.objects.filter(module__course=course).select_related('module').prefetch_related('resources')
     
     def get_object(self):
         uuid_value = self.kwargs.get('uuid')
-        return validate_and_get_object(Lesson, uuid_value)
+        return validate_and_get_object(Lesson, uuid_value, queryset=self.get_queryset())
     
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:
@@ -336,35 +407,28 @@ class CourseLessonDetailView(generics.RetrieveUpdateDestroyAPIView):
         lesson = self.get_object()
         course_uuid = self.kwargs['course_uuid']
         
-        # Track lesson start and update progress
+        # Track lesson access and update progress
         enrollment = Enrollment.objects.filter(
-            student=request.user,
-            course__uuid=course_uuid,
-            is_active=True
+            student=request.user, course__uuid=course_uuid, is_active=True
         ).first()
         
         if enrollment:
             progress, created = LessonProgress.objects.get_or_create(
-                enrollment=enrollment,
-                lesson=lesson
+                enrollment=enrollment, lesson=lesson
             )
             
             if created:
                 track_activity(
-                    request.user,
-                    'lesson_start',
-                    lesson=lesson,
-                    course=lesson.module.course
+                    request.user, 'lesson_start',
+                    lesson=lesson, course=lesson.module.course
                 )
             
-            # Update last accessed
             enrollment.last_accessed = timezone.now()
             enrollment.save()
         
         serializer = self.get_serializer(lesson)
         return Response(serializer.data)
 
-# Lesson File Upload
 class LessonFileUploadView(APIView):
     """POST /api/courses/{course_uuid}/lessons/{uuid}/upload/ - Upload lesson file"""
     permission_classes = [IsAuthenticated, IsCourseInstructor]
@@ -374,43 +438,35 @@ class LessonFileUploadView(APIView):
         lesson = validate_and_get_object(Lesson, uuid)
         course = validate_and_get_object(Course, course_uuid)
         
-        # Verify lesson belongs to course
         if lesson.module.course != course:
-            return Response(
-                {'error': 'Lesson does not belong to this course'}, 
-                status=status.HTTP_400_BAD_REQUEST
+            return format_api_response(
+                errors={'lesson': ['Lesson does not belong to this course']},
+                status_code=status.HTTP_400_BAD_REQUEST
             )
-        
-        # Check permissions
-        if course.instructor != request.user and not request.user.is_staff:
-            raise PermissionDenied("You don't have permission to upload files for this lesson")
         
         file = request.FILES.get('file')
         if not file:
-            return Response(
-                {'error': 'No file provided'}, 
-                status=status.HTTP_400_BAD_REQUEST
+            return format_api_response(
+                errors={'file': ['No file provided']},
+                status_code=status.HTTP_400_BAD_REQUEST
             )
         
-        # Validate file size (50MB limit)
-        if file.size > 50 * 1024 * 1024:
-            return Response(
-                {'error': 'File too large. Maximum size is 50MB'}, 
-                status=status.HTTP_400_BAD_REQUEST
+        if file.size > 50 * 1024 * 1024:  # 50MB limit
+            return format_api_response(
+                errors={'file': ['File too large. Maximum size is 50MB']},
+                status_code=status.HTTP_400_BAD_REQUEST
             )
         
-        # Save the file
         lesson.file_attachment = file
         lesson.save()
         
-        return Response({
-            'message': 'File uploaded successfully',
-            'file_url': lesson.file_attachment.url if lesson.file_attachment else None
-        })
+        return format_api_response(
+            data={'file_url': lesson.file_attachment.url},
+            message='File uploaded successfully'
+        )
 
-# Lesson Completion
 class LessonCompleteView(APIView):
-    """POST /api/courses/{course_uuid}/lessons/{uuid}/complete/ - Mark lesson as complete"""
+    """POST /api/courses/{course_uuid}/lessons/{uuid}/complete/ - Mark lesson complete"""
     permission_classes = [IsAuthenticated]
     
     def post(self, request, course_uuid, uuid):
@@ -418,15 +474,11 @@ class LessonCompleteView(APIView):
         course = validate_and_get_object(Course, course_uuid)
         
         enrollment = get_object_or_404(
-            Enrollment,
-            student=request.user,
-            course=course,
-            is_active=True
+            Enrollment, student=request.user, course=course, is_active=True
         )
         
         progress, created = LessonProgress.objects.get_or_create(
-            enrollment=enrollment,
-            lesson=lesson
+            enrollment=enrollment, lesson=lesson
         )
         
         if not progress.is_completed:
@@ -434,28 +486,21 @@ class LessonCompleteView(APIView):
             progress.completed_at = timezone.now()
             progress.save()
             
-            # Update enrollment progress
-            new_progress = update_enrollment_progress(enrollment)
-            
-            # Track activity
-            track_activity(
-                request.user,
-                'lesson_complete',
-                lesson=lesson,
-                course=course
-            )
+            update_enrollment_progress(enrollment)
+            track_activity(request.user, 'lesson_complete', lesson=lesson, course=course)
         
-        return Response({
-            'message': 'Lesson completed successfully',
-            'progress_percentage': enrollment.progress_percentage,
-            'course_completed': enrollment.progress_percentage >= 100
-        })
+        return format_api_response(
+            data={
+                'progress_percentage': enrollment.progress_percentage,
+                'course_completed': enrollment.progress_percentage >= 100
+            },
+            message='Lesson completed successfully'
+        )
 
-# Lesson Notes
 class LessonNotesView(APIView):
     """
-    GET /api/courses/{course_uuid}/lessons/{uuid}/notes/ - Get lesson notes
-    POST /api/courses/{course_uuid}/lessons/{uuid}/notes/ - Save lesson notes
+    GET /api/courses/{course_uuid}/lessons/{uuid}/notes/ - Get notes
+    POST /api/courses/{course_uuid}/lessons/{uuid}/notes/ - Save notes
     """
     permission_classes = [IsAuthenticated]
     
@@ -464,48 +509,36 @@ class LessonNotesView(APIView):
         course = validate_and_get_object(Course, course_uuid)
         
         enrollment = get_object_or_404(
-            Enrollment,
-            student=request.user,
-            course=course,
-            is_active=True
+            Enrollment, student=request.user, course=course, is_active=True
         )
         
-        progress = LessonProgress.objects.filter(
-            enrollment=enrollment,
-            lesson=lesson
-        ).first()
-        
+        progress = LessonProgress.objects.filter(enrollment=enrollment, lesson=lesson).first()
         notes = progress.notes if progress else ''
         
-        return Response({
-            'notes': notes,
-            'lesson_uuid': str(lesson.uuid)
-        })
+        return format_api_response(
+            data={'notes': notes, 'lesson_uuid': str(lesson.uuid)}
+        )
     
     def post(self, request, course_uuid, uuid):
         lesson = validate_and_get_object(Lesson, uuid)
         course = validate_and_get_object(Course, course_uuid)
         
         enrollment = get_object_or_404(
-            Enrollment,
-            student=request.user,
-            course=course,
-            is_active=True
+            Enrollment, student=request.user, course=course, is_active=True
         )
         
         progress, created = LessonProgress.objects.get_or_create(
-            enrollment=enrollment,
-            lesson=lesson
+            enrollment=enrollment, lesson=lesson
         )
         
         notes = request.data.get('notes', '')
         progress.notes = notes
         progress.save()
         
-        return Response({
-            'message': 'Notes saved successfully',
-            'notes': progress.notes
-        })
+        return format_api_response(
+            data={'notes': progress.notes},
+            message='Notes saved successfully'
+        )
 
 # Enrollments
 class EnrollmentListView(generics.ListAPIView):
@@ -517,11 +550,11 @@ class EnrollmentListView(generics.ListAPIView):
         user = self.request.user
         
         if user.role == 'student':
-            return Enrollment.objects.filter(student=user)
+            return Enrollment.objects.filter(student=user).select_related('course', 'course__instructor')
         elif user.role == 'teacher':
-            return Enrollment.objects.filter(course__instructor=user)
+            return Enrollment.objects.filter(course__instructor=user).select_related('course', 'student')
         elif user.is_staff:
-            return Enrollment.objects.all()
+            return Enrollment.objects.all().select_related('course', 'student')
         
         return Enrollment.objects.none()
 
@@ -532,8 +565,7 @@ class MyEnrollmentsView(generics.ListAPIView):
     
     def get_queryset(self):
         return Enrollment.objects.filter(
-            student=self.request.user,
-            is_active=True
+            student=self.request.user, is_active=True
         ).select_related('course', 'course__instructor')
 
 # Modules
@@ -547,17 +579,17 @@ class ModuleListCreateView(generics.ListCreateAPIView):
     
     def get_queryset(self):
         course_uuid = self.request.query_params.get('course')
-        queryset = Module.objects.all()
-        
-        if course_uuid:
-            queryset = queryset.filter(course__uuid=course_uuid)
-        
-        return queryset.prefetch_related(
+        queryset = Module.objects.select_related('course').prefetch_related(
             Prefetch(
                 'lessons',
                 queryset=Lesson.objects.filter(is_published=True)
             )
         )
+        
+        if course_uuid:
+            queryset = queryset.filter(course__uuid=course_uuid)
+        
+        return queryset.order_by('course', 'order')
     
     def get_permissions(self):
         if self.request.method == 'POST':
@@ -570,7 +602,7 @@ class ModuleDetailView(generics.RetrieveUpdateDestroyAPIView):
     PUT/PATCH /api/modules/{uuid}/ - Update module
     DELETE /api/modules/{uuid}/ - Delete module
     """
-    queryset = Module.objects.all()
+    queryset = Module.objects.select_related('course').prefetch_related('lessons')
     serializer_class = ModuleSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'uuid'
@@ -586,33 +618,26 @@ class CourseReviewListCreateView(generics.ListCreateAPIView):
     GET /api/reviews/ - List course reviews
     POST /api/reviews/ - Create course review
     """
+    serializer_class = CourseReviewSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         course_uuid = self.request.query_params.get('course')
-        queryset = CourseReview.objects.filter(is_verified=True)
+        queryset = CourseReview.objects.filter(is_verified=True).select_related('course', 'student')
         
         if course_uuid:
             queryset = queryset.filter(course__uuid=course_uuid)
         
-        return queryset.select_related('course', 'student')
-    
-    def get_serializer_class(self):
-        if self.request.method == 'POST':
-            return CourseReviewCreateSerializer
-        return CourseReviewSerializer
+        return queryset.order_by('-created_at')
     
     def perform_create(self, serializer):
-        # Check if user completed the course
         course = serializer.validated_data['course']
-        enrollment = get_object_or_404(
-            Enrollment,
-            student=self.request.user,
-            course=course,
-            status='completed'
+        # Check if user completed the course
+        get_object_or_404(
+            Enrollment, student=self.request.user,
+            course=course, status='completed'
         )
-        
-        serializer.save(student=self.request.user)
+        serializer.save()
 
 class CourseReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
@@ -620,7 +645,7 @@ class CourseReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     PUT/PATCH /api/reviews/{uuid}/ - Update review
     DELETE /api/reviews/{uuid}/ - Delete review
     """
-    queryset = CourseReview.objects.all()
+    queryset = CourseReview.objects.select_related('course', 'student')
     serializer_class = CourseReviewSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     lookup_field = 'uuid'
@@ -635,29 +660,29 @@ class CertificateListView(generics.ListAPIView):
         user = self.request.user
         
         if user.role == 'student':
-            return Certificate.objects.filter(student=user)
+            return Certificate.objects.filter(student=user).select_related('course')
         elif user.role == 'teacher':
-            return Certificate.objects.filter(course__instructor=user)
+            return Certificate.objects.filter(course__instructor=user).select_related('course', 'student')
         elif user.is_staff:
-            return Certificate.objects.all()
+            return Certificate.objects.all().select_related('course', 'student')
         
         return Certificate.objects.none()
 
 class CertificateDetailView(generics.RetrieveAPIView):
     """GET /api/certificates/{uuid}/ - Get certificate details"""
-    queryset = Certificate.objects.all()
+    queryset = Certificate.objects.select_related('course', 'student')
     serializer_class = CertificateSerializer
     permission_classes = [IsAuthenticated]
     lookup_field = 'uuid'
 
 class CertificateVerifyView(APIView):
-    """GET /api/certificates/{uuid}/verify/ - Verify certificate authenticity"""
+    """GET /api/certificates/{uuid}/verify/ - Verify certificate"""
     permission_classes = [AllowAny]
     
     def get(self, request, uuid):
         certificate = validate_and_get_object(Certificate, uuid)
         
-        return Response({
+        return format_api_response(data={
             'valid': certificate.is_valid,
             'certificate_number': certificate.certificate_number,
             'student_name': certificate.student.get_full_name(),
@@ -665,43 +690,3 @@ class CertificateVerifyView(APIView):
             'issue_date': certificate.issue_date,
             'completion_date': certificate.completion_date,
         })
-
-
-# Course Favorites
-class CourseFavoriteCheckView(APIView):
-    """GET /api/courses/{uuid}/is-favorite/ - Check if course is in user's favorites"""
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request, uuid):
-        course = validate_and_get_object(Course, uuid)
-        is_favorite = CourseFavorite.objects.filter(course=course, user=request.user).exists()
-        return Response({'is_favorite': is_favorite})
-
-
-class CourseFavoriteAddView(APIView):
-    """POST /api/courses/{uuid}/add-to-favorites/ - Add course to user's favorites"""
-    permission_classes = [IsAuthenticated]
-    
-    def post(self, request, uuid):
-        course = validate_and_get_object(Course, uuid)
-        favorite, created = CourseFavorite.objects.get_or_create(
-            course=course, 
-            user=request.user
-        )
-        if created:
-            return Response({'message': 'Course added to favorites'}, status=status.HTTP_201_CREATED)
-        else:
-            return Response({'message': 'Course already in favorites'}, status=status.HTTP_200_OK)
-
-
-class CourseFavoriteRemoveView(APIView):
-    """DELETE /api/courses/{uuid}/remove-from-favorites/ - Remove course from user's favorites"""
-    permission_classes = [IsAuthenticated]
-    
-    def delete(self, request, uuid):
-        course = validate_and_get_object(Course, uuid)
-        deleted_count, _ = CourseFavorite.objects.filter(course=course, user=request.user).delete()
-        if deleted_count > 0:
-            return Response({'message': 'Course removed from favorites'}, status=status.HTTP_200_OK)
-        else:
-            return Response({'message': 'Course not in favorites'}, status=status.HTTP_404_NOT_FOUND)

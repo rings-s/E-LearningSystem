@@ -1,9 +1,17 @@
+# back/core/models.py - Fixed imports
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
-from django.contrib.postgres.fields import JSONField
 from django.core.validators import FileExtensionValidator
 import uuid
+
+# Fix for JSONField import based on Django version
+try:
+    from django.db.models import JSONField
+except ImportError:
+    # Fallback for older Django versions
+    from django.contrib.postgres.fields import JSONField
+
 
 User = get_user_model()
 

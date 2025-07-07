@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
+from django.utils.text import slugify
 from .models import (
     Category, Tag, Course, Enrollment, Module, Lesson, LessonProgress,
     Resource, Quiz, Question, Answer, QuizAttempt, QuestionResponse,
@@ -9,7 +10,13 @@ from .models import (
 
 User = get_user_model()
 
-# Category and Tags
+# Simple Tag Serializer
+class TagSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Tag
+        fields = '__all__'
+
+# Category Serializer with depth control
 class CategorySerializer(serializers.ModelSerializer):
     subcategories = serializers.SerializerMethodField()
     
@@ -18,202 +25,124 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = '__all__'
     
     def get_subcategories(self, obj):
-        return CategorySerializer(obj.subcategories.filter(is_active=True), many=True).data
+        # Simple depth control to prevent infinite recursion
+        context = self.context
+        current_depth = context.get('current_depth', 0)
+        if current_depth >= 2:  # Max 2 levels deep
+            return []
+        
+        subcategories = obj.subcategories.filter(is_active=True)
+        if subcategories.exists():
+            new_context = context.copy()
+            new_context['current_depth'] = current_depth + 1
+            return CategorySerializer(subcategories, many=True, context=new_context).data
+        return []
 
-class TagSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Tag
-        fields = '__all__'
-
-# Course Management
-class CourseListSerializer(serializers.ModelSerializer):
-    instructor_name = serializers.CharField(source='instructor.get_full_name', read_only=True)
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    enrolled_count = serializers.IntegerField(source='enrolled_students_count', read_only=True)
-    average_rating = serializers.FloatField(read_only=True)
-    
-    class Meta:
-        model = Course
-        fields = '__all__'
-
-class CourseDetailSerializer(serializers.ModelSerializer):
-    instructor = serializers.SerializerMethodField()
-    co_instructors = serializers.SerializerMethodField()
-    category = CategorySerializer(read_only=True)
-    tags = TagSerializer(many=True, read_only=True)
-    modules = serializers.SerializerMethodField()
-    enrolled_count = serializers.IntegerField(source='enrolled_students_count', read_only=True)
-    average_rating = serializers.FloatField(read_only=True)
-    reviews_count = serializers.IntegerField(source='reviews.count', read_only=True)
-    reviews = serializers.SerializerMethodField()
-    is_enrolled = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = Course
-        fields = '__all__'
-    
-    def get_instructor(self, obj):
-        from accounts.serializers import UserBriefSerializer
-        return UserBriefSerializer(obj.instructor).data
-    
-    def get_co_instructors(self, obj):
-        from accounts.serializers import UserBriefSerializer
-        return UserBriefSerializer(obj.co_instructors.all(), many=True).data
-    
-    def get_modules(self, obj):
-        return ModuleSerializer(obj.modules.filter(is_published=True), many=True).data
-    
-    def get_reviews(self, obj):
-        reviews = obj.reviews.filter(is_verified=True).order_by('-created_at')
-        return CourseReviewSerializer(reviews, many=True).data
-    
-    def get_is_enrolled(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return obj.enrollments.filter(student=request.user, is_active=True).exists()
-        return False
-
-
-
-class CourseCreateUpdateSerializer(serializers.ModelSerializer):
-    category = serializers.PrimaryKeyRelatedField(
-        queryset=Category.objects.filter(is_active=True),
-        required=False,
-        allow_null=True,
-        pk_field=serializers.UUIDField(),
-        error_messages={
-            'does_not_exist': 'Category not found or inactive',
-            'invalid': 'Invalid category UUID format'
-        }
-    )
-    tags = serializers.ListField(
+# Course Serializer - Single serializer for all operations
+class CourseSerializer(serializers.ModelSerializer):
+    # Write-only field for tag creation
+    tags_input = serializers.ListField(
         child=serializers.CharField(max_length=50),
         write_only=True,
         required=False,
         allow_empty=True
     )
-    slug = serializers.SlugField(required=False, allow_blank=True)
+    
+    # Read-only computed fields
+    instructor_name = serializers.CharField(source='instructor.get_full_name', read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
+    enrolled_count = serializers.IntegerField(source='enrolled_students_count', read_only=True)
     
     class Meta:
         model = Course
         fields = '__all__'
-        read_only_fields = ['uuid', 'instructor', 'created_at', 'updated_at', 'published_at']
+        extra_kwargs = {
+            'instructor': {'read_only': True},
+            'views_count': {'read_only': True},
+            'published_at': {'read_only': True},
+        }
+    
+    def validate_title(self, value):
+        if len(value.strip()) < 3:
+            raise serializers.ValidationError("Title must be at least 3 characters")
+        return value.strip()
+    
+    def validate_description(self, value):
+        if len(value.strip()) < 50:
+            raise serializers.ValidationError("Description must be at least 50 characters")
+        return value.strip()
     
     def validate(self, data):
-        # Handle category field - convert empty string to null or remove entirely
-        if 'category' in data:
-            if data['category'] == '' or data['category'] is None:
-                data.pop('category', None)  # Remove the field entirely
-            else:
-                # Verify category exists and is active
-                try:
-                    if hasattr(data['category'], 'uuid'):
-                        # Already a Category instance
-                        category = data['category']
-                    else:
-                        # Should be a UUID, verify it exists
-                        category = Category.objects.get(uuid=data['category'], is_active=True)
-                    data['category'] = category
-                except Category.DoesNotExist:
-                    # Invalid category, remove it
-                    data.pop('category', None)
-        
         # Auto-generate slug if not provided
         if not data.get('slug') and data.get('title'):
-            from django.utils.text import slugify
-            base_slug = slugify(data['title'])
-            slug = base_slug
-            counter = 1
-            
-            while Course.objects.filter(slug=slug).exists():
-                slug = f"{base_slug}-{counter}"
-                counter += 1
-            
-            data['slug'] = slug
-        
+            data['slug'] = self._generate_slug(data['title'])
         return data
     
+    def _generate_slug(self, title):
+        base_slug = slugify(title)
+        slug = base_slug
+        counter = 1
+        instance = getattr(self, 'instance', None)
+        
+        while Course.objects.filter(slug=slug).exclude(
+            id=instance.id if instance else None
+        ).exists():
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+        return slug
+    
+    def _handle_tags(self, course, tags_data):
+        if tags_data:
+            course.tags.clear()
+            for tag_name in tags_data:
+                tag_name = tag_name.strip()
+                if tag_name:
+                    tag, created = Tag.objects.get_or_create(
+                        name=tag_name,
+                        defaults={'slug': slugify(tag_name)}
+                    )
+                    course.tags.add(tag)
+    
     def create(self, validated_data):
-        # Handle tags
-        tags_data = validated_data.pop('tags', [])
-        
-        # Create course
+        tags_data = validated_data.pop('tags_input', [])
         course = Course.objects.create(**validated_data)
-        
-        # Handle tag creation/assignment
-        for tag_name in tags_data:
-            if tag_name.strip():  # Only create non-empty tags
-                tag, created = Tag.objects.get_or_create(
-                    name=tag_name.strip(),
-                    defaults={'slug': tag_name.strip().lower().replace(' ', '-')}
-                )
-                course.tags.add(tag)
-        
+        self._handle_tags(course, tags_data)
         return course
     
     def update(self, instance, validated_data):
-        # Handle tags
-        tags_data = validated_data.pop('tags', None)
-        
-        # Update course fields
+        tags_data = validated_data.pop('tags_input', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-        
-        # Update tags if provided
         if tags_data is not None:
-            instance.tags.clear()
-            for tag_name in tags_data:
-                if tag_name.strip():  # Only create non-empty tags
-                    tag, created = Tag.objects.get_or_create(
-                        name=tag_name.strip(),
-                        defaults={'slug': tag_name.strip().lower().replace(' ', '-')}
-                    )
-                    instance.tags.add(tag)
-        
+            self._handle_tags(instance, tags_data)
         return instance
 
-
-
-# Enrollment
+# Enrollment Serializer
 class EnrollmentSerializer(serializers.ModelSerializer):
-    course = CourseListSerializer(read_only=True)
-    student = serializers.SerializerMethodField()
-    
     class Meta:
         model = Enrollment
         fields = '__all__'
-        read_only_fields = ['uuid', 'enrolled_at', 'certificate_issued', 'certificate_issued_at']
-    
-    def get_student(self, obj):
-        from accounts.serializers import UserBriefSerializer
-        return UserBriefSerializer(obj.student).data
-
-class EnrollmentCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Enrollment
-        fields = ['course']
+        extra_kwargs = {
+            'student': {'read_only': True},
+            'enrolled_at': {'read_only': True},
+        }
     
     def create(self, validated_data):
         validated_data['student'] = self.context['request'].user
         return super().create(validated_data)
 
-# Modules and Lessons
+# Module Serializer
 class ModuleSerializer(serializers.ModelSerializer):
-    lessons = serializers.SerializerMethodField()
-    
     class Meta:
         model = Module
         fields = '__all__'
-        read_only_fields = ['uuid', 'created_at', 'updated_at']
-    
-    def get_lessons(self, obj):
-        lessons = obj.lessons.filter(is_published=True)
-        return LessonListSerializer(lessons, many=True, context=self.context).data
 
-class LessonListSerializer(serializers.ModelSerializer):
-    module_title = serializers.CharField(source='module.title', read_only=True)
+# Lesson Serializer
+class LessonSerializer(serializers.ModelSerializer):
+    # Computed fields for user progress
     is_completed = serializers.SerializerMethodField()
+    user_progress = serializers.SerializerMethodField()
     
     class Meta:
         model = Lesson
@@ -222,139 +151,106 @@ class LessonListSerializer(serializers.ModelSerializer):
     def get_is_completed(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
-            enrollment = Enrollment.objects.filter(
-                student=request.user,
-                course=obj.module.course,
-                is_active=True
-            ).first()
-            if enrollment:
-                return LessonProgress.objects.filter(
-                    enrollment=enrollment,
-                    lesson=obj,
-                    is_completed=True
-                ).exists()
+            # Use prefetched data if available
+            if hasattr(obj, 'user_progress_data'):
+                return obj.user_progress_data.is_completed if obj.user_progress_data else False
         return False
-
-class LessonDetailSerializer(serializers.ModelSerializer):
-    module = ModuleSerializer(read_only=True)
-    resources = serializers.SerializerMethodField()
-    progress = serializers.SerializerMethodField()
     
-    class Meta:
-        model = Lesson
-        fields = '__all__'
-    
-    def get_resources(self, obj):
-        return ResourceSerializer(obj.resources.all(), many=True).data
-    
-    def get_progress(self, obj):
+    def get_user_progress(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
-            enrollment = Enrollment.objects.filter(
-                student=request.user,
-                course=obj.module.course,
-                is_active=True
-            ).first()
-            if enrollment:
-                progress = LessonProgress.objects.filter(
-                    enrollment=enrollment,
-                    lesson=obj
-                ).first()
-                if progress:
-                    return LessonProgressSerializer(progress).data
+            if hasattr(obj, 'user_progress_data') and obj.user_progress_data:
+                progress = obj.user_progress_data
+                return {
+                    'is_completed': progress.is_completed,
+                    'last_position': progress.last_position,
+                    'time_spent_seconds': progress.time_spent_seconds,
+                    'completed_at': progress.completed_at
+                }
         return None
 
+# Lesson Progress Serializer
 class LessonProgressSerializer(serializers.ModelSerializer):
-    lesson_title = serializers.CharField(source='lesson.title', read_only=True)
-    
     class Meta:
         model = LessonProgress
         fields = '__all__'
-        read_only_fields = ['uuid', 'started_at']
 
+# Resource Serializer
 class ResourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Resource
         fields = '__all__'
-        read_only_fields = ['uuid', 'created_at']
 
-# Quizzes
+# Quiz Serializer
+class QuizSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Quiz
+        fields = '__all__'
+
+# Question Serializer
+class QuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Question
+        fields = '__all__'
+
+# Answer Serializer
 class AnswerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Answer
         fields = '__all__'
-        read_only_fields = ['uuid', 'created_at', 'updated_at']
 
-class QuestionSerializer(serializers.ModelSerializer):
-    answers = AnswerSerializer(many=True, read_only=True)
-    
-    class Meta:
-        model = Question
-        fields = '__all__'
-        read_only_fields = ['uuid', 'created_at', 'updated_at']
-
-class QuizSerializer(serializers.ModelSerializer):
-    questions = QuestionSerializer(many=True, read_only=True)
-    course_title = serializers.CharField(source='course.title', read_only=True)
-    questions_count = serializers.IntegerField(source='questions.count', read_only=True)
-    
-    class Meta:
-        model = Quiz
-        fields = '__all__'
-        read_only_fields = ['uuid', 'created_at', 'updated_at']
-
+# Quiz Attempt Serializer
 class QuizAttemptSerializer(serializers.ModelSerializer):
-    quiz = QuizSerializer(read_only=True)
-    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
-    
     class Meta:
         model = QuizAttempt
         fields = '__all__'
-        read_only_fields = ['uuid', 'started_at', 'score', 'passed']
-
-class QuestionResponseSerializer(serializers.ModelSerializer):
-    question = QuestionSerializer(read_only=True)
+        extra_kwargs = {
+            'student': {'read_only': True},
+            'started_at': {'read_only': True},
+        }
     
+    def create(self, validated_data):
+        validated_data['student'] = self.context['request'].user
+        return super().create(validated_data)
+
+# Question Response Serializer
+class QuestionResponseSerializer(serializers.ModelSerializer):
     class Meta:
         model = QuestionResponse
         fields = '__all__'
-        read_only_fields = ['uuid', 'answered_at', 'points_earned', 'is_correct']
 
+# Quiz Submission Serializer (for handling quiz submissions)
 class QuizSubmissionSerializer(serializers.Serializer):
     quiz_id = serializers.UUIDField()
     responses = serializers.ListField(
-        child=serializers.DictField(
-            child=serializers.CharField()
-        )
+        child=serializers.DictField(child=serializers.CharField())
     )
 
-# Certificates
+# Certificate Serializer
 class CertificateSerializer(serializers.ModelSerializer):
-    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
-    course_title = serializers.CharField(source='course.title', read_only=True)
-    
     class Meta:
         model = Certificate
         fields = '__all__'
-        read_only_fields = [
-            'uuid', 'certificate_number', 'issue_date', 'pdf_file', 
-            'qr_code', 'verification_url', 'created_at', 'updated_at'
-        ]
+        extra_kwargs = {
+            'certificate_number': {'read_only': True},
+            'pdf_file': {'read_only': True},
+            'qr_code': {'read_only': True},
+        }
 
-# Reviews
+# Course Review Serializer
 class CourseReviewSerializer(serializers.ModelSerializer):
-    student_name = serializers.CharField(source='student.get_full_name', read_only=True)
-    student_avatar = serializers.ImageField(source='student.avatar', read_only=True)
-    
     class Meta:
         model = CourseReview
         fields = '__all__'
-        read_only_fields = ['uuid', 'created_at', 'updated_at', 'helpful_count']
-
-class CourseReviewCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CourseReview
-        fields = ['course', 'rating', 'comment']
+        extra_kwargs = {
+            'student': {'read_only': True},
+            'helpful_count': {'read_only': True},
+        }
+    
+    def validate_rating(self, value):
+        if not 1 <= value <= 5:
+            raise serializers.ValidationError("Rating must be between 1 and 5")
+        return value
     
     def create(self, validated_data):
         validated_data['student'] = self.context['request'].user

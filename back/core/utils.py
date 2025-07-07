@@ -1,3 +1,4 @@
+# back/core/utils.py
 from django.core.cache import cache
 from django.conf import settings
 from django.utils import timezone
@@ -7,64 +8,49 @@ from asgiref.sync import async_to_sync
 from django.shortcuts import get_object_or_404
 from django.http import Http404
 from django.core.exceptions import ValidationError
+from rest_framework.response import Response
+from rest_framework import status
 import logging
-import hashlib
-import uuid  # Use built-in uuid module
+import uuid
 
 logger = logging.getLogger(__name__)
 channel_layer = get_channel_layer()
 
 def validate_uuid(value):
-    """Validate that the value is a valid UUID"""
+    """Validate UUID format"""
     try:
         uuid.UUID(str(value))
     except (ValueError, TypeError):
         raise ValidationError("Invalid UUID format")
 
-def validate_and_get_object(model_class, uuid_value):
+def validate_and_get_object(model_class, uuid_value, queryset=None):
     """Validate UUID and get object safely"""
     try:
-        # Validate UUID format
         uuid.UUID(str(uuid_value))
+        if queryset is not None:
+            return get_object_or_404(queryset, uuid=uuid_value)
         return get_object_or_404(model_class, uuid=uuid_value)
-    except (ValueError, AttributeError, TypeError):
+    except (ValueError, TypeError):
         raise Http404("Invalid UUID format")
 
-def validate_uuid_param(uuid_value):
-    """Validate UUID parameter and raise 404 if invalid"""
-    try:
-        validate_uuid(uuid_value)
-        return True
-    except ValidationError:
-        raise Http404("Invalid UUID format")
+def format_api_response(data=None, message=None, errors=None, status_code=status.HTTP_200_OK):
+    """Standardized API response format"""
+    response_data = {
+        'success': status_code < 400,
+        'status_code': status_code,
+    }
+    
+    if data is not None:
+        response_data['data'] = data
+    if message:
+        response_data['message'] = message
+    if errors:
+        response_data['errors'] = errors
+    
+    return Response(response_data, status=status_code)
 
-def safe_uuid_filter(queryset, field_name, uuid_value):
-    """Safely filter by UUID field, returning empty queryset for invalid UUIDs"""
-    try:
-        validate_uuid(uuid_value)
-        filter_kwargs = {field_name: uuid_value}
-        return queryset.filter(**filter_kwargs)
-    except ValidationError:
-        return queryset.none()
-
-# Cache utilities
-def get_or_set_cache(key, func, timeout=3600):
-    """Get from cache or set if not exists"""
-    value = cache.get(key)
-    if value is None:
-        value = func()
-        cache.set(key, value, timeout)
-    return value
-
-def invalidate_cache_pattern(pattern):
-    """Invalidate all cache keys matching pattern"""
-    if hasattr(cache, '_cache'):
-        keys = cache._cache.keys(f"*{pattern}*")
-        cache.delete_many(keys)
-
-# Notification utilities
 def send_notification(user, notification_type, title, message, **kwargs):
-    """Send notification to user via WebSocket and create DB record"""
+    """Send notification to user"""
     from core.models import Notification
     
     notification = Notification.objects.create(
@@ -75,20 +61,24 @@ def send_notification(user, notification_type, title, message, **kwargs):
         **kwargs
     )
     
-    # Send via WebSocket
-    async_to_sync(channel_layer.group_send)(
-        f"user_{user.uuid}",
-        {
-            "type": "notification.send",
-            "notification": {
-                "id": str(notification.uuid),
-                "type": notification_type,
-                "title": title,
-                "message": message,
-                "created_at": notification.created_at.isoformat(),
-            }
-        }
-    )
+    # Send via WebSocket if available
+    if channel_layer:
+        try:
+            async_to_sync(channel_layer.group_send)(
+                f"user_{user.uuid}",
+                {
+                    "type": "notification.send",
+                    "notification": {
+                        "id": str(notification.uuid),
+                        "type": notification_type,
+                        "title": title,
+                        "message": message,
+                        "created_at": notification.created_at.isoformat(),
+                    }
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Failed to send WebSocket notification: {e}")
     
     return notification
 
@@ -110,7 +100,6 @@ def bulk_notify_enrolled_students(course, notification_type, title, message):
             course=course
         )
 
-# Activity tracking
 def track_activity(user, activity_type, **kwargs):
     """Track user activity"""
     from core.models import ActivityLog
@@ -119,7 +108,7 @@ def track_activity(user, activity_type, **kwargs):
         user=user,
         activity_type=activity_type,
         ip_address=kwargs.pop('ip_address', None),
-        user_agent=kwargs.pop('user_agent', ''),  # Use empty string instead of None
+        user_agent=kwargs.pop('user_agent', ''),
         metadata=kwargs.pop('metadata', {}),
         **kwargs
     )
@@ -130,9 +119,8 @@ def increment_view_count(obj):
         views_count=F('views_count') + 1
     )
 
-# Progress calculation
 def calculate_course_progress(enrollment):
-    """Calculate course completion percentage with better accuracy"""
+    """Calculate course completion percentage"""
     from courses.models import Lesson, LessonProgress
     
     total_lessons = Lesson.objects.filter(
@@ -152,7 +140,7 @@ def calculate_course_progress(enrollment):
     return round((completed_lessons / total_lessons) * 100, 2)
 
 def update_enrollment_progress(enrollment):
-    """Update enrollment progress percentage with real-time calculation"""
+    """Update enrollment progress percentage"""
     progress = calculate_course_progress(enrollment)
     enrollment.progress_percentage = progress
     
@@ -161,13 +149,14 @@ def update_enrollment_progress(enrollment):
         enrollment.status = 'completed'
         enrollment.completed_at = timezone.now()
         
-        # Trigger certificate generation
+        # Trigger certificate generation if available
         try:
             from courses.tasks import generate_certificate_task
             generate_certificate_task.delay(enrollment.id)
         except ImportError:
             # Handle case where Celery is not available
-            pass
+            logger.info(f"Certificate generation queued for enrollment {enrollment.id}")
+            
     elif progress > 0 and enrollment.status == 'enrolled':
         enrollment.status = 'in_progress'
         enrollment.started_at = timezone.now()
@@ -175,7 +164,26 @@ def update_enrollment_progress(enrollment):
     enrollment.save()
     return progress
 
-# Quiz scoring
+# Cache utilities
+def get_or_set_cache(key, func, timeout=3600):
+    """Get from cache or set if not exists"""
+    value = cache.get(key)
+    if value is None:
+        value = func()
+        cache.set(key, value, timeout)
+    return value
+
+def invalidate_cache_pattern(pattern):
+    """Invalidate all cache keys matching pattern"""
+    if hasattr(cache, '_cache'):
+        try:
+            keys = cache._cache.keys(f"*{pattern}*")
+            cache.delete_many(keys)
+        except AttributeError:
+            # Fallback for different cache backends
+            pass
+
+# Quiz scoring utilities
 def calculate_quiz_score(quiz_attempt):
     """Calculate score for a quiz attempt"""
     from courses.models import QuestionResponse
@@ -196,6 +204,7 @@ def calculate_quiz_score(quiz_attempt):
 # File utilities
 def get_file_hash(file):
     """Generate hash for uploaded file"""
+    import hashlib
     hasher = hashlib.md5()
     for chunk in file.chunks():
         hasher.update(chunk)
@@ -221,18 +230,151 @@ def check_rate_limit(key, max_attempts=5, window=3600):
 # Email utilities
 def send_course_enrollment_email(enrollment):
     """Send enrollment confirmation email"""
-    from accounts.utils import send_email
+    try:
+        from accounts.utils import send_email
+        
+        context = {
+            'user_name': enrollment.student.get_full_name(),
+            'course_title': enrollment.course.title,
+            'instructor_name': enrollment.course.instructor.get_full_name(),
+            'course_url': f"{getattr(settings, 'FRONTEND_URL', '')}/courses/{enrollment.course.uuid}",
+        }
+        
+        send_email(
+            to_email=enrollment.student.email,
+            subject=f"Enrolled in {enrollment.course.title}",
+            template_name='course_enrollment',
+            context=context
+        )
+    except ImportError:
+        logger.warning("Email sending not configured")
+    except Exception as e:
+        logger.error(f"Failed to send enrollment email: {e}")
+
+# Learning analytics helpers
+def get_study_streak(user):
+    """Get user's current study streak in days"""
+    from core.models import ActivityLog
     
-    context = {
-        'user_name': enrollment.student.get_full_name(),
-        'course_title': enrollment.course.title,
-        'instructor_name': enrollment.course.instructor.get_full_name(),
-        'course_url': f"{settings.FRONTEND_URL}/courses/{enrollment.course.uuid}",
-    }
+    today = timezone.now().date()
+    streak = 0
     
-    send_email(
-        to_email=enrollment.student.email,
-        subject=f"Enrolled in {enrollment.course.title}",
-        template_name='course_enrollment',
-        context=context
+    for i in range(365):  # Check up to 1 year
+        check_date = today - timedelta(days=i)
+        has_activity = ActivityLog.objects.filter(
+            user=user,
+            created_at__date=check_date
+        ).exists()
+        
+        if has_activity:
+            streak += 1
+        else:
+            break
+            
+    return streak
+
+def calculate_engagement_score(course):
+    """Calculate course engagement score (0-100)"""
+    from courses.models import Enrollment
+    from core.models import Discussion
+    from courses.models import QuizAttempt
+    
+    enrollments = course.enrollments.filter(is_active=True)
+    if not enrollments.exists():
+        return 0
+    
+    completion_rate = enrollments.filter(status='completed').count() / enrollments.count()
+    avg_progress = enrollments.aggregate(avg=Avg('progress_percentage'))['avg'] or 0
+    
+    forum_activity = Discussion.objects.filter(forum__course=course).count()
+    quiz_participation = QuizAttempt.objects.filter(quiz__course=course).count()
+    
+    # Weighted engagement score
+    engagement = (
+        completion_rate * 40 +  # 40% weight on completion
+        (avg_progress / 100) * 30 +  # 30% weight on progress
+        min(forum_activity / enrollments.count(), 1) * 20 +  # 20% weight on discussions
+        min(quiz_participation / enrollments.count(), 1) * 10  # 10% weight on quiz participation
     )
+    
+    return round(engagement * 100, 1)
+
+# Time utilities
+def format_duration(seconds):
+    """Format duration in seconds to human readable"""
+    if seconds < 60:
+        return f"{seconds}s"
+    elif seconds < 3600:
+        minutes = seconds // 60
+        return f"{minutes}m"
+    else:
+        hours = seconds // 3600
+        minutes = (seconds % 3600) // 60
+        if minutes > 0:
+            return f"{hours}h {minutes}m"
+        return f"{hours}h"
+
+# Validation utilities
+def validate_course_access(user, course):
+    """Check if user has access to course"""
+    from courses.models import Enrollment
+    
+    # Course instructor always has access
+    if course.instructor == user:
+        return True
+    
+    # Co-instructors have access
+    if user in course.co_instructors.all():
+        return True
+    
+    # Staff/admins have access
+    if user.is_staff or user.role in ['manager', 'admin']:
+        return True
+    
+    # Students need active enrollment
+    if user.role == 'student':
+        return Enrollment.objects.filter(
+            student=user,
+            course=course,
+            is_active=True
+        ).exists()
+    
+    return False
+
+def validate_lesson_access(user, lesson):
+    """Check if user has access to lesson"""
+    course = lesson.module.course
+    
+    # Check course access first
+    if not validate_course_access(user, course):
+        return False
+    
+    # Check if lesson is published (except for instructors)
+    if not lesson.is_published and course.instructor != user and not user.is_staff:
+        return False
+    
+    # Check if lesson is preview or user is enrolled
+    if lesson.is_preview:
+        return True
+    
+    return validate_course_access(user, course)
+
+# Error handling utilities
+def handle_db_error(func):
+    """Decorator to handle database errors gracefully"""
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Database error in {func.__name__}: {e}")
+            return None
+    return wrapper
+
+# Import utilities for missing imports
+def safe_import(module_path, class_name):
+    """Safely import a class/function"""
+    try:
+        module = __import__(module_path, fromlist=[class_name])
+        return getattr(module, class_name)
+    except (ImportError, AttributeError):
+        return None
