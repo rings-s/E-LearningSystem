@@ -6,6 +6,13 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 class ApiClient {
 	constructor() {
 		this.baseURL = API_BASE_URL;
+		console.log('ApiClient Constructor Debug:', {
+			API_BASE_URL,
+			envValue: import.meta.env.VITE_API_BASE_URL,
+			finalBaseURL: this.baseURL,
+			baseURLType: typeof this.baseURL,
+			rawBaseURL: JSON.stringify(this.baseURL)
+		});
 	}
 
 	getToken() {
@@ -14,7 +21,20 @@ class ApiClient {
 	}
 
 	async request(endpoint, options = {}) {
-		const url = `${this.baseURL}${endpoint}`;
+		// Ensure we have valid base URL and endpoint
+		const baseURL = this.baseURL || 'http://localhost:8000';
+		const cleanEndpoint = String(endpoint || '').trim();
+		
+		// Construct URL properly - ensure endpoint starts with /
+		const url = `${baseURL}${cleanEndpoint.startsWith('/') ? cleanEndpoint : '/' + cleanEndpoint}`;
+		
+		console.log('API Request:', { 
+			baseURL,
+			endpoint: cleanEndpoint,
+			constructedURL: url,
+			method: options.method || 'GET'
+		});
+		
 		const token = this.getToken();
 
 		const config = {
@@ -32,29 +52,44 @@ class ApiClient {
 
 		try {
 			const response = await fetch(url, config);
-
-			// Handle 401 - token expired/invalid
-			if (response.status === 401 && browser && !options.skipAuth) {
-				// Clear invalid tokens
-				localStorage.removeItem('access_token');
-				localStorage.removeItem('refresh_token');
-
-				// Redirect to login if not already on auth page
-				if (!window.location.pathname.includes('/login')) {
-					window.location.href = '/login';
+			
+			if (!response.ok) {
+				let errorData;
+				try {
+					errorData = await response.json();
+				} catch (jsonError) {
+					errorData = { message: `HTTP ${response.status} ${response.statusText}` };
 				}
-				throw new Error('Unauthorized');
+				
+				console.error('API Error:', {
+					url,
+					status: response.status,
+					statusText: response.statusText,
+					errorData
+				});
+				
+				// Create a structured error with status code and response data
+				const error = new Error(errorData.detail || errorData.message || errorData.error?.message || `HTTP ${response.status}`);
+				error.status = response.status;
+				error.data = errorData;
+				error.response = { data: errorData, status: response.status };
+				throw error;
 			}
 
 			const data = await response.json();
-
-			if (!response.ok) {
-				throw new Error(data.error?.message || data.message || `HTTP ${response.status}`);
-			}
-
 			return data;
 		} catch (error) {
-			console.error('API Error:', error);
+			if (error.name === 'TypeError' && error.message.includes('fetch')) {
+				console.error('Network Error:', error);
+				const networkError = new Error('Network error - please check your connection');
+				networkError.isNetworkError = true;
+				throw networkError;
+			}
+			
+			// Don't log 401 errors as they're handled by auth store
+			if (error.status !== 401) {
+				console.error('API Error:', error);
+			}
 			throw error;
 		}
 	}

@@ -1,318 +1,179 @@
+
 from django.contrib import admin
-from django.utils.translation import gettext_lazy as _
-from django.http import HttpResponse
-from django.urls import reverse
-from django.utils.html import format_html
-from django import forms
-import csv
-import datetime
 from .models import (
-    Category, Tag, Course, Enrollment, Module, Lesson, LessonProgress, Resource,
-    Quiz, Question, Answer, QuizAttempt, QuestionResponse, Certificate, CourseReview
+    Category, Tag, Course, Enrollment, Module, Lesson, LessonProgress, 
+    Resource, Quiz, Question, Answer, QuizAttempt, QuestionResponse, 
+    Certificate, CourseReview, CourseFavorite, Assignment, AssignmentSubmission
 )
 
-# Custom Admin Mixins
-class ExportCsvMixin:
-    def export_as_csv(self, request, queryset):
-        meta = self.model._meta
-        field_names = [field.name for field in meta.fields if field.name != 'uuid']
+# Inline classes for better management in the admin panel
 
-        response = HttpResponse(content_type='text/csv')
-        response['Content-Disposition'] = f'attachment; filename={meta}_export_{datetime.datetime.now().strftime("%Y%m%d")}.csv'
-        writer = csv.writer(response)
-
-        writer.writerow(field_names)
-        for obj in queryset:
-            row = [getattr(obj, field) for field in field_names]
-            writer.writerow(row)
-
-        return response
-
-    export_as_csv.short_description = _("Export Selected as CSV")
-
-# Resource Inline
-class ResourceInline(admin.TabularInline):
-    model = Resource
-    extra = 1
-    fields = ('title', 'resource_type', 'file', 'url', 'order', 'is_required')
-
-# Answer Inline
-class AnswerInline(admin.TabularInline):
-    model = Answer
-    extra = 2
-    fields = ('answer_text', 'is_correct', 'order', 'feedback')
-
-# Question Inline
-class QuestionInline(admin.StackedInline):
-    model = Question
-    extra = 1
-    fields = ('question_text', 'question_type', 'points', 'order', 'is_required', 'explanation')
-    # inlines = [AnswerInline]  # Nested inlines not supported in Django admin
-
-# Lesson Inline
 class LessonInline(admin.StackedInline):
     model = Lesson
     extra = 1
-    fields = ('title', 'slug', 'content_type', 'video_url', 'video_duration', 'text_content', 
-              'file_attachment', 'order', 'is_preview', 'is_published', 'requires_submission', 'points')
     prepopulated_fields = {'slug': ('title',)}
 
-# Quiz Inline
-class QuizInline(admin.StackedInline):
-    model = Quiz
-    extra = 1
-    fields = ('title', 'quiz_type', 'passing_score', 'max_attempts', 'time_limit_minutes', 
-              'randomize_questions', 'is_published')
-
-# Module Inline
 class ModuleInline(admin.StackedInline):
     model = Module
     extra = 1
-    fields = ('title', 'description', 'order', 'is_published')
-    # inlines = [LessonInline]  # Nested inlines not supported in Django admin
 
-# Category Admin
+class CoInstructorInline(admin.TabularInline):
+    model = Course.co_instructors.through
+    verbose_name = "Co-instructor"
+    verbose_name_plural = "Co-instructors"
+    extra = 1
+
+class QuestionInline(admin.StackedInline):
+    model = Question
+    extra = 1
+
+class AnswerInline(admin.TabularInline):
+    model = Answer
+    extra = 2
+
+# ModelAdmin classes
+
+@admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('name', 'slug', 'parent', 'is_active', 'order', 'created_at')
-    list_filter = ('is_active', 'parent', 'created_at')
+    list_display = ('name', 'slug', 'parent', 'is_active', 'order')
+    list_filter = ('is_active', 'parent')
     search_fields = ('name', 'description')
     prepopulated_fields = {'slug': ('name',)}
-    list_editable = ('order', 'is_active')
-    fieldsets = (
-        (_('Basic Information'), {
-            'fields': ('name', 'slug', 'description')
-        }),
-        (_('Hierarchy'), {
-            'fields': ('parent', 'icon', 'order')
-        }),
-        (_('Status'), {
-            'fields': ('is_active',)
-        }),
-    )
-    actions = ['make_active', 'make_inactive']
+    ordering = ('order', 'name')
 
-    def make_active(self, request, queryset):
-        queryset.update(is_active=True)
-        self.message_user(request, _("Selected categories activated"))
-    make_active.short_description = _("Activate selected categories")
-
-    def make_inactive(self, request, queryset):
-        queryset.update(is_active=False)
-        self.message_user(request, _("Selected categories deactivated"))
-    make_inactive.short_description = _("Deactivate selected categories")
-
-# Tag Admin
+@admin.register(Tag)
 class TagAdmin(admin.ModelAdmin):
     list_display = ('name', 'slug')
     search_fields = ('name',)
     prepopulated_fields = {'slug': ('name',)}
 
-# Course Admin
-class CourseForm(forms.ModelForm):
-    class Meta:
-        model = Course
-        fields = '__all__'
-
-    def clean(self):
-        cleaned_data = super().clean()
-        status = cleaned_data.get('status')
-        published_at = cleaned_data.get('published_at')
-        if status == 'published' and not published_at:
-            cleaned_data['published_at'] = datetime.datetime.now()
-        return cleaned_data
-
-class CourseAdmin(admin.ModelAdmin, ExportCsvMixin):
-    form = CourseForm
-    list_display = ('title', 'instructor', 'category', 'level', 'status', 'is_featured', 
-                    'enrolled_students_count', 'average_rating', 'views_count', 'created_at')
-    
-    list_filter = ('status', 'level', 'is_featured', 'category', 'created_at')
-    search_fields = ('title', 'description', 'short_description')
+@admin.register(Course)
+class CourseAdmin(admin.ModelAdmin):
+    list_display = ('title', 'instructor', 'category', 'level', 'status', 'is_featured', 'published_at')
+    list_filter = ('status', 'level', 'is_featured', 'category', 'instructor')
+    search_fields = ('title', 'description', 'instructor__email')
     prepopulated_fields = {'slug': ('title',)}
-    filter_horizontal = ('co_instructors', 'tags')
-    inlines = [ModuleInline, QuizInline]
-    actions = ['publish_courses', 'archive_courses', 'export_as_csv']
-    readonly_fields = ('created_at', 'updated_at', 'published_at', 'views_count')
+    inlines = [ModuleInline, CoInstructorInline]
+    autocomplete_fields = ('instructor', 'category')
+    filter_horizontal = ('tags', 'co_instructors')
+    readonly_fields = ('published_at', 'views_count')
     fieldsets = (
-        (_('Basic Information'), {
-            'fields': ('title', 'slug', 'short_description', 'description')
+        (None, {
+            'fields': ('title', 'slug', 'instructor', 'description', 'short_description')
         }),
-        (_('Organization'), {
-            'fields': ('category', 'tags')
+        ('Details', {
+            'fields': ('category', 'tags', 'level', 'language', 'duration_hours', 'prerequisites', 'learning_outcomes')
         }),
-        (_('Instructors'), {
-            'fields': ('instructor', 'co_instructors')
-        }),
-        (_('Content Details'), {
-            'fields': ('level', 'language', 'duration_hours', 'prerequisites', 'learning_outcomes')
-        }),
-        (_('Media'), {
+        ('Media', {
             'fields': ('thumbnail', 'preview_video')
         }),
-        (_('Settings'), {
-            'fields': ('status', 'is_featured', 'enrollment_limit', 'certificate_template')
+        ('Status & Visibility', {
+            'fields': ('status', 'is_featured', 'enrollment_limit', 'published_at')
         }),
-        (_('Timestamps'), {
-            'fields': ('created_at', 'updated_at', 'published_at')
+        ('Certificate', {
+            'fields': ('certificate_template',)
         }),
     )
 
-    def publish_courses(self, request, queryset):
-        for course in queryset:
-            course.publish()
-        self.message_user(request, _("Selected courses published"))
-    publish_courses.short_description = _("Publish selected courses")
-
-    def archive_courses(self, request, queryset):
-        queryset.update(status='archived')
-        self.message_user(request, _("Selected courses archived"))
-    archive_courses.short_description = _("Archive selected courses")
-
-# Module Admin
-class ModuleAdmin(admin.ModelAdmin):
-    list_display = ('title', 'course', 'order', 'is_published', 'created_at')
-    list_filter = ('is_published', 'course', 'created_at')
-    search_fields = ('title', 'description')
-    inlines = [LessonInline]
-    list_editable = ('order', 'is_published')
-
-# Enrollment Admin
-class EnrollmentAdmin(admin.ModelAdmin, ExportCsvMixin):
-    list_display = ('student', 'course', 'status', 'progress_percentage', 'enrolled_at', 
-                    'certificate_issued')
-    list_filter = ('status', 'is_active', 'certificate_issued', 'enrolled_at')
+@admin.register(Enrollment)
+class EnrollmentAdmin(admin.ModelAdmin):
+    list_display = ('student', 'course', 'status', 'enrolled_at', 'completed_at', 'progress_percentage')
+    list_filter = ('status', 'course', 'student')
     search_fields = ('student__email', 'course__title')
-    actions = ['issue_certificates', 'export_as_csv']
-    readonly_fields = ('enrolled_at', 'started_at', 'completed_at', 'certificate_issued_at')
+    autocomplete_fields = ('student', 'course')
+    readonly_fields = ('enrolled_at',)
 
-    def issue_certificates(self, request, queryset):
-        for enrollment in queryset.filter(status='completed', certificate_issued=False):
-            Certificate.objects.create(
-                student=enrollment.student,
-                course=enrollment.course,
-                enrollment=enrollment,
-                completion_date=datetime.date.today(),
-                final_score=85.00  # Example score
-            )
-            enrollment.certificate_issued = True
-            enrollment.certificate_issued_at = datetime.datetime.now()
-            enrollment.save()
-        self.message_user(request, _("Certificates issued for selected enrollments"))
-    issue_certificates.short_description = _("Issue certificates for selected enrollments")
+@admin.register(Module)
+class ModuleAdmin(admin.ModelAdmin):
+    list_display = ('title', 'course', 'order', 'is_published')
+    list_filter = ('course', 'is_published')
+    search_fields = ('title', 'course__title')
+    inlines = [LessonInline]
+    ordering = ('course', 'order')
 
-# Lesson Admin
+@admin.register(Lesson)
 class LessonAdmin(admin.ModelAdmin):
-    list_display = ('title', 'module', 'content_type', 'is_published', 'is_preview', 'order')
-    list_filter = ('content_type', 'is_published', 'is_preview', 'module__course')
-    search_fields = ('title', 'description')
+    list_display = ('title', 'module', 'content_type', 'order', 'is_published')
+    list_filter = ('module__course', 'content_type', 'is_published')
+    search_fields = ('title', 'description', 'module__title')
     prepopulated_fields = {'slug': ('title',)}
-    inlines = [ResourceInline]
+    ordering = ('module', 'order')
 
-# LessonProgress Admin
+@admin.register(LessonProgress)
 class LessonProgressAdmin(admin.ModelAdmin):
-    list_display = ('enrollment', 'lesson', 'is_completed', 'time_spent_seconds', 'started_at')
-    list_filter = ('is_completed', 'started_at')
+    list_display = ('enrollment', 'lesson', 'is_completed', 'completed_at', 'time_spent_seconds')
+    list_filter = ('is_completed', 'lesson__module__course')
     search_fields = ('enrollment__student__email', 'lesson__title')
-    readonly_fields = ('started_at', 'completed_at')
+    autocomplete_fields = ('enrollment', 'lesson')
 
-# Resource Admin
+@admin.register(Resource)
 class ResourceAdmin(admin.ModelAdmin):
-    list_display = ('title', 'lesson', 'resource_type', 'is_required', 'order')
-    list_filter = ('resource_type', 'is_required')
+    list_display = ('title', 'lesson', 'resource_type', 'order')
+    list_filter = ('resource_type', 'lesson__module__course')
     search_fields = ('title', 'description')
 
-# Quiz Admin
+@admin.register(Quiz)
 class QuizAdmin(admin.ModelAdmin):
     list_display = ('title', 'course', 'quiz_type', 'is_published', 'passing_score')
     list_filter = ('quiz_type', 'is_published', 'course')
-    search_fields = ('title', 'instructions')
+    search_fields = ('title', 'instructions', 'course__title')
     inlines = [QuestionInline]
+    autocomplete_fields = ('course', 'lesson', 'module')
 
-# Question Admin
+@admin.register(Question)
 class QuestionAdmin(admin.ModelAdmin):
-    list_display = ('question_text_short', 'quiz', 'question_type', 'points', 'order')
+    list_display = ('question_text', 'quiz', 'question_type', 'points', 'order')
     list_filter = ('question_type', 'quiz__course')
-    search_fields = ('question_text',)
+    search_fields = ('question_text', 'quiz__title')
     inlines = [AnswerInline]
 
-    def question_text_short(self, obj):
-        return obj.question_text[:50] + '...' if len(obj.question_text) > 50 else obj.question_text
-    question_text_short.short_description = _('Question Text')
-
-# Answer Admin
+@admin.register(Answer)
 class AnswerAdmin(admin.ModelAdmin):
-    list_display = ('answer_text_short', 'question', 'is_correct', 'order')
-    list_filter = ('is_correct',)
-    search_fields = ('answer_text',)
+    list_display = ('answer_text', 'question', 'is_correct', 'order')
+    list_filter = ('is_correct', 'question__quiz__course')
+    search_fields = ('answer_text', 'question__question_text')
 
-    def answer_text_short(self, obj):
-        return obj.answer_text[:50] + '...' if len(obj.answer_text) > 50 else obj.answer_text
-    answer_text_short.short_description = _('Answer Text')
-
-# QuizAttempt Admin
-class QuizAttemptAdmin(admin.ModelAdmin, ExportCsvMixin):
-    list_display = ('student', 'quiz', 'score', 'passed', 'attempt_number', 'started_at')
-    list_filter = ('passed', 'quiz__course', 'started_at')
+@admin.register(QuizAttempt)
+class QuizAttemptAdmin(admin.ModelAdmin):
+    list_display = ('student', 'quiz', 'attempt_number', 'score', 'passed', 'completed_at')
+    list_filter = ('passed', 'quiz__course', 'student')
     search_fields = ('student__email', 'quiz__title')
-    actions = ['export_as_csv']
     readonly_fields = ('started_at', 'completed_at')
 
-# QuestionResponse Admin
+@admin.register(QuestionResponse)
 class QuestionResponseAdmin(admin.ModelAdmin):
-    list_display = ('attempt', 'question', 'is_correct', 'points_earned', 'answered_at')
-    list_filter = ('is_correct', 'answered_at')
-    search_fields = ('question__question_text',)
-    readonly_fields = ('answered_at',)
+    list_display = ('attempt', 'question', 'is_correct', 'points_earned')
+    list_filter = ('is_correct', 'question__quiz__course')
+    search_fields = ('attempt__student__email', 'question__question_text')
 
-# Certificate Admin
-class CertificateAdmin(admin.ModelAdmin, ExportCsvMixin):
-    list_display = ('certificate_number', 'student', 'course', 'issue_date', 'is_valid', 'view_verification')
-    list_filter = ('is_valid', 'issue_date')
+@admin.register(Certificate)
+class CertificateAdmin(admin.ModelAdmin):
+    list_display = ('certificate_number', 'student', 'course', 'issue_date', 'is_valid')
+    list_filter = ('is_valid', 'course')
     search_fields = ('certificate_number', 'student__email', 'course__title')
-    actions = ['invalidate_certificates', 'export_as_csv']
-    readonly_fields = ('created_at', 'updated_at', 'issue_date', 'qr_code')
+    readonly_fields = ('issue_date', 'created_at', 'updated_at', 'pdf_file', 'qr_code')
+    autocomplete_fields = ('student', 'course', 'enrollment')
 
-    def view_verification(self, obj):
-        if obj.verification_url:
-            return format_html('<a href="{}" target="_blank">Verify</a>', obj.verification_url)
-        return '-'
-    view_verification.short_description = _('Verification URL')
+@admin.register(CourseReview)
+class CourseReviewAdmin(admin.ModelAdmin):
+    list_display = ('student', 'course', 'rating', 'created_at', 'is_verified')
+    list_filter = ('rating', 'is_verified', 'course')
+    search_fields = ('student__email', 'course__title', 'comment')
 
-    def invalidate_certificates(self, request, queryset):
-        queryset.update(is_valid=False)
-        self.message_user(request, _("Selected certificates invalidated"))
-    invalidate_certificates.short_description = _("Invalidate selected certificates")
+@admin.register(CourseFavorite)
+class CourseFavoriteAdmin(admin.ModelAdmin):
+    list_display = ('user', 'course', 'created_at')
+    search_fields = ('user__email', 'course__title')
 
-# CourseReview Admin
-class CourseReviewAdmin(admin.ModelAdmin, ExportCsvMixin):
-    list_display = ('course', 'student', 'rating', 'comment_short', 'is_verified', 'helpful_count')
-    list_filter = ('rating', 'is_verified', 'created_at')
-    search_fields = ('comment', 'student__email', 'course__title')
-    actions = ['verify_reviews', 'export_as_csv']
-    readonly_fields = ('created_at', 'updated_at')
+@admin.register(Assignment)
+class AssignmentAdmin(admin.ModelAdmin):
+    list_display = ('title', 'lesson', 'due_date', 'max_points')
+    list_filter = ('lesson__module__course',)
+    search_fields = ('title', 'description')
 
-    def comment_short(self, obj):
-        return obj.comment[:50] + '...' if len(obj.comment) > 50 else obj.comment
-    comment_short.short_description = _('Comment')
-
-    def verify_reviews(self, request, queryset):
-        queryset.update(is_verified=True)
-        self.message_user(request, _("Selected reviews verified"))
-    verify_reviews.short_description = _("Verify selected reviews")
-
-# Register Models
-admin.site.register(Category, CategoryAdmin)
-admin.site.register(Tag, TagAdmin)
-admin.site.register(Course, CourseAdmin)
-admin.site.register(Enrollment, EnrollmentAdmin)
-admin.site.register(Module, ModuleAdmin)
-admin.site.register(Lesson, LessonAdmin)
-admin.site.register(LessonProgress, LessonProgressAdmin)
-admin.site.register(Resource, ResourceAdmin)
-admin.site.register(Quiz, QuizAdmin)
-admin.site.register(Question, QuestionAdmin)
-admin.site.register(Answer, AnswerAdmin)
-admin.site.register(QuizAttempt, QuizAttemptAdmin)
-admin.site.register(QuestionResponse, QuestionResponseAdmin)
-admin.site.register(Certificate, CertificateAdmin)
-admin.site.register(CourseReview, CourseReviewAdmin)
+@admin.register(AssignmentSubmission)
+class AssignmentSubmissionAdmin(admin.ModelAdmin):
+    list_display = ('assignment', 'student', 'submission_date', 'grade', 'status')
+    list_filter = ('status', 'assignment__lesson__module__course')
+    search_fields = ('student__email', 'assignment__title')
+    readonly_fields = ('submission_date',)

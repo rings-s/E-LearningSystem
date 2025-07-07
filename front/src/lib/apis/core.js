@@ -4,8 +4,12 @@ import { api } from './index.js';
 export const coreApi = {
 	// Dashboard
 	async getDashboard() {
-		return api.get('/api/core/dashboard/');
-	},
+        return api.get('/api/core/dashboard/');
+    },
+
+    async getDashboardSummary() {
+        return api.get('/api/core/dashboard/summary/');
+    },
 
 	// Enhanced Analytics Endpoints
 	async getStudentAnalytics() {

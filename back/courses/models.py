@@ -514,3 +514,63 @@ class CourseFavorite(models.Model):
 
     def __str__(self):
         return f"{self.user.email} - {self.course.title}"
+
+# Assignments
+class Assignment(models.Model):
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE, related_name='assignments')
+    
+    title = models.CharField(max_length=200, verbose_name=_('Assignment Title'))
+    description = models.TextField(verbose_name=_('Description'))
+    
+    due_date = models.DateTimeField()
+    max_points = models.PositiveIntegerField(default=100)
+    
+    # Allowed file types
+    allowed_file_extensions = models.CharField(max_length=200, blank=True, help_text=_("Comma-separated list of extensions, e.g., 'pdf,docx,zip'"))
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _('Assignment')
+        verbose_name_plural = _('Assignments')
+        ordering = ['lesson', 'due_date']
+
+    def __str__(self):
+        return f"{self.lesson.title} - {self.title}"
+
+class AssignmentSubmission(models.Model):
+    STATUS_CHOICES = [
+        ('submitted', _('Submitted')),
+        ('graded', _('Graded')),
+        ('late', _('Late')),
+        ('resubmitted', _('Resubmitted')),
+    ]
+
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name='submissions')
+    student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='assignment_submissions')
+    enrollment = models.ForeignKey(Enrollment, on_delete=models.CASCADE, related_name='assignment_submissions')
+    
+    submission_date = models.DateTimeField(auto_now_add=True)
+    
+    file = models.FileField(upload_to='assignments/submissions/', null=True, blank=True)
+    text_submission = models.TextField(blank=True)
+    
+    grade = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    feedback = models.TextField(blank=True)
+    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='submitted')
+    
+    graded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='graded_submissions')
+    graded_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = _('Assignment Submission')
+        verbose_name_plural = _('Assignment Submissions')
+        unique_together = ['assignment', 'student']
+        ordering = ['-submission_date']
+
+    def __str__(self):
+        return f"{self.assignment.title} - {self.student.email}"

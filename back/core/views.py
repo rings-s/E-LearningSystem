@@ -489,9 +489,20 @@ class StudentAnalyticsView(APIView):
     
     def get(self, request):
         user = request.user
-        
-        if user.role != 'student':
-            return Response({'detail': 'Student access only'}, status=status.HTTP_403_FORBIDDEN)
+        target_user_id = request.query_params.get('user_id')
+
+        if user.role not in ['manager', 'admin'] and not user.is_staff:
+            if target_user_id and str(user.id) != target_user_id:
+                return Response({'detail': 'You can only view your own analytics.'}, status=status.HTTP_403_FORBIDDEN)
+            analytics_user = user
+        else:
+            if target_user_id:
+                try:
+                    analytics_user = User.objects.get(id=target_user_id)
+                except User.DoesNotExist:
+                    return Response({'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+            else:
+                return Response({'detail': 'Please provide a user_id for analytics.'}, status=status.HTTP_400_BAD_REQUEST)
         
         try:
             # Get student enrollments
@@ -1021,3 +1032,64 @@ class DashboardView(APIView):
                 status__in=['open', 'in_progress']
             ).count()
         })
+
+# =============================================================================
+# NEW DASHBOARD SUMMARY VIEW
+# =============================================================================
+
+class DashboardSummaryView(APIView):
+    """Provides a high-level, aggregated overview of the entire platform."""
+    permission_classes = [IsAuthenticated, IsManagerOrAdmin]
+
+    def get(self, request):
+        # Date range for recent activity
+        seven_days_ago = timezone.now() - timedelta(days=7)
+
+        # Platform-Wide Statistics
+        total_users = User.objects.count()
+        courses_by_status = Course.objects.values('status').annotate(count=Count('id'))
+        total_enrollments = Enrollment.objects.count()
+        active_tickets = SupportTicket.objects.filter(status__in=['open', 'in_progress']).count()
+
+        # Recent Activity (Last 7 Days)
+        new_users = User.objects.filter(date_joined__gte=seven_days_ago).count()
+        new_enrollments = Enrollment.objects.filter(enrolled_at__gte=seven_days_ago).count()
+        completed_courses = Enrollment.objects.filter(completed_at__gte=seven_days_ago).count()
+        new_discussions = Discussion.objects.filter(created_at__gte=seven_days_ago).count()
+
+        # Key Engagement Metrics (Recent 5)
+        recent_courses = Course.objects.order_by('-published_at')[:5]
+        recent_users = User.objects.order_by('-date_joined')[:5]
+        recent_tickets = SupportTicket.objects.order_by('-created_at')[:5]
+
+        # Prepare response
+        response_data = {
+            'platform_stats': {
+                'total_users': total_users,
+                'total_courses': {
+                    'published': next((item['count'] for item in courses_by_status if item['status'] == 'published'), 0),
+                    'draft': next((item['count'] for item in courses_by_status if item['status'] == 'draft'), 0),
+                    'archived': next((item['count'] for item in courses_by_status if item['status'] == 'archived'), 0),
+                },
+                'total_enrollments': total_enrollments,
+                'active_tickets': active_tickets,
+            },
+            'recent_activity': {
+                'new_users_7_days': new_users,
+                'new_enrollments_7_days': new_enrollments,
+                'completed_courses_7_days': completed_courses,
+                'new_discussions_7_days': new_discussions,
+            },
+            'engagement_metrics': {
+                'recent_courses': [
+                    {'title': c.title, 'published_at': c.published_at} for c in recent_courses
+                ],
+                'recent_users': [
+                    {'email': u.email, 'date_joined': u.date_joined} for u in recent_users
+                ],
+                'recent_tickets': [
+                    {'subject': t.subject, 'status': t.status, 'created_at': t.created_at} for t in recent_tickets
+                ],
+            }
+        }
+        return Response(response_data)

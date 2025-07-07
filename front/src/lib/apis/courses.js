@@ -28,6 +28,12 @@ export const coursesApi = {
     },
 
     async createCourse(data) {
+        console.log('createCourse Debug:', {
+            endpoint: '/api/courses/',
+            data,
+            dataType: typeof data,
+            apiInstance: api
+        });
         return api.post('/api/courses/', data);
     },
 

@@ -2,7 +2,7 @@
 <script>
 	import { onMount, onDestroy } from 'svelte';
 	import { fade, fly, scale } from 'svelte/transition';
-	import { currentUser } from '$lib/stores/auth.store.js';
+	import { currentUser, authStore } from '$lib/stores/auth.store.js';
 	import { analyticsService } from '$lib/services/analytics.service.js';
 	import { coreApi } from '$lib/apis/core.js';
 	import { coursesApi } from '$lib/apis/courses.js';
@@ -68,7 +68,7 @@
 					})
 				);
 				promises.push(
-					coursesApi.getMyEnrollments().catch(err => {
+					authStore.makeAuthenticatedRequest(() => coursesApi.getMyEnrollments()).catch(err => {
 						console.error('Failed to load enrollments:', err);
 						return [];
 					})
@@ -100,14 +100,6 @@
 					})
 				);
 			}
-
-			// Always load general dashboard data
-			promises.push(
-				coreApi.getDashboard().catch(err => {
-					console.error('Failed to load dashboard data:', err);
-					return getFallbackData();
-				})
-			);
 
 			// Wait for all promises to resolve
 			const results = await Promise.allSettled(promises);

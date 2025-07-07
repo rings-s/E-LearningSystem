@@ -11,7 +11,7 @@ from .views import (
     MediaContentListCreateView, MediaContentDetailView,
     AnnouncementListCreateView, AnnouncementDetailView,
     SupportTicketListCreateView, SupportTicketDetailView,
-    DashboardView, StudentAnalyticsView, TeacherAnalyticsView, PlatformAnalyticsView
+    DashboardView, StudentAnalyticsView, TeacherAnalyticsView, PlatformAnalyticsView, DashboardSummaryView
 )
 
 app_name = 'core'
@@ -57,6 +57,7 @@ urlpatterns = [
     
     # Dashboard
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
+    path('dashboard/summary/', DashboardSummaryView.as_view(), name='dashboard-summary'),
     
     # Analytics
     path('student-analytics/', StudentAnalyticsView.as_view(), name='student-analytics'),

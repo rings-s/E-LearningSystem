@@ -5,12 +5,13 @@
 	let {
 		name = '',
 		label = '',
-		value = $bindable(''),
+		value = $bindable(null),
 		options = [],
 		placeholder = 'Select an option',
 		error = '',
 		disabled = false,
 		required = false,
+		allowNull = false,
 		class: className = '',
 		onchange = () => {},
 		...rest
@@ -49,7 +50,7 @@
 			{...rest}
 		>
 			{#if placeholder}
-				<option value="" disabled selected={!value}>
+				<option value={allowNull ? null : ""} disabled={!allowNull} selected={!value && value !== 0}>
 					{placeholder}
 				</option>
 			{/if}

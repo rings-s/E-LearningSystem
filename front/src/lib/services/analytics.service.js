@@ -1,6 +1,7 @@
 // front/src/lib/services/analytics.service.js - Enhanced integration
 import { coreApi } from '../apis/core.js';
 import { coursesApi } from '../apis/courses.js';
+import { authStore } from '../stores/auth.store.js';
 
 class AnalyticsService {
 	constructor() {
@@ -15,8 +16,8 @@ class AnalyticsService {
 		if (cached) return cached;
 
 		try {
-			// Use the backend analytics endpoint directly
-			const response = await coreApi.getStudentAnalytics();
+			// Use the backend analytics endpoint directly with auth wrapper
+			const response = await authStore.makeAuthenticatedRequest(() => coreApi.getStudentAnalytics());
 			
 			// Process and enhance the backend data
 			const analytics = {
@@ -56,7 +57,7 @@ class AnalyticsService {
 		if (cached) return cached;
 
 		try {
-			const response = await coreApi.getTeacherAnalytics();
+			const response = await authStore.makeAuthenticatedRequest(() => coreApi.getTeacherAnalytics());
 			
 			const analytics = {
 				summary: response.summary || {},
@@ -95,12 +96,12 @@ class AnalyticsService {
 		if (cached) return cached;
 
 		try {
-			const response = await coreApi.getPlatformAnalytics();
+			const response = await authStore.makeAuthenticatedRequest(() => coreApi.getDashboardSummary());
 			
 			const analytics = {
-				platform_health: response.platform_health || {},
-				user_growth: response.growth_metrics || [],
-				category_insights: response.category_insights || [],
+				platform_health: response.platform_stats || {},
+				user_growth: response.recent_activity || {},
+				category_insights: response.engagement_metrics || {},
 				charts: response.charts || {},
 				trends: this.analyzeTrends(response),
 				insights: this.generateInsights(response, 'platform')

@@ -76,17 +76,62 @@ class CourseDetailSerializer(serializers.ModelSerializer):
 
 
 class CourseCreateUpdateSerializer(serializers.ModelSerializer):
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.filter(is_active=True),
+        required=False,
+        allow_null=True,
+        pk_field=serializers.UUIDField(),
+        error_messages={
+            'does_not_exist': 'Category not found or inactive',
+            'invalid': 'Invalid category UUID format'
+        }
+    )
     tags = serializers.ListField(
         child=serializers.CharField(max_length=50),
         write_only=True,
         required=False,
         allow_empty=True
     )
+    slug = serializers.SlugField(required=False, allow_blank=True)
     
     class Meta:
         model = Course
         fields = '__all__'
-        read_only_fields = ['uuid', 'created_at', 'updated_at', 'published_at']
+        read_only_fields = ['uuid', 'instructor', 'created_at', 'updated_at', 'published_at']
+    
+    def validate(self, data):
+        # Handle category field - convert empty string to null or remove entirely
+        if 'category' in data:
+            if data['category'] == '' or data['category'] is None:
+                data.pop('category', None)  # Remove the field entirely
+            else:
+                # Verify category exists and is active
+                try:
+                    if hasattr(data['category'], 'uuid'):
+                        # Already a Category instance
+                        category = data['category']
+                    else:
+                        # Should be a UUID, verify it exists
+                        category = Category.objects.get(uuid=data['category'], is_active=True)
+                    data['category'] = category
+                except Category.DoesNotExist:
+                    # Invalid category, remove it
+                    data.pop('category', None)
+        
+        # Auto-generate slug if not provided
+        if not data.get('slug') and data.get('title'):
+            from django.utils.text import slugify
+            base_slug = slugify(data['title'])
+            slug = base_slug
+            counter = 1
+            
+            while Course.objects.filter(slug=slug).exists():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
+            
+            data['slug'] = slug
+        
+        return data
     
     def create(self, validated_data):
         # Handle tags
