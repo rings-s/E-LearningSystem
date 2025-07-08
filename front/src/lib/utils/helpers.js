@@ -174,3 +174,36 @@ export function copyToClipboard(text) {
 		return Promise.reject(err);
 	}
 }
+
+// UUID utilities
+export function isValidUUID(value) {
+	if (!value || typeof value !== 'string') return false;
+	const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+	return uuidRegex.test(value.trim());
+}
+
+export function normalizeUUID(value) {
+	if (!value || typeof value !== 'string') return null;
+	const trimmed = value.trim();
+	return isValidUUID(trimmed) ? trimmed.toLowerCase() : null;
+}
+
+export function validateUUID(value, fieldName = 'UUID') {
+	if (!value) {
+		return { isValid: false, error: `${fieldName} is required` };
+	}
+	
+	if (!isValidUUID(value)) {
+		return { 
+			isValid: false, 
+			error: `Invalid ${fieldName} format. Expected format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` 
+		};
+	}
+	
+	return { isValid: true, value: normalizeUUID(value) };
+}
+
+export function safeUUID(value, fallback = null) {
+	const normalized = normalizeUUID(value);
+	return normalized || fallback;
+}

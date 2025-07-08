@@ -9,6 +9,9 @@ from django.db.models import Avg, Count, Q, Prefetch
 from django.utils import timezone
 from django.core.exceptions import ValidationError, PermissionDenied
 from django.db import models
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .models import (
     Category, Course, Enrollment, Module, Lesson, LessonProgress,
@@ -79,7 +82,7 @@ class CourseListCreateView(generics.ListCreateAPIView):
             try:
                 queryset = queryset.annotate(
                     enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
-                    average_rating=Avg('reviews__rating', filter=Q(reviews__is_verified=True))
+                    avg_rating=Avg('reviews__rating', filter=Q(reviews__is_verified=True))
                 )
             except Exception as e:
                 print(f"Warning: Could not add annotations - {e}")
@@ -119,41 +122,46 @@ class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
     lookup_field = 'uuid'
     
     def get_queryset(self):
-        queryset = Course.objects.select_related(
-            'instructor', 'category'
-        ).prefetch_related(
-            'tags', 'co_instructors',
-            Prefetch(
-                'modules',
-                queryset=Module.objects.filter(is_published=True).prefetch_related(
+        try:
+            queryset = Course.objects.select_related(
+                'instructor', 'category'
+            ).prefetch_related(
+                'tags', 'co_instructors',
+                Prefetch(
+                    'modules',
+                    queryset=Module.objects.filter(is_published=True).prefetch_related(
+                        Prefetch(
+                            'lessons',
+                            queryset=Lesson.objects.filter(is_published=True)
+                        )
+                    )
+                ),
+                Prefetch(
+                    'reviews',
+                    queryset=CourseReview.objects.filter(is_verified=True)
+                    .select_related('student').order_by('-created_at')[:10]
+                )
+            ).annotate(
+                enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
+                avg_rating=Avg('reviews__rating', filter=Q(reviews__is_verified=True))
+            )
+            
+            # Add user-specific data if authenticated
+            user = getattr(self.request, 'user', None)
+            if user and user.is_authenticated:
+                queryset = queryset.prefetch_related(
                     Prefetch(
-                        'lessons',
-                        queryset=Lesson.objects.filter(is_published=True)
+                        'enrollments',
+                        queryset=Enrollment.objects.filter(student=user, is_active=True),
+                        to_attr='user_enrollment'
                     )
                 )
-            ),
-            Prefetch(
-                'reviews',
-                queryset=CourseReview.objects.filter(is_verified=True)
-                .select_related('student').order_by('-created_at')[:10]
-            )
-        ).annotate(
-            enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
-            average_rating=Avg('reviews__rating', filter=Q(reviews__is_verified=True))
-        )
-        
-        # Add user-specific data if authenticated
-        user = getattr(self.request, 'user', None)
-        if user and user.is_authenticated:
-            queryset = queryset.prefetch_related(
-                Prefetch(
-                    'enrollments',
-                    queryset=Enrollment.objects.filter(student=user, is_active=True),
-                    to_attr='user_enrollment'
-                )
-            )
-        
-        return queryset
+            
+            return queryset
+        except Exception as e:
+            logger.error(f"Error in CourseDetailView queryset: {e}")
+            # Fallback to simple queryset
+            return Course.objects.all()
     
     def get_object(self):
         uuid_value = self.kwargs.get('uuid')

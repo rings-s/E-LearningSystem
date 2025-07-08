@@ -106,8 +106,11 @@ class Course(models.Model):
     def enrolled_students_count(self):
         return self.enrollments.filter(is_active=True).count()
 
-    @property
-    def average_rating(self):
+    def get_average_rating(self):
+        """Calculate average rating from reviews"""
+        # Use annotated value if available, otherwise calculate
+        if hasattr(self, 'avg_rating') and self.avg_rating is not None:
+            return self.avg_rating
         from django.db.models import Avg
         return self.reviews.aggregate(Avg('rating'))['rating__avg'] or 0
 

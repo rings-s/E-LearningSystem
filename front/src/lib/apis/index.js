@@ -126,13 +126,22 @@ class ApiClient {
 				}
 				
 				// Handle standardized error response
-				const error = new Error(
-					errorData.message || 
-					errorData.error?.message ||
-					errorData.errors?.detail?.[0] || 
-					errorData.detail || 
-					`HTTP ${response.status}`
-				);
+				let errorMessage = `HTTP ${response.status}`;
+				
+				// Handle UUID validation errors specifically
+				if (response.status === 404 && errorData.message?.includes('UUID')) {
+					errorMessage = errorData.message || 'Invalid UUID format';
+				} else if (errorData.message) {
+					errorMessage = errorData.message;
+				} else if (errorData.error?.message) {
+					errorMessage = errorData.error.message;
+				} else if (errorData.errors?.detail?.[0]) {
+					errorMessage = errorData.errors.detail[0];
+				} else if (errorData.detail) {
+					errorMessage = errorData.detail;
+				}
+				
+				const error = new Error(errorMessage);
 				error.status = response.status;
 				error.data = errorData;
 				error.response = { data: errorData, status: response.status };

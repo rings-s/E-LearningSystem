@@ -156,8 +156,23 @@
 		try {
 			course = await coursesApi.getCourse(courseId);
 			
-			if (!course.modules?.length) {
-				throw new Error('This course has no content yet');
+			// If modules are not included in course response, load them separately
+			if (!course.modules || !Array.isArray(course.modules)) {
+				try {
+					const modulesResponse = await coursesApi.getModules(courseId);
+					course.modules = Array.isArray(modulesResponse) ? modulesResponse : (modulesResponse.results || []);
+				} catch (modulesErr) {
+					console.warn('Could not load modules:', modulesErr);
+					course.modules = [];
+				}
+			}
+			
+			// Check if course has any lessons after loading modules
+			const allLessons = course.modules?.flatMap(m => m.lessons || []) || [];
+			if (allLessons.length === 0) {
+				// Instead of throwing an error, show a message that content is being prepared
+				console.warn('Course has no lessons yet');
+				return; // Don't throw error, just return
 			}
 
 			// Find appropriate lesson to start
@@ -166,12 +181,10 @@
 			
 			let lessonToLoad;
 			if (lessonId && course.modules) {
-				const allLessons = course.modules.flatMap(m => m.lessons || []);
 				lessonToLoad = allLessons.find(l => l.uuid === lessonId);
 			}
 			
 			if (!lessonToLoad && course.modules) {
-				const allLessons = course.modules.flatMap(m => m.lessons || []);
 				lessonToLoad = allLessons.find(lesson => !lesson.is_completed) || allLessons[0];
 			}
 			
@@ -708,6 +721,28 @@
 			<div class="flex gap-4 justify-center">
 				<Button onclick={() => window.location.reload()} variant="primary">{$t('course.tryAgain')}</Button>
 				<Button href="/courses" variant="outline">{$t('course.browseCourses')}</Button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- No Content State -->
+{#if !loading && !error && course && (!course.modules || course.modules.length === 0 || lessons.length === 0)}
+	<div class="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900" in:fade>
+		<div class="text-center max-w-md">
+			<div class="mx-auto mb-6 rounded-full bg-blue-100 p-6 dark:bg-blue-900/30">
+				<svg class="h-16 w-16 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+				</svg>
+			</div>
+			<h3 class="mb-2 text-xl font-semibold text-gray-900 dark:text-white">Course Content Coming Soon</h3>
+			<p class="mb-6 text-gray-600 dark:text-gray-400">
+				The instructor is still preparing the lessons for "{course.title}". 
+				Please check back later or contact support if you think this is an error.
+			</p>
+			<div class="flex gap-4 justify-center">
+				<Button href="/courses" variant="primary">Browse Other Courses</Button>
+				<Button href={`/courses/${courseId}`} variant="outline">Course Details</Button>
 			</div>
 		</div>
 	</div>

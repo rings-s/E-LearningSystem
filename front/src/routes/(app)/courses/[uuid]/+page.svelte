@@ -8,7 +8,7 @@
 	import { currentUser } from '$lib/stores/auth.store.js';
 	import { uiStore } from '$lib/stores/ui.store.js';
 	import { formatters } from '$lib/utils/formatters.js';
-	import { classNames } from '$lib/utils/helpers.js';
+	import { classNames, validateUUID, isValidUUID } from '$lib/utils/helpers.js';
 	import { t } from '$lib/i18n';
 
 	// Components
@@ -28,6 +28,7 @@
 	let isFavorite = $state(false);
 	let showShareModal = $state(false);
 	let favoriteLoading = $state(false);
+	let validationError = $state(null);
 
 	const tabs = $derived([
 		{ id: 'overview', label: $t('course.overview'), icon: 'info' },
@@ -37,6 +38,14 @@
 	]);
 
 	onMount(async () => {
+		// Validate UUID before making API calls
+		const validation = validateUUID(courseId, 'Course ID');
+		if (!validation.isValid) {
+			validationError = validation.error;
+			loading = false;
+			return;
+		}
+		
 		await Promise.all([fetchCourse(), checkFavoriteStatus()]);
 	});
 
@@ -59,6 +68,16 @@
 	const handleEnroll = async () => {
 		if (!$currentUser) {
 			goto('/login');
+			return;
+		}
+
+		// Validate UUID before enrollment
+		if (!isValidUUID(courseId)) {
+			uiStore.showNotification({
+				type: 'error',
+				title: 'Invalid Course',
+				message: 'Invalid course ID format'
+			});
 			return;
 		}
 
@@ -99,6 +118,16 @@
 			return;
 		}
 
+		// Validate UUID before favorite operation
+		if (!isValidUUID(courseId)) {
+			uiStore.showNotification({
+				type: 'error',
+				title: 'Invalid Course',
+				message: 'Invalid course ID format'
+			});
+			return;
+		}
+
 		favoriteLoading = true;
 		try {
 			if (isFavorite) {
@@ -123,7 +152,7 @@
 			uiStore.showNotification({
 				type: 'error',
 				title: 'Error',
-				message: 'Failed to update favorites'
+				message: error.message || 'Failed to update favorites'
 			});
 		} finally {
 			favoriteLoading = false;
@@ -640,8 +669,12 @@
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 					</svg>
 				</div>
-				<h2 class="mb-4 text-2xl font-bold text-gray-900 dark:text-white">{$t('course.courseNotFound')}</h2>
-				<p class="mb-8 text-gray-600 dark:text-gray-400">{$t('course.courseNotFoundDesc')}</p>
+				<h2 class="mb-4 text-2xl font-bold text-gray-900 dark:text-white">
+					{validationError ? 'Invalid Course URL' : $t('course.courseNotFound')}
+				</h2>
+				<p class="mb-8 text-gray-600 dark:text-gray-400">
+					{validationError || $t('course.courseNotFoundDesc')}
+				</p>
 				<Button href="/courses" variant="primary" class="transition-all hover:scale-105">{$t('course.browseAllCourses')}</Button>
 			</div>
 		</div>

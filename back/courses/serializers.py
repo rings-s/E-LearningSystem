@@ -51,7 +51,9 @@ class CourseSerializer(serializers.ModelSerializer):
     # Read-only computed fields
     instructor_name = serializers.CharField(source='instructor.get_full_name', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
-    enrolled_count = serializers.IntegerField(source='enrolled_students_count', read_only=True)
+    enrolled_count = serializers.IntegerField(read_only=True)
+    avg_rating = serializers.FloatField(read_only=True)
+    average_rating = serializers.SerializerMethodField()
     
     class Meta:
         model = Course
@@ -102,6 +104,12 @@ class CourseSerializer(serializers.ModelSerializer):
                         defaults={'slug': slugify(tag_name)}
                     )
                     course.tags.add(tag)
+    
+    def get_average_rating(self, obj):
+        """Get average rating from annotation or calculate it"""
+        if hasattr(obj, 'avg_rating') and obj.avg_rating is not None:
+            return obj.avg_rating
+        return obj.get_average_rating()  # Falls back to method
     
     def create(self, validated_data):
         tags_data = validated_data.pop('tags_input', [])

@@ -1,5 +1,6 @@
 // front/src/lib/apis/courses.js
 import { api } from './index.js';
+import { validateUUID, isValidUUID } from '../utils/helpers.js';
 
 export const coursesApi = {
     // Categories
@@ -34,7 +35,11 @@ export const coursesApi = {
 
     async getCourse(uuid) {
         try {
-            return await api.get(`/api/courses/${uuid}/`);
+            const validation = validateUUID(uuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.get(`/api/courses/${validation.value}/`);
         } catch (error) {
             console.error('Failed to get course:', error);
             throw error;
@@ -52,7 +57,11 @@ export const coursesApi = {
 
     async updateCourse(uuid, data) {
         try {
-            return await api.patch(`/api/courses/${uuid}/`, data);
+            const validation = validateUUID(uuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.patch(`/api/courses/${validation.value}/`, data);
         } catch (error) {
             console.error('Failed to update course:', error);
             throw error;
@@ -61,7 +70,11 @@ export const coursesApi = {
 
     async deleteCourse(uuid) {
         try {
-            return await api.delete(`/api/courses/${uuid}/`);
+            const validation = validateUUID(uuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.delete(`/api/courses/${validation.value}/`);
         } catch (error) {
             console.error('Failed to delete course:', error);
             throw error;
@@ -71,7 +84,11 @@ export const coursesApi = {
     // Course Actions
     async enrollInCourse(uuid) {
         try {
-            return await api.post(`/api/courses/${uuid}/enroll/`);
+            const validation = validateUUID(uuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.post(`/api/courses/${validation.value}/enroll/`);
         } catch (error) {
             console.error('Failed to enroll in course:', error);
             throw error;
@@ -80,7 +97,11 @@ export const coursesApi = {
 
     async publishCourse(uuid) {
         try {
-            return await api.post(`/api/courses/${uuid}/publish/`);
+            const validation = validateUUID(uuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.post(`/api/courses/${validation.value}/publish/`);
         } catch (error) {
             console.error('Failed to publish course:', error);
             throw error;
@@ -89,7 +110,11 @@ export const coursesApi = {
 
     async getCourseAnalytics(uuid) {
         try {
-            return await api.get(`/api/courses/${uuid}/analytics/`);
+            const validation = validateUUID(uuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.get(`/api/courses/${validation.value}/analytics/`);
         } catch (error) {
             console.error('Failed to get course analytics:', error);
             throw error;
@@ -98,9 +123,13 @@ export const coursesApi = {
 
     async uploadCourseImage(uuid, file) {
         try {
+            const validation = validateUUID(uuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
             const formData = new FormData();
             formData.append('thumbnail', file);
-            return await api.upload(`/api/courses/${uuid}/upload-image/`, formData);
+            return await api.upload(`/api/courses/${validation.value}/upload-image/`, formData);
         } catch (error) {
             console.error('Failed to upload course image:', error);
             throw error;
@@ -110,7 +139,12 @@ export const coursesApi = {
     // Course Favorites
     async isFavorite(courseUuid) {
         try {
-            const response = await api.get(`/api/courses/${courseUuid}/is-favorite/`);
+            const validation = validateUUID(courseUuid, 'Course ID');
+            if (!validation.isValid) {
+                console.error('Invalid course UUID for favorite check:', validation.error);
+                return false;
+            }
+            const response = await api.get(`/api/courses/${validation.value}/is-favorite/`);
             return response.is_favorite || false;
         } catch (error) {
             console.error('Failed to check favorite status:', error);
@@ -120,7 +154,11 @@ export const coursesApi = {
 
     async addToFavorites(courseUuid) {
         try {
-            return await api.post(`/api/courses/${courseUuid}/add-to-favorites/`);
+            const validation = validateUUID(courseUuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.post(`/api/courses/${validation.value}/add-to-favorites/`);
         } catch (error) {
             console.error('Failed to add to favorites:', error);
             throw error;
@@ -129,7 +167,11 @@ export const coursesApi = {
 
     async removeFromFavorites(courseUuid) {
         try {
-            return await api.delete(`/api/courses/${courseUuid}/remove-from-favorites/`);
+            const validation = validateUUID(courseUuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.delete(`/api/courses/${validation.value}/remove-from-favorites/`);
         } catch (error) {
             console.error('Failed to remove from favorites:', error);
             throw error;
@@ -139,7 +181,11 @@ export const coursesApi = {
     // Lessons under Course
     async getCourseLessons(courseUuid) {
         try {
-            return await api.get(`/api/courses/${courseUuid}/lessons/`);
+            const validation = validateUUID(courseUuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.get(`/api/courses/${validation.value}/lessons/`);
         } catch (error) {
             console.error('Failed to get course lessons:', error);
             throw error;
@@ -148,7 +194,15 @@ export const coursesApi = {
 
     async getCourseLesson(courseUuid, lessonUuid) {
         try {
-            return await api.get(`/api/courses/${courseUuid}/lessons/${lessonUuid}/`);
+            const courseValidation = validateUUID(courseUuid, 'Course ID');
+            if (!courseValidation.isValid) {
+                throw new Error(courseValidation.error);
+            }
+            const lessonValidation = validateUUID(lessonUuid, 'Lesson ID');
+            if (!lessonValidation.isValid) {
+                throw new Error(lessonValidation.error);
+            }
+            return await api.get(`/api/courses/${courseValidation.value}/lessons/${lessonValidation.value}/`);
         } catch (error) {
             console.error('Failed to get lesson:', error);
             throw error;
@@ -157,7 +211,11 @@ export const coursesApi = {
 
     async createCourseLesson(courseUuid, lessonData) {
         try {
-            return await api.post(`/api/courses/${courseUuid}/lessons/`, lessonData);
+            const validation = validateUUID(courseUuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.post(`/api/courses/${validation.value}/lessons/`, lessonData);
         } catch (error) {
             console.error('Failed to create lesson:', error);
             throw error;
@@ -166,7 +224,15 @@ export const coursesApi = {
 
     async updateCourseLesson(courseUuid, lessonUuid, data) {
         try {
-            return await api.patch(`/api/courses/${courseUuid}/lessons/${lessonUuid}/`, data);
+            const courseValidation = validateUUID(courseUuid, 'Course ID');
+            if (!courseValidation.isValid) {
+                throw new Error(courseValidation.error);
+            }
+            const lessonValidation = validateUUID(lessonUuid, 'Lesson ID');
+            if (!lessonValidation.isValid) {
+                throw new Error(lessonValidation.error);
+            }
+            return await api.patch(`/api/courses/${courseValidation.value}/lessons/${lessonValidation.value}/`, data);
         } catch (error) {
             console.error('Failed to update lesson:', error);
             throw error;
@@ -175,7 +241,15 @@ export const coursesApi = {
 
     async deleteCourseLesson(courseUuid, lessonUuid) {
         try {
-            return await api.delete(`/api/courses/${courseUuid}/lessons/${lessonUuid}/`);
+            const courseValidation = validateUUID(courseUuid, 'Course ID');
+            if (!courseValidation.isValid) {
+                throw new Error(courseValidation.error);
+            }
+            const lessonValidation = validateUUID(lessonUuid, 'Lesson ID');
+            if (!lessonValidation.isValid) {
+                throw new Error(lessonValidation.error);
+            }
+            return await api.delete(`/api/courses/${courseValidation.value}/lessons/${lessonValidation.value}/`);
         } catch (error) {
             console.error('Failed to delete lesson:', error);
             throw error;
@@ -184,9 +258,17 @@ export const coursesApi = {
 
     async uploadLessonFile(courseUuid, lessonUuid, file) {
         try {
+            const courseValidation = validateUUID(courseUuid, 'Course ID');
+            if (!courseValidation.isValid) {
+                throw new Error(courseValidation.error);
+            }
+            const lessonValidation = validateUUID(lessonUuid, 'Lesson ID');
+            if (!lessonValidation.isValid) {
+                throw new Error(lessonValidation.error);
+            }
             const formData = new FormData();
             formData.append('file', file);
-            return await api.upload(`/api/courses/${courseUuid}/lessons/${lessonUuid}/upload/`, formData);
+            return await api.upload(`/api/courses/${courseValidation.value}/lessons/${lessonValidation.value}/upload/`, formData);
         } catch (error) {
             console.error('Failed to upload lesson file:', error);
             throw error;
@@ -195,7 +277,15 @@ export const coursesApi = {
 
     async completeLesson(courseUuid, lessonUuid) {
         try {
-            return await api.post(`/api/courses/${courseUuid}/lessons/${lessonUuid}/complete/`);
+            const courseValidation = validateUUID(courseUuid, 'Course ID');
+            if (!courseValidation.isValid) {
+                throw new Error(courseValidation.error);
+            }
+            const lessonValidation = validateUUID(lessonUuid, 'Lesson ID');
+            if (!lessonValidation.isValid) {
+                throw new Error(lessonValidation.error);
+            }
+            return await api.post(`/api/courses/${courseValidation.value}/lessons/${lessonValidation.value}/complete/`);
         } catch (error) {
             console.error('Failed to complete lesson:', error);
             throw error;
@@ -204,7 +294,17 @@ export const coursesApi = {
 
     async getLessonNotes(courseUuid, lessonUuid) {
         try {
-            return await api.get(`/api/courses/${courseUuid}/lessons/${lessonUuid}/notes/`);
+            const courseValidation = validateUUID(courseUuid, 'Course ID');
+            if (!courseValidation.isValid) {
+                console.error('Invalid course UUID for notes:', courseValidation.error);
+                return { notes: '' };
+            }
+            const lessonValidation = validateUUID(lessonUuid, 'Lesson ID');
+            if (!lessonValidation.isValid) {
+                console.error('Invalid lesson UUID for notes:', lessonValidation.error);
+                return { notes: '' };
+            }
+            return await api.get(`/api/courses/${courseValidation.value}/lessons/${lessonValidation.value}/notes/`);
         } catch (error) {
             console.error('Failed to get lesson notes:', error);
             return { notes: '' };
@@ -213,7 +313,15 @@ export const coursesApi = {
 
     async saveLessonNotes(courseUuid, lessonUuid, notes) {
         try {
-            return await api.post(`/api/courses/${courseUuid}/lessons/${lessonUuid}/notes/`, { notes });
+            const courseValidation = validateUUID(courseUuid, 'Course ID');
+            if (!courseValidation.isValid) {
+                throw new Error(courseValidation.error);
+            }
+            const lessonValidation = validateUUID(lessonUuid, 'Lesson ID');
+            if (!lessonValidation.isValid) {
+                throw new Error(lessonValidation.error);
+            }
+            return await api.post(`/api/courses/${courseValidation.value}/lessons/${lessonValidation.value}/notes/`, { notes });
         } catch (error) {
             console.error('Failed to save lesson notes:', error);
             throw error;
@@ -223,7 +331,7 @@ export const coursesApi = {
     // Enrollments
     async getMyEnrollments() {
         try {
-            return await api.get('/api/courses/enrollments/my-courses/');
+            return await api.get('/api/enrollments/my-courses/');
         } catch (error) {
             console.error('Failed to get enrollments:', error);
             throw error;
@@ -232,7 +340,7 @@ export const coursesApi = {
 
     async getEnrollments() {
         try {
-            return await api.get('/api/courses/enrollments/');
+            return await api.get('/api/enrollments/');
         } catch (error) {
             console.error('Failed to get enrollments:', error);
             throw error;
@@ -252,7 +360,11 @@ export const coursesApi = {
     // Modules
     async getModules(courseUuid) {
         try {
-            return await api.get(`/api/courses/modules/?course=${courseUuid}`);
+            const validation = validateUUID(courseUuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.get(`/api/modules/?course=${validation.value}`);
         } catch (error) {
             console.error('Failed to get modules:', error);
             throw error;
@@ -261,7 +373,11 @@ export const coursesApi = {
 
     async createModule(data) {
         try {
-            return await api.post('/api/courses/modules/', data);
+            // Validate course UUID if provided in data
+            if (data.course && !isValidUUID(data.course)) {
+                throw new Error('Invalid Course ID format in module data');
+            }
+            return await api.post('/api/modules/', data);
         } catch (error) {
             console.error('Failed to create module:', error);
             throw error;
@@ -270,7 +386,11 @@ export const coursesApi = {
 
     async getModule(uuid) {
         try {
-            return await api.get(`/api/courses/modules/${uuid}/`);
+            const validation = validateUUID(uuid, 'Module ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.get(`/api/modules/${validation.value}/`);
         } catch (error) {
             console.error('Failed to get module:', error);
             throw error;
@@ -279,7 +399,11 @@ export const coursesApi = {
 
     async updateModule(uuid, data) {
         try {
-            return await api.patch(`/api/courses/modules/${uuid}/`, data);
+            const validation = validateUUID(uuid, 'Module ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.patch(`/api/modules/${validation.value}/`, data);
         } catch (error) {
             console.error('Failed to update module:', error);
             throw error;
@@ -288,7 +412,11 @@ export const coursesApi = {
 
     async deleteModule(uuid) {
         try {
-            return await api.delete(`/api/courses/modules/${uuid}/`);
+            const validation = validateUUID(uuid, 'Module ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.delete(`/api/modules/${validation.value}/`);
         } catch (error) {
             console.error('Failed to delete module:', error);
             throw error;
@@ -298,7 +426,11 @@ export const coursesApi = {
     // Reviews
     async getCourseReviews(courseUuid) {
         try {
-            return await api.get(`/api/courses/reviews/?course=${courseUuid}`);
+            const validation = validateUUID(courseUuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.get(`/api/reviews/?course=${validation.value}`);
         } catch (error) {
             console.error('Failed to get course reviews:', error);
             throw error;
@@ -307,7 +439,11 @@ export const coursesApi = {
 
     async createReview(data) {
         try {
-            return await api.post('/api/courses/reviews/', data);
+            // Validate course UUID if provided in data
+            if (data.course && !isValidUUID(data.course)) {
+                throw new Error('Invalid Course ID format in review data');
+            }
+            return await api.post('/api/reviews/', data);
         } catch (error) {
             console.error('Failed to create review:', error);
             throw error;
@@ -316,7 +452,11 @@ export const coursesApi = {
 
     async updateReview(uuid, data) {
         try {
-            return await api.patch(`/api/courses/reviews/${uuid}/`, data);
+            const validation = validateUUID(uuid, 'Review ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.patch(`/api/reviews/${validation.value}/`, data);
         } catch (error) {
             console.error('Failed to update review:', error);
             throw error;
@@ -325,7 +465,11 @@ export const coursesApi = {
 
     async deleteReview(uuid) {
         try {
-            return await api.delete(`/api/courses/reviews/${uuid}/`);
+            const validation = validateUUID(uuid, 'Review ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.delete(`/api/reviews/${validation.value}/`);
         } catch (error) {
             console.error('Failed to delete review:', error);
             throw error;
@@ -335,7 +479,7 @@ export const coursesApi = {
     // Certificates
     async getMyCertificates() {
         try {
-            return await api.get('/api/courses/certificates/');
+            return await api.get('/api/certificates/');
         } catch (error) {
             console.error('Failed to get certificates:', error);
             throw error;
@@ -344,7 +488,11 @@ export const coursesApi = {
 
     async getCertificate(uuid) {
         try {
-            return await api.get(`/api/courses/certificates/${uuid}/`);
+            const validation = validateUUID(uuid, 'Certificate ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.get(`/api/certificates/${validation.value}/`);
         } catch (error) {
             console.error('Failed to get certificate:', error);
             throw error;
@@ -353,7 +501,11 @@ export const coursesApi = {
 
     async verifyCertificate(uuid) {
         try {
-            return await api.get(`/api/courses/certificates/${uuid}/verify/`);
+            const validation = validateUUID(uuid, 'Certificate ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            return await api.get(`/api/certificates/${validation.value}/verify/`);
         } catch (error) {
             console.error('Failed to verify certificate:', error);
             throw error;
@@ -363,10 +515,15 @@ export const coursesApi = {
     // Utility Methods
     async createLessonWithFile(courseUuid, lessonData, file = null) {
         try {
-            const lesson = await this.createCourseLesson(courseUuid, lessonData);
+            const validation = validateUUID(courseUuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            
+            const lesson = await this.createCourseLesson(validation.value, lessonData);
             
             if (file && lesson.uuid) {
-                await this.uploadLessonFile(courseUuid, lesson.uuid, file);
+                await this.uploadLessonFile(validation.value, lesson.uuid, file);
             }
             
             return lesson;

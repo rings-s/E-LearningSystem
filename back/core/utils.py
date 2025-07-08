@@ -2,7 +2,7 @@
 from django.core.cache import cache
 from django.conf import settings
 from django.utils import timezone
-from django.db.models import F
+from django.db.models import F, Avg
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.shortcuts import get_object_or_404
@@ -10,6 +10,7 @@ from django.http import Http404
 from django.core.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework import status
+from datetime import timedelta
 import logging
 import uuid
 
@@ -18,20 +19,44 @@ channel_layer = get_channel_layer()
 
 def validate_uuid(value):
     """Validate UUID format"""
+    if not value:
+        raise ValidationError("UUID cannot be empty")
+    
     try:
-        uuid.UUID(str(value))
-    except (ValueError, TypeError):
-        raise ValidationError("Invalid UUID format")
+        uuid_obj = uuid.UUID(str(value))
+        # Return the original string if valid instead of normalized to preserve case
+        return str(value)
+    except (ValueError, TypeError, AttributeError):
+        raise ValidationError(f"Invalid UUID format: '{value}'. Expected format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx")
 
 def validate_and_get_object(model_class, uuid_value, queryset=None):
     """Validate UUID and get object safely"""
+    if not uuid_value:
+        raise Http404("UUID parameter is required")
+    
     try:
-        uuid.UUID(str(uuid_value))
+        # Validate UUID string
+        validated_uuid = validate_uuid(uuid_value)
+        
+        # Try with queryset first, fallback to simple lookup if it fails
         if queryset is not None:
-            return get_object_or_404(queryset, uuid=uuid_value)
-        return get_object_or_404(model_class, uuid=uuid_value)
-    except (ValueError, TypeError):
-        raise Http404("Invalid UUID format")
+            try:
+                return get_object_or_404(queryset, uuid=validated_uuid)
+            except Exception as e:
+                logger.warning(f"Complex queryset failed for {model_class.__name__}, falling back to simple lookup: {e}")
+                return get_object_or_404(model_class, uuid=validated_uuid)
+        else:
+            return get_object_or_404(model_class, uuid=validated_uuid)
+            
+    except ValidationError as e:
+        logger.warning(f"Invalid UUID provided: {uuid_value} - {str(e)}")
+        raise Http404(f"Invalid UUID format: {uuid_value}")
+    except Http404:
+        logger.info(f"Object not found with UUID: {uuid_value}")
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error in validate_and_get_object: {str(e)}")
+        raise Http404("Object not found")
 
 def format_api_response(data=None, message=None, errors=None, status_code=status.HTTP_200_OK):
     """Standardized API response format"""
