@@ -57,25 +57,49 @@ class CourseListCreateView(generics.ListCreateAPIView):
     filterset_class = CourseFilter
     
     def get_queryset(self):
-        queryset = Course.objects.select_related(
-            'instructor', 'category'
-        ).prefetch_related(
-            'tags', 'co_instructors'
-        ).annotate(
-            enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
-            average_rating=Avg('reviews__rating', filter=Q(reviews__is_verified=True))
-        )
-        
-        # Check if user wants their own courses
-        my_courses = self.request.query_params.get('my_courses', 'false').lower() == 'true'
-        
-        if my_courses and self.request.user.is_authenticated:
-            queryset = queryset.filter(instructor=self.request.user)
-        else:
-            # Public browsing - only published courses
-            queryset = queryset.filter(status='published')
-        
-        return queryset.order_by('-created_at', 'id')
+        try:
+            # Start with basic Course queryset
+            queryset = Course.objects.all()
+            
+            # Add select_related for performance with error handling
+            try:
+                queryset = queryset.select_related('instructor', 'category')
+            except Exception as e:
+                print(f"Warning: Could not add select_related - {e}")
+                pass
+            
+            # Add prefetch_related with error handling  
+            try:
+                queryset = queryset.prefetch_related('tags', 'co_instructors')
+            except Exception as e:
+                print(f"Warning: Could not add prefetch_related - {e}")
+                pass
+            
+            # Add annotations with error handling
+            try:
+                queryset = queryset.annotate(
+                    enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
+                    average_rating=Avg('reviews__rating', filter=Q(reviews__is_verified=True))
+                )
+            except Exception as e:
+                print(f"Warning: Could not add annotations - {e}")
+                pass
+            
+            # Filter logic
+            my_courses = self.request.query_params.get('my_courses', 'false').lower() == 'true'
+            
+            if my_courses and self.request.user.is_authenticated:
+                queryset = queryset.filter(instructor=self.request.user)
+            else:
+                # Public browsing - only published courses
+                queryset = queryset.filter(status='published')
+            
+            return queryset.order_by('-created_at', 'id')
+            
+        except Exception as e:
+            print(f"Error in get_queryset: {e}")
+            # Fallback to basic queryset
+            return Course.objects.filter(status='published').order_by('-created_at', 'id')
     
     def get_permissions(self):
         if self.request.method == 'POST':

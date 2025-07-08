@@ -3,15 +3,8 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import { fade } from 'svelte/transition';
-	import { authStore } from '$lib/services/auth.service.js';
-	import { uiStore } from '$lib/stores/ui.store.js';
+	import { authStore } from '$lib/stores/auth.store.js';
 	import { t } from '$lib/i18n/index.js';
-	import { classNames } from '$lib/utils/helpers.js';
-	import CodeInput from '$lib/components/auth/CodeInput.svelte';
-	import Button from '$lib/components/common/Button.svelte';
-	import Card from '$lib/components/common/Card.svelte';
-	import Logo from '$lib/components/common/Logo.svelte';
 
 	const email = $page.url.searchParams.get('email') || '';
 	let verificationCode = $state('');
@@ -19,7 +12,8 @@
 	let resending = $state(false);
 	let error = $state('');
 	let resendTimer = $state(0);
-	let codeInputRef;
+	let inputs = $state(Array(6).fill(''));
+	let inputRefs = [];
 
 	onMount(() => {
 		if (!email) {
@@ -27,7 +21,7 @@
 			return;
 		}
 		startResendTimer();
-		setTimeout(() => codeInputRef?.focus(), 100);
+		setTimeout(() => inputRefs[0]?.focus(), 100);
 	});
 
 	function startResendTimer() {
@@ -40,9 +34,40 @@
 		}, 1000);
 	}
 
-	function handleCodeComplete(code) {
-		verificationCode = code;
-		handleVerify();
+	function handleInput(index, value) {
+		if (value.length > 1) {
+			// Handle paste
+			const pastedCode = value.slice(0, 6);
+			for (let i = 0; i < 6; i++) {
+				inputs[i] = pastedCode[i] || '';
+			}
+			const lastFilledIndex = Math.min(pastedCode.length - 1, 5);
+			inputRefs[lastFilledIndex]?.focus();
+		} else {
+			inputs[index] = value;
+			if (value && index < 5) {
+				inputRefs[index + 1]?.focus();
+			}
+		}
+		
+		verificationCode = inputs.join('');
+		if (verificationCode.length === 6) {
+			handleVerify();
+		}
+	}
+
+	function handleKeyDown(index, e) {
+		if (e.key === 'Backspace') {
+			if (!inputs[index] && index > 0) {
+				inputRefs[index - 1]?.focus();
+			} else {
+				inputs[index] = '';
+			}
+		} else if (e.key === 'ArrowLeft' && index > 0) {
+			inputRefs[index - 1]?.focus();
+		} else if (e.key === 'ArrowRight' && index < 5) {
+			inputRefs[index + 1]?.focus();
+		}
 	}
 
 	async function handleVerify() {
@@ -58,15 +83,10 @@
 		loading = false;
 
 		if (result.success) {
-			uiStore.showNotification({
-				type: 'success',
-				title: $t('auth.emailVerified'),
-				message: `${$t('common.welcome')} ${$t('common.to')} EduVerse, ${result.user.first_name}!`
-			});
 			goto('/dashboard');
 		} else {
 			error = result.error;
-			codeInputRef?.clear();
+			clearInputs();
 		}
 	}
 
@@ -78,17 +98,17 @@
 		resending = false;
 
 		if (result.success) {
-			uiStore.showNotification({
-				type: 'success',
-				title: $t('auth.codeResent'),
-				message: $t('auth.newCodeSent')
-			});
-
-			codeInputRef?.clear();
+			clearInputs();
 			startResendTimer();
 		} else {
 			error = result.error;
 		}
+	}
+
+	function clearInputs() {
+		inputs = Array(6).fill('');
+		verificationCode = '';
+		inputRefs[0]?.focus();
 	}
 
 	function maskEmail(email) {
@@ -102,44 +122,37 @@
 </script>
 
 <svelte:head>
-	<title>{$t('auth.verifyEmail')} - EduVerse</title>
+	<title>{$t('auth.verifyEmail')} - 244SCHOOL</title>
 </svelte:head>
 
-<div
-	class="to-primary-50/20 dark:to-primary-900/20 flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 via-white px-4 py-12 sm:px-6 lg:px-8 dark:from-gray-900 dark:via-gray-800"
->
-	<div class="w-full max-w-md">
-		<div class="mb-8 text-center">
-			<Logo size="large" showText={false} class="mx-auto mb-6" />
-			<h2 class="text-3xl font-bold text-gray-900 sm:text-4xl dark:text-white">
-				{$t('auth.checkYourEmail')}
-			</h2>
-			<p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-				{$t('auth.verificationCodeSent')}
-			</p>
+<div class="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 dark:bg-gray-900">
+	<!-- Header -->
+	<div class="sm:mx-auto sm:w-full sm:max-w-md">
+		<div class="flex justify-center">
+			<div class="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-3 shadow-lg">
+				<span class="text-white text-xl font-bold">244</span>
+			</div>
 		</div>
+		<h2 class="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
+			{$t('auth.checkYourEmail')}
+		</h2>
+		<p class="mt-2 text-center text-sm text-gray-600 dark:text-gray-400">
+			{$t('auth.verificationCodeSent')}
+		</p>
+	</div>
 
-		<Card
-			variant="bordered"
-			padding="large"
-			class="bg-white/90 backdrop-blur-sm dark:bg-gray-800/90"
-		>
-			<div class="space-y-8">
+	<!-- Main Card -->
+	<div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+		<div class="bg-white py-8 px-4 shadow-sm rounded-xl border border-gray-200 sm:px-10 dark:bg-gray-800 dark:border-gray-700">
+			<div class="space-y-6">
 				<!-- Email Display -->
 				<div class="text-center">
-					<div
-						class="from-primary-400 to-primary-600 mb-4 inline-flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br shadow-xl"
-					>
-						<svg class="h-10 w-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-							/>
+					<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/50">
+						<svg class="h-8 w-8 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
 						</svg>
 					</div>
-					<p class="text-lg font-semibold text-gray-900 dark:text-white">
+					<p class="mt-4 text-lg font-medium text-gray-900 dark:text-white">
 						{maskEmail(email)}
 					</p>
 					<p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
@@ -149,80 +162,101 @@
 
 				<!-- Code Input -->
 				<div>
-					<label
-						class="mb-4 block text-center text-sm font-semibold text-gray-700 dark:text-gray-300"
-					>
+					<label class="block text-center text-sm font-medium text-gray-900 dark:text-white mb-4">
 						{$t('auth.verificationCode')}
 					</label>
 
-					<CodeInput
-						bind:this={codeInputRef}
-						bind:value={verificationCode}
-						{error}
-						disabled={loading}
-						onComplete={handleCodeComplete}
-					/>
+					<div class="flex justify-center space-x-3">
+						{#each inputs as input, index}
+							<input
+								bind:this={inputRefs[index]}
+								type="text"
+								inputmode="numeric"
+								maxlength="1"
+								value={input}
+								disabled={loading}
+								oninput={(e) => handleInput(index, e.target.value)}
+								onkeydown={(e) => handleKeyDown(index, e)}
+								class="h-12 w-12 text-center text-lg font-bold rounded-lg border-2 transition-all duration-200 {
+									error
+										? 'border-red-300 bg-red-50 dark:border-red-600 dark:bg-red-900/20'
+										: input
+											? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400'
+											: 'border-gray-300 hover:border-gray-400 dark:border-gray-600 dark:hover:border-gray-500'
+								} focus:border-indigo-500 focus:ring-indigo-500/20 focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-700 dark:text-white"
+								placeholder="•"
+							/>
+						{/each}
+					</div>
+
+					{#if error}
+						<div class="mt-3 flex items-center justify-center text-sm text-red-600 dark:text-red-400">
+							<svg class="mr-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+							{error}
+						</div>
+					{/if}
 				</div>
 
 				<!-- Submit Button -->
-				<Button
+				<button
 					onclick={handleVerify}
-					{loading}
 					disabled={loading || verificationCode.length !== 6}
-					variant="primary"
-					fullWidth
-					size="large"
-					class="from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 transform bg-gradient-to-r transition-all duration-300 hover:scale-[1.02]"
+					class="flex w-full justify-center rounded-lg bg-indigo-600 px-3 py-3 text-sm font-semibold leading-6 text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
 				>
-					{loading ? $t('auth.verifying') : $t('auth.verifyEmail')}
-				</Button>
+					{#if loading}
+						<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						{$t('auth.verifying')}
+					{:else}
+						{$t('auth.verifyEmail')}
+					{/if}
+				</button>
 
 				<!-- Resend Section -->
-				<div class="space-y-4 text-center">
+				<div class="text-center space-y-3">
 					<p class="text-sm text-gray-600 dark:text-gray-400">
 						{$t('auth.didntReceiveCode')}
 					</p>
 
 					{#if resendTimer > 0}
-						<p class="text-sm text-gray-500 dark:text-gray-500" in:fade>
-							{$t('auth.resendIn')}
-							{resendTimer}
-							{$t('auth.seconds')}
+						<p class="text-sm text-gray-500">
+							{$t('auth.resendIn')} {resendTimer} {$t('auth.seconds')}
 						</p>
 					{:else}
 						<button
 							type="button"
 							onclick={handleResend}
 							disabled={resending}
-							class="text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+							class="text-sm font-semibold text-indigo-600 hover:text-indigo-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-indigo-400"
 						>
 							{resending ? $t('auth.sending') : $t('auth.resendCode')}
 						</button>
 					{/if}
 
-					<!-- Tips -->
-					<div class="rounded-2xl bg-gray-50 p-4 text-left dark:bg-gray-900/50">
-						<h4 class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">
+					<!-- Help Text -->
+					<div class="rounded-lg bg-gray-50 p-4 text-left dark:bg-gray-900/50">
+						<h4 class="text-sm font-medium text-gray-900 dark:text-white mb-2">
 							{$t('auth.cantFindEmail')}
 						</h4>
 						<ul class="space-y-1 text-xs text-gray-600 dark:text-gray-400">
 							<li>• {$t('auth.checkSpam')}</li>
 							<li>• {$t('auth.correctEmail')}</li>
 							<li>• {$t('auth.codeExpires')}</li>
-							<li>• {$t('auth.contactSupportIfIssues')}</li>
 						</ul>
 					</div>
 				</div>
 			</div>
-		</Card>
+		</div>
 
+		<!-- Footer -->
 		<div class="mt-6 text-center">
 			<p class="text-sm text-gray-600 dark:text-gray-400">
 				{$t('auth.wrongEmail')}
-				<a
-					href="/register"
-					class="text-primary-600 hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300 font-semibold transition-colors"
-				>
+				<a href="/register" class="font-semibold text-indigo-600 hover:text-indigo-500 dark:text-indigo-400">
 					{$t('auth.startOver')}
 				</a>
 			</p>

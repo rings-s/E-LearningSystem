@@ -1,5 +1,7 @@
+# back/back/settings.py - Fixed axes configuration
 from pathlib import Path
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -38,6 +40,7 @@ INSTALLED_APPS = [
     # Third party apps
     'rest_framework',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',  # For token blacklisting
     'channels',
     'django_filters',
     'corsheaders',
@@ -46,14 +49,16 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # For static files in production
-    'django.contrib.sessions.middleware.SessionMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'accounts.middleware.SecurityHeadersMiddleware',  # Custom security headers
+    'accounts.middleware.SecurityLogMiddleware',      # Custom security logging
 ]
 
 ROOT_URLCONF = 'back.urls'
@@ -105,23 +110,6 @@ else:
 REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
 REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
 
-# Channel Layers Configuration
-if ENVIRONMENT == 'production':
-    CHANNEL_LAYERS = {
-        'default': {
-            'BACKEND': 'channels_redis.core.RedisChannelLayer',
-            'CONFIG': {
-                "hosts": [(REDIS_HOST, REDIS_PORT)],
-            },
-        },
-    }
-else:
-    CHANNEL_LAYERS = {
-        'default': {
-            'BACKEND': 'channels.layers.InMemoryChannelLayer',
-        },
-    }
-
 # Cache Configuration
 if ENVIRONMENT == 'production':
     CACHES = {
@@ -132,7 +120,7 @@ if ENVIRONMENT == 'production':
                 'CLIENT_CLASS': 'django_redis.client.DefaultClient',
             },
             'KEY_PREFIX': 'elearning',
-            'TIMEOUT': 300,  # 5 minutes default timeout
+            'TIMEOUT': 300,
         }
     }
 else:
@@ -143,129 +131,42 @@ else:
         }
     }
 
-# Celery Configuration
-CELERY_BROKER_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
-CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:{REDIS_PORT}/0'
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = 'UTC'
-CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
-
-# Password validation
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-        'OPTIONS': {
-            'min_length': 8,
-        }
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
+# Authentication Backends
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',  # Django's default backend
 ]
 
-# Internationalization
-LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', 'en-us')
-TIME_ZONE = os.getenv('TIME_ZONE', 'UTC')
-USE_I18N = True
-USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
-STATIC_URL = '/static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_DIRS = [
-    BASE_DIR / 'static',
-] if os.path.exists(BASE_DIR / 'static') else []
+# Enhanced JWT Settings for Maximum Security
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),  # Shorter for better security
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': 'elearning-platform',
+    'JWK_URL': None,
+    'LEEWAY': 0,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'USER_AUTHENTICATION_RULE': 'rest_framework_simplejwt.authentication.default_user_authentication_rule',
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+    'TOKEN_USER_CLASS': 'rest_framework_simplejwt.models.TokenUser',
+    'JTI_CLAIM': 'jti',
+    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
+    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=15),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
+    'TOKEN_OBTAIN_SERIALIZER': 'accounts.serializers.CustomTokenObtainPairSerializer',
+}
 
-# Media files
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
-# Media file size limits
-MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', 104857600))  # 100MB default
-FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('FILE_UPLOAD_MAX_MEMORY_SIZE', 5242880))  # 5MB
-
-# Allowed file extensions
-ALLOWED_VIDEO_EXTENSIONS = ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv']
-ALLOWED_DOCUMENT_EXTENSIONS = ['pdf', 'doc', 'docx', 'txt', 'odt', 'ppt', 'pptx', 'xls', 'xlsx']
-ALLOWED_IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp']
-
-
-# ========================== #
-# EMAIL CONFIGURATION        #
-# ========================== #
-
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-
-# Use console backend for local development if requested
-if DEBUG and os.getenv('USE_CONSOLE_EMAIL', 'False').lower() == 'true':
-    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
-    print("🔥 EMAIL: Using console backend")
-else:
-    print("🔥 EMAIL: Using SMTP backend")
-
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
-EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
-EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() == 'true'
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
-SERVER_EMAIL = DEFAULT_FROM_EMAIL
-
-if not EMAIL_HOST_USER and not DEBUG:
-    print("⚠️  WARNING: EMAIL_HOST_USER not set")
-if not EMAIL_HOST_PASSWORD and not DEBUG:
-    print("⚠️  WARNING: EMAIL_HOST_PASSWORD not set")
-
-print(f"🔥 EMAIL CONFIG: Host={EMAIL_HOST}, Port={EMAIL_PORT}, User={EMAIL_HOST_USER}, TLS={EMAIL_USE_TLS}")
-
-COMPANY_NAME = os.getenv('COMPANY_NAME', 'E-Learning Platform')
-EMAIL_VERIFY_PATH = '/verify-email'
-PASSWORD_RESET_PATH = '/reset-password'
-
-# Frontend Configuration
-FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-
-# CORS Configuration
-CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if os.getenv('CORS_ALLOWED_ORIGINS') else [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:5173",
-]
-
-# Additional CORS settings
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
-
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
-
-# REST Framework Configuration
+# Enhanced REST Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -288,24 +189,95 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.MultiPartParser',
         'rest_framework.parsers.FormParser',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle'
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/hour',
+        'user': '1000/hour',
+        'login': '5/min',
+        'password_reset': '3/hour',
+        'registration': '3/hour',
+    }
 }
 
-# JWT Settings
-from datetime import timedelta
+# Simple Password Validation
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {
+            'min_length': 8,
+        }
+    },
+]
 
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=int(os.getenv('JWT_ACCESS_TOKEN_LIFETIME', 60))),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=int(os.getenv('JWT_REFRESH_TOKEN_LIFETIME', 7))),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': True,
-    'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-}
+# Internationalization
+LANGUAGE_CODE = os.getenv('LANGUAGE_CODE', 'en-us')
+TIME_ZONE = os.getenv('TIME_ZONE', 'UTC')
+USE_I18N = True
+USE_TZ = True
 
-# Security Settings for Production
+# Static files
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',
+] if os.path.exists(BASE_DIR / 'static') else []
+
+# Media files
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Enhanced Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+
+if DEBUG and os.getenv('USE_CONSOLE_EMAIL', 'False').lower() == 'true':
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_USE_SSL = os.getenv('EMAIL_USE_SSL', 'False').lower() == 'true'
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
+
+# Frontend Configuration
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+
+# Enhanced CORS Configuration
+CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',') if os.getenv('CORS_ALLOWED_ORIGINS') else [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:5173",
+]
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# Enhanced Security Settings
 if ENVIRONMENT == 'production':
     SECURE_SSL_REDIRECT = True
     SESSION_COOKIE_SECURE = True
@@ -313,9 +285,15 @@ if ENVIRONMENT == 'production':
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     X_FRAME_OPTIONS = 'DENY'
-    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_SECONDS = 31536000
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
+# Session Configuration
+SESSION_COOKIE_AGE = 86400  # 24 hours
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # Logging Configuration
 LOGGING = {
@@ -331,15 +309,9 @@ LOGGING = {
             'style': '{',
         },
     },
-    'filters': {
-        'require_debug_true': {
-            '()': 'django.utils.log.RequireDebugTrue',
-        },
-    },
     'handlers': {
         'console': {
             'level': 'INFO',
-            'filters': ['require_debug_true'],
             'class': 'logging.StreamHandler',
             'formatter': 'simple'
         },
@@ -347,14 +319,18 @@ LOGGING = {
             'level': 'ERROR',
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': BASE_DIR / 'logs' / 'django.log',
-            'maxBytes': 1024 * 1024 * 15,  # 15MB
+            'maxBytes': 1024 * 1024 * 15,
             'backupCount': 10,
             'formatter': 'verbose',
         },
-    },
-    'root': {
-        'handlers': ['console', 'file'],
-        'level': 'INFO',
+        'security': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': BASE_DIR / 'logs' / 'security.log',
+            'maxBytes': 1024 * 1024 * 15,
+            'backupCount': 10,
+            'formatter': 'verbose',
+        },
     },
     'loggers': {
         'django': {
@@ -367,25 +343,21 @@ LOGGING = {
             'level': 'DEBUG',
             'propagate': False,
         },
-        'courses': {
-            'handlers': ['console', 'file'],
-            'level': 'DEBUG',
+        'security': {
+            'handlers': ['console', 'security'],
+            'level': 'INFO',
             'propagate': False,
         },
     },
 }
 
-# Create logs directory if it doesn't exist
+# Create logs directory
 LOGS_DIR = BASE_DIR / 'logs'
 LOGS_DIR.mkdir(exist_ok=True)
-
-# Certificate Settings
-CERTIFICATE_ISSUER_NAME = os.getenv('CERTIFICATE_ISSUER_NAME', 'E-Learning Platform')
-CERTIFICATE_VALIDITY_YEARS = int(os.getenv('CERTIFICATE_VALIDITY_YEARS', 3))
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# WhiteNoise Configuration for static files
+# WhiteNoise Configuration
 if ENVIRONMENT == 'production':
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'

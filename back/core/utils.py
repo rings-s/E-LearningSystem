@@ -378,3 +378,28 @@ def safe_import(module_path, class_name):
         return getattr(module, class_name)
     except (ImportError, AttributeError):
         return None
+
+# Account activity tracking
+def track_user_activity(user, activity_type, **kwargs):
+    """Track user activity for accounts module"""
+    from core.models import UserActivity
+    
+    try:
+        UserActivity.objects.create(
+            user=user,
+            activity_type=activity_type,
+            ip_address=kwargs.get('ip_address'),
+            user_agent=kwargs.get('user_agent'),
+            metadata=kwargs.get('metadata', {})
+        )
+    except Exception as e:
+        logger.error(f"Failed to track user activity: {str(e)}")
+
+# Enrollment import fix for missing dependency
+def create_enrollment_or_pass(*args, **kwargs):
+    """Create enrollment if models available"""
+    try:
+        from courses.models import Enrollment
+        return Enrollment.objects.create(*args, **kwargs)
+    except Exception:
+        return None

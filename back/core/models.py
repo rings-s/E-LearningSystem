@@ -384,3 +384,42 @@ class SupportTicket(models.Model):
             timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
             self.ticket_number = f"{prefix}-{timestamp}"
         super().save(*args, **kwargs)
+
+# User Activity (for accounts tracking)
+class UserActivity(models.Model):
+    ACTIVITY_TYPE_CHOICES = [
+        ('login', _('User Login')),
+        ('login_success', _('Successful Login')),
+        ('login_failed', _('Failed Login')),
+        ('logout', _('User Logout')),
+        ('profile_update', _('Profile Update')),
+        ('password_change', _('Password Change')),
+        ('email_verification', _('Email Verification')),
+        ('password_reset', _('Password Reset')),
+    ]
+
+    uuid = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='activities')
+    
+    activity_type = models.CharField(max_length=30, choices=ACTIVITY_TYPE_CHOICES)
+    
+    # Request info
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.TextField(null=True, blank=True)
+    
+    # Additional data
+    metadata = models.JSONField(default=dict, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = _('User Activity')
+        verbose_name_plural = _('User Activities')
+        ordering = ['-created_at', 'id']
+        indexes = [
+            models.Index(fields=['user', 'created_at']),
+            models.Index(fields=['activity_type', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.email} - {self.activity_type} - {self.created_at}"
