@@ -142,9 +142,18 @@ class EnrollmentSerializer(serializers.ModelSerializer):
 
 # Module Serializer
 class ModuleSerializer(serializers.ModelSerializer):
+    lessons = serializers.SerializerMethodField()
+    
     class Meta:
         model = Module
         fields = '__all__'
+    
+    def get_lessons(self, obj):
+        # Use prefetched lessons if available
+        if hasattr(obj, 'lessons'):
+            lessons = obj.lessons.filter(is_published=True).order_by('order')
+            return LessonSerializer(lessons, many=True, context=self.context).data
+        return []
 
 # Lesson Serializer
 class LessonSerializer(serializers.ModelSerializer):
@@ -161,20 +170,29 @@ class LessonSerializer(serializers.ModelSerializer):
         if request and request.user.is_authenticated:
             # Use prefetched data if available
             if hasattr(obj, 'user_progress_data'):
-                return obj.user_progress_data.is_completed if obj.user_progress_data else False
+                progress_data = obj.user_progress_data
+                # Handle both single object and list cases
+                if isinstance(progress_data, list):
+                    progress_data = progress_data[0] if progress_data else None
+                return progress_data.is_completed if progress_data else False
         return False
     
     def get_user_progress(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             if hasattr(obj, 'user_progress_data') and obj.user_progress_data:
-                progress = obj.user_progress_data
-                return {
-                    'is_completed': progress.is_completed,
-                    'last_position': progress.last_position,
-                    'time_spent_seconds': progress.time_spent_seconds,
-                    'completed_at': progress.completed_at
-                }
+                progress_data = obj.user_progress_data
+                # Handle both single object and list cases
+                if isinstance(progress_data, list):
+                    progress_data = progress_data[0] if progress_data else None
+                
+                if progress_data:
+                    return {
+                        'is_completed': progress_data.is_completed,
+                        'last_position': progress_data.last_position,
+                        'time_spent_seconds': progress_data.time_spent_seconds,
+                        'completed_at': progress_data.completed_at
+                    }
         return None
 
 # Lesson Progress Serializer
