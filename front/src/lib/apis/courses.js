@@ -222,6 +222,30 @@ export const coursesApi = {
         }
     },
 
+    // Alias for createCourseLesson to match new route usage
+    async createLesson(courseUuid, lessonData) {
+        return this.createCourseLesson(courseUuid, lessonData);
+    },
+
+    async uploadLessonResource(courseUuid, lessonUuid, file) {
+        try {
+            const courseValidation = validateUUID(courseUuid, 'Course ID');
+            if (!courseValidation.isValid) {
+                throw new Error(courseValidation.error);
+            }
+            const lessonValidation = validateUUID(lessonUuid, 'Lesson ID');
+            if (!lessonValidation.isValid) {
+                throw new Error(lessonValidation.error);
+            }
+            const formData = new FormData();
+            formData.append('resource', file);
+            return await api.upload(`/api/courses/${courseValidation.value}/lessons/${lessonValidation.value}/upload/`, formData);
+        } catch (error) {
+            console.error('Failed to upload lesson resource:', error);
+            throw error;
+        }
+    },
+
     async updateCourseLesson(courseUuid, lessonUuid, data) {
         try {
             const courseValidation = validateUUID(courseUuid, 'Course ID');
@@ -353,6 +377,30 @@ export const coursesApi = {
             return await api.get('/api/courses/?my_courses=true');
         } catch (error) {
             console.error('Failed to get teacher courses:', error);
+            throw error;
+        }
+    },
+
+    async getTeacherCourses() {
+        try {
+            // Get courses where current user is the instructor
+            return await api.get('/api/courses/?instructor=true');
+        } catch (error) {
+            console.error('Failed to get teacher courses:', error);
+            throw error;
+        }
+    },
+
+    async getCourseStudents(courseUuid) {
+        try {
+            const validation = validateUUID(courseUuid, 'Course ID');
+            if (!validation.isValid) {
+                throw new Error(validation.error);
+            }
+            // Get enrolled students for a specific course
+            return await api.get(`/api/enrollments/?course=${validation.value}`);
+        } catch (error) {
+            console.error('Failed to get course students:', error);
             throw error;
         }
     },

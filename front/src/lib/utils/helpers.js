@@ -48,6 +48,27 @@ export function classNames(...classes) {
 	return classes.filter(Boolean).join(' ');
 }
 
+// Auth helpers
+export function isTeacher(user) {
+	return user && (user.role === 'teacher' || user.is_staff);
+}
+
+export function isStudent(user) {
+	return user && user.role === 'student';
+}
+
+export function isAdmin(user) {
+	return user && user.is_staff;
+}
+
+export function hasRole(user, role) {
+	if (!user) return false;
+	if (role === 'teacher') return isTeacher(user);
+	if (role === 'student') return isStudent(user);
+	if (role === 'admin') return isAdmin(user);
+	return user.role === role;
+}
+
 export function focusTrap(node) {
 	const focusableElements = node.querySelectorAll(
 		'a[href], button, textarea, input[type="text"], input[type="radio"], input[type="checkbox"], select'
