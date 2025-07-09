@@ -81,7 +81,8 @@ class CourseListCreateView(generics.ListCreateAPIView):
             # Add annotations with error handling
             try:
                 queryset = queryset.annotate(
-                    enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
+                    enrollment_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
+                    enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True)),  # Keep both for compatibility
                     avg_rating=Avg('reviews__rating', filter=Q(reviews__is_verified=True))
                 )
             except Exception as e:
@@ -129,10 +130,10 @@ class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
                 'tags', 'co_instructors',
                 Prefetch(
                     'modules',
-                    queryset=Module.objects.filter(is_published=True).prefetch_related(
+                    queryset=Module.objects.filter(is_published=True).order_by('order').prefetch_related(
                         Prefetch(
                             'lessons',
-                            queryset=Lesson.objects.filter(is_published=True)
+                            queryset=Lesson.objects.filter(is_published=True).order_by('order')
                         )
                     )
                 ),
@@ -142,7 +143,8 @@ class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
                     .select_related('student').order_by('-created_at')[:10]
                 )
             ).annotate(
-                enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
+                enrollment_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
+                enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True)),  # Keep both for compatibility
                 avg_rating=Avg('reviews__rating', filter=Q(reviews__is_verified=True))
             )
             

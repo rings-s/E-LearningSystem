@@ -52,8 +52,17 @@ class CourseSerializer(serializers.ModelSerializer):
     instructor_name = serializers.CharField(source='instructor.get_full_name', read_only=True)
     category_name = serializers.CharField(source='category.name', read_only=True)
     enrolled_count = serializers.IntegerField(read_only=True)
+    enrollment_count = serializers.IntegerField(read_only=True)  # Frontend expects this field name
+    enrolled_students = serializers.SerializerMethodField()  # For unique student counting
     avg_rating = serializers.FloatField(read_only=True)
     average_rating = serializers.SerializerMethodField()
+    
+    # Course detail page specific fields
+    instructor = serializers.SerializerMethodField()
+    modules = serializers.SerializerMethodField()
+    total_lessons = serializers.SerializerMethodField()
+    reviews = serializers.SerializerMethodField()
+    is_enrolled = serializers.SerializerMethodField()
     
     class Meta:
         model = Course
@@ -110,6 +119,109 @@ class CourseSerializer(serializers.ModelSerializer):
         if hasattr(obj, 'avg_rating') and obj.avg_rating is not None:
             return obj.avg_rating
         return obj.get_average_rating()  # Falls back to method
+    
+    def get_enrolled_students(self, obj):
+        """Return enrolled students for unique counting in dashboard"""
+        # Only include for teacher's own courses and when requested
+        request = self.context.get('request')
+        if not request or not request.user.is_authenticated:
+            return []
+        
+        # Check if this is for dashboard (teacher viewing their own courses)
+        if request.user == obj.instructor:
+            enrollments = obj.enrollments.filter(is_active=True).select_related('student')
+            return [
+                {
+                    'id': enrollment.student.id,
+                    'uuid': str(enrollment.student.uuid) if hasattr(enrollment.student, 'uuid') else str(enrollment.student.id),
+                    'name': enrollment.student.get_full_name() if hasattr(enrollment.student, 'get_full_name') else str(enrollment.student)
+                }
+                for enrollment in enrollments
+            ]
+        return []
+    
+    def get_instructor(self, obj):
+        """Return detailed instructor information for course detail page"""
+        if obj.instructor:
+            return {
+                'id': obj.instructor.id,
+                'full_name': obj.instructor.get_full_name() if hasattr(obj.instructor, 'get_full_name') else str(obj.instructor),
+                'avatar': obj.instructor.avatar.url if hasattr(obj.instructor, 'avatar') and obj.instructor.avatar else None,
+                'bio': getattr(obj.instructor, 'bio', ''),
+                'role': getattr(obj.instructor, 'role', 'teacher')
+            }
+        return None
+    
+    def get_modules(self, obj):
+        """Return course modules with lessons for curriculum tab"""
+        try:
+            if hasattr(obj, 'modules'):
+                modules = obj.modules.filter(is_published=True).order_by('order')
+                result = []
+                
+                for module in modules:
+                    lessons = module.lessons.filter(is_published=True).order_by('order')
+                    
+                    result.append({
+                        'id': module.id,
+                        'uuid': str(module.uuid),
+                        'title': module.title,
+                        'description': module.description,
+                        'order': module.order,
+                        'lessons': [
+                            {
+                                'id': lesson.id,
+                                'uuid': str(lesson.uuid),
+                                'title': lesson.title,
+                                'description': lesson.description,
+                                'estimated_time_minutes': lesson.estimated_time_minutes,
+                                'content_type': lesson.content_type,
+                                'order': lesson.order,
+                                'is_preview': lesson.is_preview,
+                                'is_completed': False  # Will be calculated based on user progress
+                            }
+                            for lesson in lessons
+                        ]
+                    })
+                
+                return result
+        except Exception as e:
+            print(f"Error in get_modules: {e}")
+            
+        return []
+    
+    def get_total_lessons(self, obj):
+        """Return total number of lessons across all modules"""
+        if hasattr(obj, 'modules'):
+            return sum(
+                module.lessons.filter(is_published=True).count()
+                for module in obj.modules.filter(is_published=True)
+            )
+        return 0
+    
+    def get_reviews(self, obj):
+        """Return course reviews for reviews tab"""
+        if hasattr(obj, 'reviews'):
+            reviews = obj.reviews.filter(is_verified=True).select_related('student').order_by('-created_at')[:10]
+            return [
+                {
+                    'id': review.id,
+                    'student_name': review.student.get_full_name() if hasattr(review.student, 'get_full_name') else str(review.student),
+                    'student_avatar': review.student.avatar.url if hasattr(review.student, 'avatar') and review.student.avatar else None,
+                    'rating': review.rating,
+                    'comment': review.comment,
+                    'created_at': review.created_at.isoformat()
+                }
+                for review in reviews
+            ]
+        return []
+    
+    def get_is_enrolled(self, obj):
+        """Check if current user is enrolled in this course"""
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return obj.enrollments.filter(student=request.user, is_active=True).exists()
+        return False
     
     def create(self, validated_data):
         tags_data = validated_data.pop('tags_input', [])

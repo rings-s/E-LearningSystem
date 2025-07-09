@@ -45,5 +45,4 @@
 	};
 </script>
 
-// front/src/lib/components/charts/ProgressChart.svelte
 <ChartWrapper type="bar" data={chartData} options={chartOptions} {height} class={className} />

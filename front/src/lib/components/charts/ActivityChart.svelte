@@ -21,10 +21,33 @@
 		const counts = {};
 		days.forEach((day) => (counts[day.date] = 0));
 
+		if (!activities || !Array.isArray(activities)) {
+			return days.map(() => 0);
+		}
+
 		activities.forEach((activity) => {
-			const date = new Date(activity.created_at).toISOString().split('T')[0];
-			if (counts[date] !== undefined) {
-				counts[date]++;
+			if (!activity || !activity.created_at) {
+				return;
+			}
+			
+			try {
+				// Validate the date string first
+				if (typeof activity.created_at !== 'string' || activity.created_at.trim() === '') {
+					return;
+				}
+				
+				const activityDate = new Date(activity.created_at);
+				if (isNaN(activityDate.getTime()) || !isFinite(activityDate.getTime())) {
+					return;
+				}
+				
+				const date = activityDate.toISOString().split('T')[0];
+				if (counts[date] !== undefined) {
+					counts[date]++;
+				}
+			} catch (error) {
+				console.warn('Invalid date in activity:', activity.created_at, error);
+				return;
 			}
 		});
 
@@ -68,5 +91,4 @@
 	};
 </script>
 
-// front/src/lib/components/charts/ActivityChart.svelte
 <ChartWrapper type="line" data={chartData} options={chartOptions} {height} class={className} />

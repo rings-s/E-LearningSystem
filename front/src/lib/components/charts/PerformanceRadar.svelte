@@ -59,5 +59,4 @@
 	};
 </script>
 
-// front/src/lib/components/charts/PerformanceRadar.svelte
 <ChartWrapper type="radar" data={chartData} options={chartOptions} {height} class={className} />

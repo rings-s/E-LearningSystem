@@ -391,7 +391,8 @@ import { isTeacher } from '$lib/utils/helpers.js';
 			</div>
 		{:else}
 			<!-- Students Table -->
-			<Card class="overflow-hidden" in:fly={{ y: 20, delay: 200, duration: 600 }}>
+			<div in:fly={{ y: 20, delay: 200, duration: 600 }}>
+				<Card class="overflow-hidden">
 				<div class="px-6 py-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
 					<div class="flex justify-between items-center">
 						<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -545,6 +546,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 					</div>
 				{/if}
 			</Card>
+		</div>
 		{/if}
 	</div>
 </div>
