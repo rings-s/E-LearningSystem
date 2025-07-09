@@ -399,18 +399,22 @@
 		class="space-y-6"
 	>
 		<div>
-			<label class="mb-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
-				Discussion Type
-			</label>
-			<div class="grid grid-cols-3 gap-3">
-				{#each Object.entries(typeConfig) as [type, config]}
-					<button
-						type="button"
-						onclick={() => (newDiscussion.discussion_type = type)}
-						class="rounded-xl border-2 p-4 transition-all {newDiscussion.discussion_type === type
-							? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
-							: 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'}"
-					>
+			<fieldset>
+				<legend class="mb-3 block text-sm font-medium text-gray-700 dark:text-gray-300">
+					Discussion Type
+				</legend>
+				<div class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Select discussion type">
+					{#each Object.entries(typeConfig) as [type, config]}
+						<button
+							type="button"
+							role="radio"
+							aria-checked={newDiscussion.discussion_type === type}
+							aria-label="Select {config.label}"
+							onclick={() => (newDiscussion.discussion_type = type)}
+							class="rounded-xl border-2 p-4 transition-all {newDiscussion.discussion_type === type
+								? 'border-primary-500 bg-primary-50 dark:bg-primary-900/20'
+								: 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'}"
+						>
 						<svg
 							class="mx-auto mb-2 h-6 w-6 {newDiscussion.discussion_type === type
 								? `text-${config.color}-600 dark:text-${config.color}-400`
@@ -430,7 +434,8 @@
 						</span>
 					</button>
 				{/each}
-			</div>
+				</div>
+			</fieldset>
 		</div>
 
 		<Input
@@ -443,10 +448,11 @@
 		/>
 
 		<div>
-			<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
+			<label for="discussion-content" class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
 				Content
 			</label>
 			<textarea
+				id="discussion-content"
 				bind:value={newDiscussion.content}
 				required
 				rows="6"

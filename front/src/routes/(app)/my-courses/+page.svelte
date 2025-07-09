@@ -343,6 +343,7 @@
 							<div class="flex rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
 								<button
 									onclick={() => viewMode = 'grid'}
+									aria-label="Switch to grid view"
 									class={classNames(
 										"rounded-md px-3 py-2 text-sm font-medium transition-all",
 										viewMode === 'grid'
@@ -356,6 +357,7 @@
 								</button>
 								<button
 									onclick={() => viewMode = 'list'}
+									aria-label="Switch to list view"
 									class={classNames(
 										"rounded-md px-3 py-2 text-sm font-medium transition-all",
 										viewMode === 'list'

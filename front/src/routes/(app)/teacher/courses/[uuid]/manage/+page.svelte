@@ -561,10 +561,11 @@
 								/>
 
 								<div>
-									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+									<label for="course-category" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
 										Category
 									</label>
 									<select
+										id="course-category"
 										bind:value={courseData.category}
 										onchange={handleInputChange}
 										class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
@@ -614,10 +615,11 @@
 							
 							<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 								<div>
-									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+									<label for="course-level" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
 										Level
 									</label>
 									<select
+										id="course-level"
 										bind:value={courseData.level}
 										onchange={handleInputChange}
 										class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
@@ -629,10 +631,11 @@
 								</div>
 
 								<div>
-									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+									<label for="course-language" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
 										Language
 									</label>
 									<select
+										id="course-language"
 										bind:value={courseData.language}
 										onchange={handleInputChange}
 										class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
@@ -890,10 +893,11 @@
 							
 							<div class="space-y-6">
 								<div>
-									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+									<label for="course-prerequisites" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
 										Prerequisites
 									</label>
 									<textarea
+										id="course-prerequisites"
 										bind:value={courseData.prerequisites}
 										onchange={handleInputChange}
 										class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
@@ -903,10 +907,11 @@
 								</div>
 
 								<div>
-									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+									<label for="course-learning-outcomes" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
 										Learning Outcomes
 									</label>
 									<textarea
+										id="course-learning-outcomes"
 										bind:value={courseData.learning_outcomes}
 										onchange={handleInputChange}
 										class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"

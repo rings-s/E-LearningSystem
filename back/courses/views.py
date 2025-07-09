@@ -165,7 +165,53 @@ class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
     
     def get_object(self):
         uuid_value = self.kwargs.get('uuid')
-        return validate_and_get_object(Course, uuid_value, queryset=self.get_queryset())
+        try:
+            # Build a filterable queryset (without slices that prevent filtering)
+            queryset = Course.objects.select_related(
+                'instructor', 'category'
+            ).prefetch_related(
+                'tags', 'co_instructors',
+                Prefetch(
+                    'modules',
+                    queryset=Module.objects.filter(is_published=True).prefetch_related(
+                        Prefetch(
+                            'lessons',
+                            queryset=Lesson.objects.filter(is_published=True)
+                        )
+                    )
+                )
+            ).annotate(
+                enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
+                avg_rating=Avg('reviews__rating', filter=Q(reviews__is_verified=True))
+            )
+            
+            # Add user-specific data if authenticated
+            user = getattr(self.request, 'user', None)
+            if user and user.is_authenticated:
+                queryset = queryset.prefetch_related(
+                    Prefetch(
+                        'enrollments',
+                        queryset=Enrollment.objects.filter(student=user, is_active=True),
+                        to_attr='user_enrollment'
+                    )
+                )
+            
+            # Get the course with the filterable queryset
+            course = validate_and_get_object(Course, uuid_value, queryset=queryset)
+            
+            # Now add the sliced reviews prefetch to the found object
+            if course:
+                reviews_queryset = CourseReview.objects.filter(
+                    course=course, is_verified=True
+                ).select_related('student').order_by('-created_at')[:10]
+                course.recent_reviews = list(reviews_queryset)
+            
+            return course
+            
+        except Exception as e:
+            logger.warning(f"Failed to get optimized course object: {e}")
+            # Fallback to simple lookup
+            return validate_and_get_object(Course, uuid_value)
     
     def get_permissions(self):
         if self.request.method in ['PUT', 'PATCH', 'DELETE']:

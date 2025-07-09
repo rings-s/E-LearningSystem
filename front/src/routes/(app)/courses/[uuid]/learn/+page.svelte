@@ -82,25 +82,29 @@
 	});
 
 	let currentLessonIndex = $derived(() => {
-		if (!currentLesson || !currentLesson.uuid || !Array.isArray(lessons) || lessons.length === 0) return -1;
-		return lessons.findIndex(lesson => lesson && lesson.uuid === currentLesson.uuid);
+		if (!currentLesson?.uuid || !Array.isArray(lessons) || lessons.length === 0) return -1;
+		return lessons.findIndex(lesson => lesson?.uuid === currentLesson.uuid);
 	});
 
 	let previousLesson = $derived(() => {
 		const index = currentLessonIndex;
+		console.log('previousLesson derived: index:', index, 'lessons.length:', lessons?.length);
 		if (index <= 0 || !Array.isArray(lessons) || lessons.length === 0) return null;
 		const prevLesson = lessons[index - 1];
-		return (prevLesson && prevLesson.uuid) ? prevLesson : null;
+		console.log('previousLesson derived: found lesson:', prevLesson);
+		return (prevLesson?.uuid) ? prevLesson : null;
 	});
 
 	let nextLesson = $derived(() => {
 		const index = currentLessonIndex;
+		console.log('nextLesson derived: index:', index, 'lessons.length:', lessons?.length);
 		if (index < 0 || !Array.isArray(lessons) || lessons.length === 0 || index >= lessons.length - 1) return null;
 		const nextLesson = lessons[index + 1];
-		return (nextLesson && nextLesson.uuid) ? nextLesson : null;
+		console.log('nextLesson derived: found lesson:', nextLesson);
+		return (nextLesson?.uuid) ? nextLesson : null;
 	});
 
-	let totalLessonsCount = $derived.by(() => {
+	let totalLessonsCount = $derived(() => {
 		return Array.isArray(lessons) ? lessons.length : 0;
 	});
 
@@ -218,10 +222,20 @@
 
 	async function loadLesson(lesson) {
 		try {
-			// Validate lesson object
-			if (!lesson || !lesson.uuid) {
-				console.error('loadLesson: Invalid lesson object:', lesson);
-				throw new Error('Invalid lesson: lesson object or UUID is missing');
+			// Enhanced validation with detailed error messages
+			if (!lesson) {
+				console.error('loadLesson: Lesson is null or undefined');
+				throw new Error('Invalid lesson: lesson is null or undefined');
+			}
+			
+			if (typeof lesson === 'function') {
+				console.error('loadLesson: Received function instead of lesson object:', lesson);
+				throw new Error('Invalid lesson: received function instead of lesson object. Make sure to call derived states properly.');
+			}
+			
+			if (!lesson.uuid) {
+				console.error('loadLesson: Lesson missing UUID:', lesson);
+				throw new Error('Invalid lesson: lesson object is missing UUID property');
 			}
 
 			// End previous lesson tracking
@@ -492,10 +506,23 @@
 				message: `${$t('course.greatJob')} "${currentLesson.title}"`
 			});
 			
-			// Auto-advance if next lesson exists
-			if (nextLesson) {
-				setTimeout(() => loadLesson(nextLesson), 2000);
-			}
+			// Auto-advance if next lesson exists - Fixed: Access derived value inside setTimeout
+			setTimeout(() => {
+				try {
+					const lesson = nextLesson; // Access derived value at point of use
+					console.log('completeLesson: accessing nextLesson type:', typeof lesson);
+					console.log('completeLesson: nextLesson value:', lesson);
+					
+					if (lesson && typeof lesson === 'object' && lesson.uuid) {
+						console.log('completeLesson: Auto-advancing to lesson:', lesson.uuid);
+						loadLesson(lesson);
+					} else {
+						console.log('completeLesson: No valid next lesson for auto-advance');
+					}
+				} catch (error) {
+					console.error('Error in auto-advance:', error);
+				}
+			}, 2000);
 
 		} catch (err) {
 			uiStore.showNotification({
@@ -605,27 +632,53 @@
 	}
 
 	function navigatePrevious() {
-		if (previousLesson && previousLesson.uuid) {
-			navigateToLesson(previousLesson);
-		} else {
-			console.warn('navigatePrevious: No valid previous lesson available');
+		try {
+			const lesson = previousLesson; // Access derived value directly
+			console.log('navigatePrevious: lesson type:', typeof lesson);
+			console.log('navigatePrevious: lesson value:', lesson);
+			
+			if (lesson && typeof lesson === 'object' && lesson.uuid) {
+				navigateToLesson(lesson);
+			} else {
+				console.warn('navigatePrevious: No valid previous lesson available');
+				uiStore.showNotification({
+					type: 'info',
+					title: $t('course.navigation'),
+					message: 'This is the first lesson'
+				});
+			}
+		} catch (error) {
+			console.error('Error in navigatePrevious:', error);
 			uiStore.showNotification({
-				type: 'info',
-				title: $t('course.navigation'),
-				message: 'This is the first lesson'
+				type: 'error',
+				title: $t('common.error'),
+				message: 'Failed to navigate to previous lesson'
 			});
 		}
 	}
 
 	function navigateNext() {
-		if (nextLesson && nextLesson.uuid) {
-			navigateToLesson(nextLesson);
-		} else {
-			console.warn('navigateNext: No valid next lesson available');
+		try {
+			const lesson = nextLesson; // Access derived value directly
+			console.log('navigateNext: lesson type:', typeof lesson);
+			console.log('navigateNext: lesson value:', lesson);
+			
+			if (lesson && typeof lesson === 'object' && lesson.uuid) {
+				navigateToLesson(lesson);
+			} else {
+				console.warn('navigateNext: No valid next lesson available');
+				uiStore.showNotification({
+					type: 'info',
+					title: $t('course.navigation'),
+					message: 'This is the last lesson'
+				});
+			}
+		} catch (error) {
+			console.error('Error in navigateNext:', error);
 			uiStore.showNotification({
-				type: 'info',
-				title: $t('course.navigation'),
-				message: 'This is the last lesson'
+				type: 'error',
+				title: $t('common.error'),
+				message: 'Failed to navigate to next lesson'
 			});
 		}
 	}
