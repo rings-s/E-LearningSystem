@@ -344,7 +344,8 @@ import { isTeacher } from '$lib/utils/helpers.js';
 		</div>
 
 		<!-- Filters and Search -->
-		<Card class="p-6 mb-8" in:fly={{ y: 20, delay: 100, duration: 600 }}>
+		<div in:fly={{ y: 20, delay: 100, duration: 600 }}>
+			<Card class="p-6 mb-8">
 			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 				<!-- Search -->
 				<div class="lg:col-span-2">
@@ -411,6 +412,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 				</div>
 			</div>
 		</Card>
+	</div>
 
 		<!-- Error State -->
 		{#if error}
