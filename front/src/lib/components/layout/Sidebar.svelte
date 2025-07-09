@@ -13,7 +13,6 @@
 		{ name: $t('navigation.myCourses'), href: '/my-courses', icon: 'bookmark' },
 		...($userRole === 'teacher'
 			? [
-				{ name: $t('navigation.teacherDashboard'), href: '/teacher/dashboard', icon: 'academic' },
 				{ name: $t('navigation.teacherCourses'), href: '/teacher/courses', icon: 'teaching' },
 				{ name: $t('navigation.teacherStudents'), href: '/teacher/students', icon: 'users' }
 			]

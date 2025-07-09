@@ -240,7 +240,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 				<div>
 					<div class="flex items-center gap-4 mb-2">
 						<Button
-							href="/teacher/dashboard"
+							href="/dashboard"
 							variant="ghost"
 							size="medium"
 							class="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"

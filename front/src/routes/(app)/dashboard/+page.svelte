@@ -16,11 +16,8 @@
 	import Badge from '$lib/components/common/Badge.svelte';
 	
 	// Dashboard Components
-	import StudentDashboard from '$lib/components/dashboard/StudentDashboard.svelte';
-	import TeacherDashboard from '$lib/components/dashboard/TeacherDashboard.svelte';
-	import ManagerDashboard from '$lib/components/dashboard/ManagerDashboard.svelte';
+	import UnifiedDashboard from '$lib/components/dashboard/UnifiedDashboard.svelte';
 	import DashboardHeader from '$lib/components/dashboard/DashboardHeader.svelte';
-	import QuickActions from '$lib/components/dashboard/QuickActions.svelte';
 
 	// State
 	let loading = $state(true);
@@ -193,13 +190,35 @@
 	function handleQuickAction(action) {
 		switch (action) {
 			case 'create_course':
-				goto('/courses/create');
+				goto('/teacher/courses/create');
 				break;
 			case 'browse_courses':
 				goto('/courses');
 				break;
 			case 'view_courses':
+			case 'my_courses':
 				goto('/my-courses');
+				break;
+			case 'manage_students':
+				goto('/teacher/students');
+				break;
+			case 'certificates':
+				goto('/certificates');
+				break;
+			case 'schedule':
+				goto('/schedule');
+				break;
+			case 'manage_courses':
+				goto('/admin/courses');
+				break;
+			case 'manage_users':
+				goto('/admin/users');
+				break;
+			case 'platform_analytics':
+				goto('/admin/analytics');
+				break;
+			case 'settings':
+				goto('/admin/settings');
 				break;
 			case 'view_analytics':
 				// Navigate to role-appropriate analytics page
@@ -281,24 +300,11 @@
 				</div>
 			</div>
 		{:else}
-			<!-- Role-based Dashboard Content -->
-			<div class="space-y-8" in:fly={{ y: 20, duration: 600 }}>
-				{#if isStudent}
-					<StudentDashboard 
-						data={dashboardData} 
-						analytics={analyticsData}
-						courses={coursesData}
-						onAction={handleQuickAction}
-					/>
-				{:else if isTeacher}
-					<TeacherDashboard 
-						data={dashboardData} 
-						analytics={analyticsData}
-						courses={coursesData}
-						onAction={handleQuickAction}
-					/>
-				{:else if isManager}
-					<ManagerDashboard 
+			<!-- Unified Dashboard Content -->
+			<div in:fly={{ y: 20, duration: 600 }}>
+				{#if $currentUser}
+					<UnifiedDashboard 
+						user={$currentUser}
 						data={dashboardData} 
 						analytics={analyticsData}
 						courses={coursesData}
@@ -323,12 +329,6 @@
 						</Button>
 					</Card>
 				{/if}
-
-				<!-- Universal Quick Actions -->
-				<QuickActions 
-					{userRole} 
-					onAction={handleQuickAction}
-				/>
 			</div>
 		{/if}
 	</div>
