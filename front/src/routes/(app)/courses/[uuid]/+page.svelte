@@ -320,7 +320,7 @@
 									</svg>
 									<div>
 										<div class="text-sm text-white/70">Rating</div>
-										<div class="font-medium">{course?.average_rating?.toFixed(1)} ({formatters.number(course?.reviews_count || 0)})</div>
+										<div class="font-medium">{(course?.average_rating || 0).toFixed(1)} ({formatters.number(course?.reviews_count || 0)})</div>
 									</div>
 								</div>
 							{/if}

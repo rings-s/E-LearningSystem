@@ -135,10 +135,7 @@
 					fs: 1, // Allow fullscreen
 					hl: 'en', // Set language to avoid locale issues
 					disablekb: 0, // Enable keyboard controls
-					widget_referrer: currentOrigin, // Set referrer to avoid warnings
-					// Disable problematic features to prevent warnings
-					'web-share': 0,
-					'picture-in-picture': 0
+					widget_referrer: currentOrigin // Set referrer to avoid warnings
 				},
 				events: {
 					onReady: handlePlayerReady,

@@ -5,7 +5,7 @@
 	import { fade, fly, slide } from 'svelte/transition';
 	import { coursesApi } from '$lib/apis/courses.js';
 	import { coreApi } from '$lib/apis/core.js';
-	import { analyticsService } from '$lib/services/analytics.service.js';
+	import { analyticsService } from '$lib/services/analytics.js';
 	import { currentUser } from '$lib/stores/auth.store.js';
 	import { uiStore } from '$lib/stores/ui.store.js';
 	import { t, locale } from '$lib/i18n/index.js';
@@ -681,7 +681,7 @@
 					/>
 					<StatsCard
 						title="Engagement Rate"
-						value="{engagementRate()}%"
+						value="{engagementRate}%"
 						trend="-2%"
 						trendDirection="down"
 						icon="⚡"

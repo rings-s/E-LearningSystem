@@ -9,9 +9,11 @@ from django.db.models import Avg, Count, Q, Prefetch
 from django.utils import timezone
 from django.core.exceptions import ValidationError, PermissionDenied
 from django.db import models
+from django.contrib.auth import get_user_model
 import logging
 
 logger = logging.getLogger(__name__)
+User = get_user_model()
 
 from .models import (
     Category, Course, Enrollment, Module, Lesson, LessonProgress,
@@ -729,6 +731,76 @@ class CourseReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CourseReviewSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     lookup_field = 'uuid'
+
+
+
+
+
+# Add these views to your existing courses/views.py
+
+class TeacherCoursesView(generics.ListAPIView):
+    """GET /api/courses/teacher/ - List teacher's courses"""
+    serializer_class = CourseSerializer
+    permission_classes = [IsAuthenticated, IsTeacherOrAdmin]
+    
+    def get_queryset(self):
+        user = self.request.user
+        print(f"DEBUG TeacherCourses: User {user.email} (role: {user.role})")
+        
+        # Find courses for this user
+        courses = Course.objects.filter(instructor=user)
+        print(f"DEBUG TeacherCourses: Found {courses.count()} courses for user")
+        
+        # Print course details if any exist
+        for course in courses:
+            print(f"DEBUG TeacherCourses: Course '{course.title}' (status: {course.status})")
+            enrollment_count = course.enrollments.filter(is_active=True).count()
+            print(f"DEBUG TeacherCourses: Course has {enrollment_count} active enrollments")
+        
+        # Return annotated queryset
+        return courses.select_related('instructor', 'category').annotate(
+            enrollment_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
+            enrolled_count=Count('enrollments', filter=Q(enrollments__is_active=True)),
+            avg_rating=Avg('reviews__rating', filter=Q(reviews__is_verified=True)),
+            average_rating=Avg('reviews__rating', filter=Q(reviews__is_verified=True))
+        ).order_by('-created_at')
+
+class TeacherStudentsView(generics.ListAPIView):
+    """GET /api/courses/teacher/students/ - List all students from teacher's courses"""
+    permission_classes = [IsAuthenticated, IsTeacherOrAdmin]
+    
+    def get(self, request):
+        user = request.user
+        print(f"DEBUG TeacherStudents: User {user.email} (role: {user.role})")
+        
+        teacher_courses = Course.objects.filter(instructor=user)
+        print(f"DEBUG TeacherStudents: Found {teacher_courses.count()} teacher courses")
+        
+        students_data = []
+        
+        for course in teacher_courses:
+            enrollments = Enrollment.objects.filter(
+                course=course, is_active=True
+            ).select_related('student', 'course')
+            
+            print(f"DEBUG TeacherStudents: Course '{course.title}' has {enrollments.count()} active enrollments")
+            
+            for enrollment in enrollments:
+                student_data = {
+                    'uuid': enrollment.student.uuid,
+                    'name': enrollment.student.get_full_name(),
+                    'email': enrollment.student.email,
+                    'course_name': course.title,
+                    'course_uuid': course.uuid,
+                    'enrolled_at': enrollment.enrolled_at,
+                    'progress': enrollment.progress_percentage,
+                    'last_active': enrollment.last_accessed,
+                    'status': enrollment.status
+                }
+                students_data.append(student_data)
+        
+        print(f"DEBUG TeacherStudents: Total students found: {len(students_data)}")
+        return Response({'results': students_data})
 
 # Certificates
 class CertificateListView(generics.ListAPIView):

@@ -664,7 +664,7 @@
 											<div class="text-gray-500">Students</div>
 										</div>
 										<div>
-											<div class="font-semibold text-gray-900 dark:text-white">{course.average_rating?.toFixed(1) || '0.0'}</div>
+											<div class="font-semibold text-gray-900 dark:text-white">{(course.average_rating || 0).toFixed(1)}</div>
 											<div class="text-gray-500">Rating</div>
 										</div>
 										<div>

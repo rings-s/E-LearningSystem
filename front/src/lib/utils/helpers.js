@@ -58,7 +58,7 @@ export function isStudent(user) {
 }
 
 export function isAdmin(user) {
-	return user && user.is_staff;
+	return user && (user.is_staff || user.role === 'manager');
 }
 
 export function hasRole(user, role) {
@@ -199,7 +199,7 @@ export function copyToClipboard(text) {
 // UUID utilities
 export function isValidUUID(value) {
 	if (!value || typeof value !== 'string') return false;
-	const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+	const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 	return uuidRegex.test(value.trim());
 }
 

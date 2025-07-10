@@ -21,11 +21,13 @@ from .serializers import (
     MediaContentSerializer, AnnouncementSerializer, SupportTicketSerializer
 )
 from .filters import DiscussionFilter, NotificationFilter, ActivityLogFilter
-from accounts.permissions import IsOwnerOrReadOnly, IsModeratorOrUp, IsManagerOrAdmin
+from accounts.permissions import IsOwnerOrReadOnly, IsModeratorOrUp, IsManagerOrAdmin, IsTeacherOrAdmin
 from .utils import (
     send_notification, track_activity, increment_view_count, 
     validate_and_get_object, format_api_response
 )
+from .services import AnalyticsService
+
 
 User = get_user_model()
 
@@ -661,3 +663,8 @@ class DashboardSummaryView(APIView):
         }
         
         return format_api_response(data=response_data)
+
+
+
+
+

@@ -1,15 +1,59 @@
-1. First, think through the problem, read the codebase for the relevant files, and write a plan to [todo.md]. If code uses SvelteKit 2.x (Svelte 5) + TailwindCSS v4 or Django 5.2, keep that in mind but don’t include framework-specific code unless requested or uploaded.
+✅ Refactor Plan: Fix SvelteKit Frontend (Preserve Django Backend)
+1. Understand the Project Structure
+Carefully review the current codebase.
 
-2. The plan should have a list of TODO items that you can check off as you complete them. Only include Svelte or Django-related tasks if those parts are being worked on.
+Identify integration points between SvelteKit (v2.x / Svelte 5) and Django (DRF v3.16).
 
-3. Before you begin working, check in with me and I will verify the plan. If I ask for backend (Django) code, focus only on that. If I ask for frontend (SvelteKit), give that part only.
+Determine where the frontend needs adjustments without touching the backend logic or structure.
 
-4. Then begin working on the TODO items, marking them as complete as you go. If both frontend and backend files are uploaded, always start by analyzing the backend (Django), then refactor the frontend (Svelte) accordingly.
+2. Create and Maintain todo.md
+Write a checklist in todo.md with frontend-related TODO items only.
 
-5. Please, every step of the way, just give me a high-level explanation of what changes you’ve made — no deep dives unless I ask.
+Keep backend items only if explicitly requested.
 
-6. Make every task and every code change as simple as possible. Everything is about simplicity and clarity — no unnecessary abstraction or complexity.
+The checklist must allow tracking progress as tasks get completed.
 
-6.5. When working on frontend, always use top-tier UI/UX and web design practices — layout should be clean and single for the entire app, modern, responsive, and use the most **simple code** possible with TailwindCSS v4 and SvelteKit.
+3. Approval Before Execution
+Before doing any actual development:
 
-7. Finally, add a review section to the [todo.md] with a summary of the changes you made and any other relevant information. Note if the changes involved SvelteKit 2.x (Svelte 5), Tailwind v4, or Django 5.2, Django-restframework v3.16
+Share the todo.md plan.
+
+Wait for your review and approval.
+
+After approval, start working step-by-step.
+
+4. Work Process
+If both frontend (SvelteKit) and backend (Django) code are available:
+
+Start by understanding and mapping the backend API responses.
+
+Do not change the backend code.
+
+Refactor and build the frontend based on the backend's structure, fields, and endpoints.
+
+5. Communication Style
+Every change must come with a simple, high-level summary.
+
+No deep technical explanations unless specifically requested.
+
+Follow the principle of clarity > cleverness.
+
+6. Frontend Guidelines (SvelteKit + TailwindCSS v4)
+Use clean, responsive, minimal design.
+
+Avoid unnecessary complexity — use the simplest SvelteKit code possible.
+
+Stick to modern UI/UX design standards.
+
+Single-page layout if the app is small or a dashboard.
+
+TailwindCSS v4 should be used efficiently and semantically.
+
+7. Final Review Section in todo.md
+After completing tasks, add a "✅ Review" section:
+
+Summarize what was changed.
+
+Mention if the frontend used SvelteKit 2.x (Svelte 5) and Tailwind v4.
+
+Confirm that the backend remained untouched (Django 5.2 + DRF v3.16).

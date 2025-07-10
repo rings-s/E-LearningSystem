@@ -352,6 +352,109 @@ export const coursesApi = {
         }
     },
 
+    async getTeacherCourses() {
+        try {
+            console.log('🔍 [API] Fetching teacher courses...');
+            const response = await api.get('/api/courses/teacher/');
+            
+            console.log('📦 [API] Teacher courses raw response:', response);
+            console.log('📦 [API] Response type:', typeof response);
+            console.log('📦 [API] Is array:', Array.isArray(response));
+            console.log('📦 [API] Response constructor:', response?.constructor?.name);
+            
+            // Log all response properties if it's an object
+            if (response && typeof response === 'object' && !Array.isArray(response)) {
+                console.log('📦 [API] Response keys:', Object.keys(response));
+                console.log('📦 [API] Response entries:', Object.entries(response));
+            }
+            
+            // Handle direct array response (Django ListView returns array directly)
+            if (Array.isArray(response)) {
+                console.log('✅ [API] Direct array response with', response.length, 'courses');
+                return response;
+            }
+            
+            // Handle paginated response with results
+            if (response?.results && Array.isArray(response.results)) {
+                console.log('✅ [API] Paginated response with', response.results.length, 'courses');
+                return response.results;
+            }
+            
+            // Handle response with data property
+            if (response?.data && Array.isArray(response.data)) {
+                console.log('✅ [API] Data property response with', response.data.length, 'courses');
+                return response.data;
+            }
+            
+            // Handle response with courses property
+            if (response?.courses && Array.isArray(response.courses)) {
+                console.log('✅ [API] Courses property response with', response.courses.length, 'courses');
+                return response.courses;
+            }
+            
+            // Handle single course object - wrap in array
+            if (response && typeof response === 'object' && response.uuid) {
+                console.log('✅ [API] Single course object, wrapping in array');
+                return [response];
+            }
+            
+            // If response is truthy but not in expected format, try to extract what we can
+            if (response) {
+                console.log('⚠️ [API] Unexpected response format, attempting to handle:', response);
+                // If it's an object with properties that look like course data, wrap it
+                if (typeof response === 'object') {
+                    return [response];
+                }
+            }
+            
+            console.log('⚠️ [API] No courses found or unexpected format');
+            return [];
+        } catch (error) {
+            console.error('❌ [API] Failed to get teacher courses:', error);
+            throw error;
+        }
+    },
+
+    async getTeacherStudents() {
+        try {
+            console.log('🔍 [API] Fetching teacher students...');
+            const response = await api.get('/api/courses/teacher/students/');
+            
+            console.log('📦 [API] Teacher students response:', response);
+            console.log('📦 [API] Response type:', typeof response);
+            console.log('📦 [API] Has results:', !!response?.results);
+            console.log('📦 [API] Results is array:', Array.isArray(response?.results));
+            
+            // Handle response with results array (expected format)
+            if (response?.results && Array.isArray(response.results)) {
+                console.log('✅ [API] Results array response with', response.results.length, 'students');
+                response.results.forEach((student, index) => {
+                    console.log(`👨‍🎓 [API] Student ${index + 1}:`, {
+                        name: student.name,
+                        email: student.email,
+                        course_name: student.course_name,
+                        progress: student.progress
+                    });
+                });
+                return response.results;
+            }
+            
+            // Handle direct array response
+            if (Array.isArray(response)) {
+                console.log('✅ [API] Direct array response with', response.length, 'students');
+                return response;
+            }
+            
+            console.log('⚠️ [API] No students found or unexpected format');
+            return [];
+        } catch (error) {
+            console.error('❌ [API] Failed to get teacher students:', error);
+            throw error;
+        }
+    },
+
+
+
     // Enrollments
     async getMyEnrollments() {
         try {
@@ -372,24 +475,17 @@ export const coursesApi = {
     },
 
     // Teacher Courses
+    
+    // Fix the existing getMyCourses method
     async getMyCourses() {
         try {
             return await api.get('/api/courses/?my_courses=true');
         } catch (error) {
-            console.error('Failed to get teacher courses:', error);
+            console.error('Failed to get my courses:', error);
             throw error;
         }
     },
 
-    async getTeacherCourses() {
-        try {
-            // Get courses where current user is the instructor
-            return await api.get('/api/courses/?instructor=true');
-        } catch (error) {
-            console.error('Failed to get teacher courses:', error);
-            throw error;
-        }
-    },
 
     async getCourseStudents(courseUuid) {
         try {

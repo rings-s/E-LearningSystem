@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Table Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .debug { background-color: #f0f0f0; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Student Table Debug Test</h1>
+    
+    <div class="debug">
+        <h3>Test Data Structure</h3>
+        <div id="test-data"></div>
+    </div>
+    
+    <div class="debug">
+        <h3>Debug Logs</h3>
+        <div id="debug-logs"></div>
+    </div>
+    
+    <h3>Expected Table Output</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Student</th>
+                <th>Courses</th>
+                <th>Progress</th>
+                <th>Last Active</th>
+            </tr>
+        </thead>
+        <tbody id="students-table">
+            <!-- Students will be populated here -->
+        </tbody>
+    </table>
+
+    <script>
+        // Test data that should match the backend response
+        const testStudents = [
+            {
+                uuid: "student-uuid-1",
+                name: "John Doe",
+                email: "john@example.com",
+                course_name: "Python",
+                course_uuid: "course-uuid-1",
+                enrolled_at: "2024-01-15T10:00:00Z",
+                progress: 45,
+                last_active: "2024-01-20T15:30:00Z",
+                status: "enrolled"
+            },
+            {
+                uuid: "student-uuid-2", 
+                name: "Jane Smith",
+                email: "jane@example.com",
+                course_name: "Python",
+                course_uuid: "course-uuid-1",
+                enrolled_at: "2024-01-16T09:00:00Z",
+                progress: 60,
+                last_active: "2024-01-21T14:20:00Z",
+                status: "enrolled"
+            }
+        ];
+
+        // Process students (same logic as frontend)
+        const studentsMap = new Map();
+        testStudents.forEach(student => {
+            const key = student.email || student.uuid;
+            if (studentsMap.has(key)) {
+                const existing = studentsMap.get(key);
+                existing.courses = existing.courses || [];
+                existing.courses.push({
+                    name: student.course_name,
+                    uuid: student.course_uuid,
+                    enrolled_at: student.enrolled_at,
+                    progress: student.progress,
+                    last_active: student.last_active
+                });
+            } else {
+                studentsMap.set(key, {
+                    ...student,
+                    courses: [{
+                        name: student.course_name,
+                        uuid: student.course_uuid,
+                        enrolled_at: student.enrolled_at,
+                        progress: student.progress,
+                        last_active: student.last_active
+                    }]
+                });
+            }
+        });
+
+        const processedStudents = Array.from(studentsMap.values());
+
+        // Display test data
+        document.getElementById('test-data').innerHTML = `
+            <strong>Raw Students:</strong> ${testStudents.length}<br>
+            <strong>Processed Students:</strong> ${processedStudents.length}<br>
+            <pre>${JSON.stringify(processedStudents, null, 2)}</pre>
+        `;
+
+        // Populate table
+        const tableBody = document.getElementById('students-table');
+        processedStudents.forEach(student => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>
+                    <strong>${student.name || 'Anonymous Student'}</strong><br>
+                    <small>${student.email || 'No email'}</small>
+                </td>
+                <td>
+                    ${student.courses.map(course => `
+                        ${course.name} (${course.progress || 0}%)
+                    `).join('<br>')}
+                </td>
+                <td>
+                    ${student.courses.reduce((sum, c) => sum + (c.progress || 0), 0) / student.courses.length}%
+                </td>
+                <td>
+                    ${student.last_active ? new Date(student.last_active).toLocaleDateString() : 'Never'}
+                </td>
+            `;
+            tableBody.appendChild(row);
+        });
+
+        // Debug logs
+        console.log('📊 [DEBUG] Test students:', testStudents);
+        console.log('📊 [DEBUG] Processed students:', processedStudents);
+        console.log('📊 [DEBUG] Students map:', studentsMap);
+    </script>
+</body>
+</html>

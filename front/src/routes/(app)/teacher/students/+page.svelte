@@ -54,6 +54,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 		await loadData();
 	});
 
+
 	async function loadData() {
 		loading = true;
 		error = '';
@@ -61,61 +62,48 @@ import { isTeacher } from '$lib/utils/helpers.js';
 		try {
 			// Load teacher's courses
 			const coursesResponse = await coursesApi.getTeacherCourses();
-			courses = coursesResponse.results || coursesResponse || [];
+			courses = Array.isArray(coursesResponse) ? coursesResponse : [];
 
-			// Load all students from teacher's courses
-			const allStudents = [];
-			for (const course of courses) {
-				try {
-					const studentsResponse = await coursesApi.getCourseStudents(course.uuid);
-					const courseStudents = (studentsResponse.results || studentsResponse || []).map(student => ({
-						...student,
-						courseName: course.title,
-						courseUuid: course.uuid,
-						courseSlug: course.slug
-					}));
-					allStudents.push(...courseStudents);
-				} catch (err) {
-					console.warn(`Failed to load students for course ${course.title}:`, err);
-				}
-			}
+			// Load students using the new endpoint
+			const studentsResponse = await coursesApi.getTeacherStudents();
+			const allStudents = Array.isArray(studentsResponse) ? studentsResponse : [];
 
-			// Remove duplicates and combine enrollments
+			// Group students by email/uuid to combine multiple course enrollments
 			const studentsMap = new Map();
-			allStudents.forEach(student => {
+			allStudents.forEach((student) => {
 				const key = student.email || student.uuid;
 				if (studentsMap.has(key)) {
 					const existing = studentsMap.get(key);
 					existing.courses = existing.courses || [];
 					existing.courses.push({
-						name: student.courseName,
-						uuid: student.courseUuid,
-						slug: student.courseSlug,
+						name: student.course_name,
+						uuid: student.course_uuid,
 						enrolled_at: student.enrolled_at,
 						progress: student.progress,
 						last_active: student.last_active
 					});
 				} else {
-					studentsMap.set(key, {
+					const newStudent = {
 						...student,
 						courses: [{
-							name: student.courseName,
-							uuid: student.courseUuid,
-							slug: student.courseSlug,
+							name: student.course_name,
+							uuid: student.course_uuid,
 							enrolled_at: student.enrolled_at,
 							progress: student.progress,
 							last_active: student.last_active
 						}]
-					});
+					};
+					studentsMap.set(key, newStudent);
 				}
 			});
 
 			students = Array.from(studentsMap.values());
 			totalStudents = students.length;
+			
 			applyFilters();
 
 		} catch (err) {
-			console.error('Failed to load students data:', err);
+			console.error('❌ [STUDENTS] Failed to load students data:', err);
 			error = err.message || 'Failed to load students data';
 		} finally {
 			loading = false;
@@ -205,6 +193,13 @@ import { isTeacher } from '$lib/utils/helpers.js';
 	});
 
 	let totalPages = $derived(() => Math.ceil(filteredStudents.length / itemsPerPage));
+
+	// Debug state variables properly for Svelte 5
+	$inspect('Students count:', students.length);
+	$inspect('Filtered students:', filteredStudents.length);
+	$inspect('Paginated students:', paginatedStudents.length);
+	$inspect('Current page:', currentPage);
+	$inspect('Total pages:', totalPages);
 
 	function goToPage(page) {
 		if (page >= 1 && page <= totalPages) {
@@ -426,7 +421,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 							</tr>
 						</thead>
 						<tbody class="bg-white divide-y divide-gray-200 dark:bg-gray-900 dark:divide-gray-700">
-							{#each paginatedStudents as student}
+							{#each paginatedStudents as student, index}
 								<tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
 									<td class="px-6 py-4 whitespace-nowrap">
 										<div class="flex items-center">

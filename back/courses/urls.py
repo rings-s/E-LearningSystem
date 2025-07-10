@@ -23,6 +23,7 @@ from .views import (
     # Reviews
     CourseReviewListCreateView, CourseReviewDetailView,
     
+    TeacherCoursesView, TeacherStudentsView,
     # Certificates
     CertificateListView, CertificateDetailView, CertificateVerifyView,
 )
@@ -62,6 +63,10 @@ urlpatterns = [
     path('courses/<uuid:course_uuid>/lessons/<uuid:uuid>/upload/', LessonFileUploadView.as_view(), name='lesson-file-upload'),
     path('courses/<uuid:course_uuid>/lessons/<uuid:uuid>/complete/', LessonCompleteView.as_view(), name='lesson-complete'),
     path('courses/<uuid:course_uuid>/lessons/<uuid:uuid>/notes/', LessonNotesView.as_view(), name='lesson-notes'),
+    
+
+    path('courses/teacher/', TeacherCoursesView.as_view(), name='teacher-courses'),
+    path('courses/teacher/students/', TeacherStudentsView.as_view(), name='teacher-students'),
     
     # ===== ENROLLMENTS =====
     path('enrollments/', EnrollmentListView.as_view(), name='enrollment-list'),

@@ -71,13 +71,35 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 	let totalPages = $derived(() => Math.ceil(filteredCourses.length / itemsPerPage));
 
+	// Debug state variables properly for Svelte 5
+	$inspect('Current user:', $currentUser);
+	$inspect('User role:', $currentUser?.role);
+	$inspect('Is teacher:', isTeacher($currentUser));
+	$inspect('Courses array:', courses);
+	$inspect('Courses count:', courses.length);
+	$inspect('Filtered courses:', filteredCourses);
+	$inspect('Filtered count:', filteredCourses.length);
+	$inspect('Loading state:', loading);
+	$inspect('Error state:', error);
+	$inspect('Total courses:', totalCourses);
+
 	onMount(async () => {
 		// Check authorization
+		if (!$currentUser) {
+			uiStore.showNotification({
+				type: 'error',
+				title: $t('errors.unauthorized'),
+				message: 'You need to be logged in to access this page'
+			});
+			goto('/auth/login');
+			return;
+		}
+
 		if (!isTeacher($currentUser)) {
 			uiStore.showNotification({
 				type: 'error',
 				title: $t('errors.unauthorized'),
-				message: 'You need to be a teacher to access this page'
+				message: `You need to be a teacher to access this page. Current role: ${$currentUser?.role || 'unknown'}`
 			});
 			goto('/dashboard');
 			return;
@@ -86,31 +108,66 @@ import { isTeacher } from '$lib/utils/helpers.js';
 		await loadCourses();
 	});
 
+
+
 	async function loadCourses() {
 		loading = true;
 		error = '';
 
 		try {
-			// For now, use the regular courses API and filter by instructor
-			const response = await coursesApi.getCourses();
-			const allCourses = response.results || response || [];
+			console.log('🔍 [FRONTEND] Calling getTeacherCourses...');
+			const response = await coursesApi.getTeacherCourses();
 			
-			// Filter courses by current user (teacher)
-			courses = allCourses.filter(course => 
-				course.instructor?.uuid === $currentUser.uuid
-			);
-
+			console.log('📦 [FRONTEND] Raw API response:', response);
+			console.log('📦 [FRONTEND] Response type:', typeof response);
+			console.log('📦 [FRONTEND] Is array:', Array.isArray(response));
+			console.log('📦 [FRONTEND] Response length:', response?.length);
+			
+			if (response && typeof response === 'object' && !Array.isArray(response)) {
+				console.log('📦 [FRONTEND] Response keys:', Object.keys(response));
+				if (response.results) {
+					console.log('📦 [FRONTEND] Results array:', response.results);
+					console.log('📦 [FRONTEND] Results length:', response.results.length);
+				}
+			}
+			
+			// Process the response more robustly
+			if (Array.isArray(response)) {
+				courses = response;
+			} else if (response?.results && Array.isArray(response.results)) {
+				courses = response.results;
+			} else if (response?.data && Array.isArray(response.data)) {
+				courses = response.data;
+			} else if (response && typeof response === 'object') {
+				// If we get a single course object, wrap it in an array
+				courses = [response];
+			} else {
+				console.warn('📦 [FRONTEND] Unexpected response format, setting empty array');
+				courses = [];
+			}
+			
 			totalCourses = courses.length;
+			
+			console.log('✅ [FRONTEND] Final courses array:', courses);
+			console.log('✅ [FRONTEND] Courses count:', totalCourses);
+			
 			applyFilters();
 
 		} catch (err) {
-			console.error('Failed to load courses:', err);
-			error = err.message || 'Failed to load courses';
+			console.error('❌ [COURSES] Failed to load courses:', err);
+			
+			// Provide specific error messages based on error type
+			if (err.message?.includes('403') || err.message?.includes('Forbidden')) {
+				error = 'You need to be a teacher to access this page. Please contact an administrator if you believe this is an error.';
+			} else if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
+				error = 'Your session has expired. Please log in again.';
+			} else {
+				error = err.message || 'Failed to load courses';
+			}
 		} finally {
 			loading = false;
 		}
 	}
-
 	function applyFilters() {
 		let filtered = [...courses];
 
@@ -257,6 +314,11 @@ import { isTeacher } from '$lib/utils/helpers.js';
 					<p class="text-gray-600 dark:text-gray-400">
 						Manage your courses and track student progress
 					</p>
+					{#if import.meta.env.DEV && $currentUser}
+						<div class="mt-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+							Debug: User "{$currentUser.name || $currentUser.email}" | Role: "{$currentUser.role || 'none'}" | Teacher: {isTeacher($currentUser) ? 'Yes' : 'No'}
+						</div>
+					{/if}
 				</div>
 
 				<div class="flex flex-col sm:flex-row gap-3">
@@ -336,7 +398,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 						</div>
 						<div class="ml-4">
 							<p class="text-sm font-medium text-gray-600 dark:text-gray-400">Avg Rating</p>
-							<p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.avgRating.toFixed(1)}</p>
+							<p class="text-2xl font-bold text-gray-900 dark:text-white">{(stats.avgRating || 0).toFixed(1)}</p>
 						</div>
 					</div>
 				</Card>
@@ -418,15 +480,52 @@ import { isTeacher } from '$lib/utils/helpers.js';
 		{#if error}
 			<div class="text-center py-12" in:fade={{ duration: 300 }}>
 				<div class="mb-4">
-					<svg class="mx-auto h-16 w-16 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-					</svg>
+					{#if error.includes('teacher') || error.includes('403')}
+						<svg class="mx-auto h-16 w-16 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+						</svg>
+					{:else if error.includes('session') || error.includes('401')}
+						<svg class="mx-auto h-16 w-16 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+						</svg>
+					{:else}
+						<svg class="mx-auto h-16 w-16 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+					{/if}
 				</div>
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Error Loading Courses</h3>
-				<p class="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
-				<Button onclick={loadCourses} variant="primary" size="medium">
-					Try Again
-				</Button>
+				<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">
+					{#if error.includes('teacher') || error.includes('403')}
+						Access Restricted
+					{:else if error.includes('session') || error.includes('401')}
+						Session Expired
+					{:else}
+						Error Loading Courses
+					{/if}
+				</h3>
+				<p class="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">{error}</p>
+				
+				<div class="flex flex-col sm:flex-row gap-3 justify-center">
+					{#if error.includes('session') || error.includes('401')}
+						<Button href="/auth/login" variant="primary" size="medium">
+							Log In Again
+						</Button>
+					{:else if error.includes('teacher') || error.includes('403')}
+						<Button href="/dashboard" variant="outline" size="medium">
+							Back to Dashboard
+						</Button>
+						<Button href="/profile" variant="primary" size="medium">
+							Check Profile
+						</Button>
+					{:else}
+						<Button onclick={loadCourses} variant="primary" size="medium">
+							Try Again
+						</Button>
+						<Button href="/dashboard" variant="outline" size="medium">
+							Back to Dashboard
+						</Button>
+					{/if}
+				</div>
 			</div>
 		{:else if loading}
 			<!-- Loading State -->

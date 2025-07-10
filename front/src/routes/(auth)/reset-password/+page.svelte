@@ -181,7 +181,7 @@
 					onblur={() => handleFieldBlur('reset_code')}
 					placeholder={$t('auth.enter6DigitCode')}
 					required
-					icon="<path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />"
+					icon="<path stroke-linecap='round' stroke-linejoin='round' d='M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z' />"
 				/>
 
 				<div class="space-y-4">
@@ -194,7 +194,7 @@
 						onblur={() => handleFieldBlur('new_password')}
 						required
 						placeholder={$t('auth.enterNewPassword')}
-						icon="<path stroke-linecap="round" stroke-linejoin="round" d="M15 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />"
+						icon="<path stroke-linecap='round' stroke-linejoin='round' d='M15 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' />"
 					/>
 
 					{#if formData.new_password}
@@ -226,7 +226,7 @@
 						onblur={() => handleFieldBlur('confirm_password')}
 						required
 						placeholder={$t('auth.reenterPassword')}
-						icon="<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />"
+						icon="<path stroke-linecap='round' stroke-linejoin='round' d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' />"
 					/>
 				</div>
 
