@@ -1,5 +1,5 @@
 // front/src/lib/utils/constants.js
-export const APP_NAME = '249Sudan';
+export const APP_NAME = 'Ilmora';
 
 export const ROLES = {
 	STUDENT: 'student',

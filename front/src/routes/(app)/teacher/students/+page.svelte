@@ -2,19 +2,19 @@
 	import { onMount } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
 	import { goto } from '$app/navigation';
-	import { coursesApi } from '$lib/apis/courses.js';
-	import { currentUser } from '$lib/stores/auth.store.js';
-	import { uiStore } from '$lib/stores/ui.store.js';
-	import { t } from '$lib/i18n/index.js';
-	import { formatters } from '$lib/utils/formatters.js';
-import { isTeacher } from '$lib/utils/helpers.js';
+	import { coursesApi } from '#lib/apis/courses.js';
+	import { currentUser } from '#lib/stores/auth.store.js';
+	import { uiStore } from '#lib/stores/ui.store.js';
+	import { t, locale } from '#lib/i18n/index.js';
+	import { formatters } from '#lib/utils/formatters.js';
+	import { isTeacher } from '#lib/utils/helpers.js';
 
 	// Components
-	import Card from '$lib/components/common/Card.svelte';
-	import Button from '$lib/components/common/Button.svelte';
-	import Badge from '$lib/components/common/Badge.svelte';
-	import Input from '$lib/components/common/Input.svelte';
-	import Select from '$lib/components/common/Select.svelte';
+	import Card from '#lib/components/common/Card.svelte';
+	import Button from '#lib/components/common/Button.svelte';
+	import Badge from '#lib/components/common/Badge.svelte';
+	import Input from '#lib/components/common/Input.svelte';
+	import Select from '#lib/components/common/Select.svelte';
 
 	// State variables
 	let loading = $state(true);
@@ -32,12 +32,12 @@ import { isTeacher } from '$lib/utils/helpers.js';
 	let itemsPerPage = $state(20);
 	let totalStudents = $state(0);
 
-	const sortOptions = [
-		{ value: 'name', label: 'Name' },
-		{ value: 'enrolled_at', label: 'Enrollment Date' },
-		{ value: 'last_active', label: 'Last Active' },
-		{ value: 'progress', label: 'Progress' }
-	];
+	const sortOptions = $derived([
+		{ value: 'name', label: $t('teacher.name') },
+		{ value: 'enrolled_at', label: $t('teacher.enrollmentDate') },
+		{ value: 'last_active', label: $t('teacher.lastActive') },
+		{ value: 'progress', label: $t('teacher.progress') }
+	]);
 
 	onMount(async () => {
 		// Check authorization
@@ -45,7 +45,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 			uiStore.showNotification({
 				type: 'error',
 				title: $t('errors.unauthorized'),
-				message: 'You need to be a teacher to access this page'
+				message: $t('teacher.mustBeTeacher')
 			});
 			goto('/dashboard');
 			return;
@@ -53,7 +53,6 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 		await loadData();
 	});
-
 
 	async function loadData() {
 		loading = true;
@@ -85,13 +84,15 @@ import { isTeacher } from '$lib/utils/helpers.js';
 				} else {
 					const newStudent = {
 						...student,
-						courses: [{
-							name: student.course_name,
-							uuid: student.course_uuid,
-							enrolled_at: student.enrolled_at,
-							progress: student.progress,
-							last_active: student.last_active
-						}]
+						courses: [
+							{
+								name: student.course_name,
+								uuid: student.course_uuid,
+								enrolled_at: student.enrolled_at,
+								progress: student.progress,
+								last_active: student.last_active
+							}
+						]
 					};
 					studentsMap.set(key, newStudent);
 				}
@@ -99,12 +100,11 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 			students = Array.from(studentsMap.values());
 			totalStudents = students.length;
-			
-			applyFilters();
 
+			applyFilters();
 		} catch (err) {
 			console.error('❌ [STUDENTS] Failed to load students data:', err);
-			error = err.message || 'Failed to load students data';
+			error = err.message || $t('teacher.loadStudentsFailed');
 		} finally {
 			loading = false;
 		}
@@ -115,25 +115,26 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 		// Filter by course
 		if (selectedCourse !== 'all') {
-			filtered = filtered.filter(student => 
-				student.courses.some(course => course.uuid === selectedCourse)
+			filtered = filtered.filter((student) =>
+				student.courses.some((course) => course.uuid === selectedCourse)
 			);
 		}
 
 		// Filter by search query
 		if (searchQuery.trim()) {
 			const query = searchQuery.toLowerCase().trim();
-			filtered = filtered.filter(student => 
-				student.name?.toLowerCase().includes(query) ||
-				student.email?.toLowerCase().includes(query) ||
-				student.courses.some(course => course.name?.toLowerCase().includes(query))
+			filtered = filtered.filter(
+				(student) =>
+					student.name?.toLowerCase().includes(query) ||
+					student.email?.toLowerCase().includes(query) ||
+					student.courses.some((course) => course.name?.toLowerCase().includes(query))
 			);
 		}
 
 		// Sort
 		filtered.sort((a, b) => {
 			let aValue, bValue;
-			
+
 			switch (sortBy) {
 				case 'name':
 					aValue = a.name || '';
@@ -186,20 +187,15 @@ import { isTeacher } from '$lib/utils/helpers.js';
 	}
 
 	// Pagination helpers
-	let paginatedStudents = $derived(() => {
+	let paginatedStudents = $derived.by(() => {
 		const start = (currentPage - 1) * itemsPerPage;
 		const end = start + itemsPerPage;
 		return filteredStudents.slice(start, end);
 	});
 
-	let totalPages = $derived(() => Math.ceil(filteredStudents.length / itemsPerPage));
+	let totalPages = $derived.by(() => Math.ceil(filteredStudents.length / itemsPerPage));
 
 	// Debug state variables properly for Svelte 5
-	$inspect('Students count:', students.length);
-	$inspect('Filtered students:', filteredStudents.length);
-	$inspect('Paginated students:', paginatedStudents.length);
-	$inspect('Current page:', currentPage);
-	$inspect('Total pages:', totalPages);
 
 	function goToPage(page) {
 		if (page >= 1 && page <= totalPages) {
@@ -210,52 +206,59 @@ import { isTeacher } from '$lib/utils/helpers.js';
 	function getStudentAverageProgress(student) {
 		if (!student.courses || student.courses.length === 0) return 0;
 		return Math.round(
-			student.courses.reduce((sum, course) => sum + (course.progress || 0), 0) / student.courses.length
+			student.courses.reduce((sum, course) => sum + (course.progress || 0), 0) /
+				student.courses.length
 		);
 	}
 </script>
 
 <svelte:head>
-	<title>Student Management | E-Learning Platform</title>
+	<title>{$t('teacher.studentsPageTitle')}</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gray-50 dark:bg-gray-900">
-	<div class="container mx-auto max-w-7xl px-4 py-8">
+<div>
+	<div>
 		<!-- Header -->
 		<div class="mb-8" in:fade={{ duration: 600 }}>
-			<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+			<div class="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
 				<div>
-					<div class="flex items-center gap-4 mb-2">
+					<div class="mb-2 flex items-center gap-4">
 						<Button
 							href="/dashboard"
 							variant="ghost"
 							size="medium"
-							class="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
+							class="hover:text-primary-600 dark:hover:text-primary-400 text-gray-600 dark:text-gray-400"
 						>
 							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M15 19l-7-7 7-7"
+								/>
 							</svg>
-							Back to Dashboard
+							{$t('teacher.backToDashboard')}
 						</Button>
 					</div>
-					<h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-						Student Management
+					<h1 class="mb-2 text-3xl font-bold text-gray-900 dark:text-white">
+						{$t('teacher.studentManagement')}
 					</h1>
 					<p class="text-gray-600 dark:text-gray-400">
-						Manage and track students across all your courses
+						{$t('teacher.manageStudentsDesc')}
 					</p>
 				</div>
 
-				<div class="flex flex-col sm:flex-row gap-3">
-					<Button
-						href="/teacher/courses"
-						variant="outline"
-						size="medium"
-					>
+				<div class="flex flex-col gap-3 sm:flex-row">
+					<Button href="/teacher/courses" variant="outline" size="medium">
 						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+							/>
 						</svg>
-						View Courses
+						{$t('teacher.viewCourses')}
 					</Button>
 				</div>
 			</div>
@@ -263,100 +266,121 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 		<!-- Filters and Search -->
 		<div in:fly={{ y: 20, delay: 100, duration: 600 }}>
-			<Card class="p-6 mb-8">
-			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-				<!-- Search -->
-				<div class="lg:col-span-2">
-					<Input
-						label="Search Students"
-						placeholder="Search by name, email, or course"
-						bind:value={searchQuery}
-						onchange={handleSearch}
-						oninput={handleSearch}
-					>
-						<svg slot="icon" class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-						</svg>
-					</Input>
-				</div>
-
-				<!-- Course Filter -->
-				<div>
-					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-						Filter by Course
-					</label>
-					<select
-						bind:value={selectedCourse}
-						onchange={handleCourseFilter}
-						class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-					>
-						<option value="all">All Courses</option>
-						{#each courses as course}
-							<option value={course.uuid}>{course.title}</option>
-						{/each}
-					</select>
-				</div>
-
-				<!-- Sort -->
-				<div>
-					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-						Sort by
-					</label>
-					<div class="flex gap-2">
-						<select
-							bind:value={sortBy}
-							onchange={handleSort}
-							class="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+			<Card class="mb-8 p-6">
+				<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+					<!-- Search -->
+					<div class="lg:col-span-2">
+						<Input
+							label={$t('teacher.searchStudents')}
+							placeholder={$t('teacher.searchStudentsPlaceholder')}
+							bind:value={searchQuery}
+							onchange={handleSearch}
+							oninput={handleSearch}
 						>
-							{#each sortOptions as option}
-								<option value={option.value}>{option.label}</option>
-							{/each}
-						</select>
-						<Button
-							onclick={toggleSortOrder}
-							variant="outline"
-							size="medium"
-							class="px-3"
-						>
-							<svg 
-								class="h-4 w-4 transform {sortOrder === 'desc' ? 'rotate-180' : ''}" 
-								fill="none" 
-								stroke="currentColor" 
+							<svg
+								slot="icon"
+								class="h-4 w-4 text-gray-400"
+								fill="none"
+								stroke="currentColor"
 								viewBox="0 0 24 24"
 							>
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12" />
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+								/>
 							</svg>
-						</Button>
+						</Input>
+					</div>
+
+					<!-- Course Filter -->
+					<div>
+						<label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+							{$t('teacher.filterByCourse')}
+						</label>
+						<select
+							bind:value={selectedCourse}
+							onchange={handleCourseFilter}
+							class="focus:border-primary-500 focus:ring-primary-500 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+						>
+							<option value="all">{$t('teacher.allCourses')}</option>
+							{#each courses as course}
+								<option value={course.uuid}>{course.title}</option>
+							{/each}
+						</select>
+					</div>
+
+					<!-- Sort -->
+					<div>
+						<label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+							{$t('teacher.sortBy')}
+						</label>
+						<div class="flex gap-2">
+							<select
+								bind:value={sortBy}
+								onchange={handleSort}
+								class="focus:border-primary-500 focus:ring-primary-500 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+							>
+								{#each sortOptions as option}
+									<option value={option.value}>{option.label}</option>
+								{/each}
+							</select>
+							<Button onclick={toggleSortOrder} variant="outline" size="medium" class="px-3">
+								<svg
+									class="h-4 w-4 {sortOrder === 'desc' ? 'rotate-180' : ''}"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M7 11l5-5m0 0l5 5m-5-5v12"
+									/>
+								</svg>
+							</Button>
+						</div>
 					</div>
 				</div>
-			</div>
-		</Card>
-	</div>
+			</Card>
+		</div>
 
 		<!-- Error State -->
 		{#if error}
-			<div class="text-center py-12" in:fade={{ duration: 300 }}>
+			<div class="py-12 text-center" in:fade={{ duration: 300 }}>
 				<div class="mb-4">
-					<svg class="mx-auto h-16 w-16 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+					<svg
+						class="mx-auto h-16 w-16 text-red-400"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+						/>
 					</svg>
 				</div>
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Error Loading Students</h3>
-				<p class="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
-				<Button onclick={loadData} variant="primary" size="medium">
-					Try Again
-				</Button>
+				<h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">
+					{$t('teacher.errorLoadingStudents')}
+				</h3>
+				<p class="mb-6 text-gray-600 dark:text-gray-400">{error}</p>
+				<Button onclick={loadData} variant="primary" size="medium">{$t('teacher.tryAgain')}</Button>
 			</div>
 		{:else if loading}
 			<!-- Loading State -->
 			<Card class="p-6">
 				<div class="space-y-4">
 					{#each Array(5) as _}
-						<div class="animate-pulse flex items-center space-x-4">
-							<div class="rounded-full bg-gray-200 h-12 w-12 dark:bg-gray-700"></div>
+						<div class="flex animate-pulse items-center space-x-4">
+							<div class="h-12 w-12 rounded-full bg-gray-200 dark:bg-gray-700"></div>
 							<div class="flex-1 space-y-2">
-								<div class="h-4 bg-gray-200 rounded w-1/4 dark:bg-gray-700"></div>
-								<div class="h-3 bg-gray-200 rounded w-1/2 dark:bg-gray-700"></div>
+								<div class="h-4 w-1/4 rounded bg-gray-200 dark:bg-gray-700"></div>
+								<div class="h-3 w-1/2 rounded bg-gray-200 dark:bg-gray-700"></div>
 							</div>
 						</div>
 					{/each}
@@ -364,23 +388,31 @@ import { isTeacher } from '$lib/utils/helpers.js';
 			</Card>
 		{:else if filteredStudents.length === 0}
 			<!-- Empty State -->
-			<div class="text-center py-12" in:fade={{ duration: 300 }}>
+			<div class="py-12 text-center" in:fade={{ duration: 300 }}>
 				<div class="mb-4">
-					<svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+					<svg
+						class="mx-auto h-16 w-16 text-gray-400"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+						/>
 					</svg>
 				</div>
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">No Students Found</h3>
-				<p class="text-gray-600 dark:text-gray-400 mb-6">
-					{searchQuery ? 'No students match your search criteria.' : 'No students have enrolled in your courses yet.'}
+				<h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">
+					{$t('teacher.noStudentsFound')}
+				</h3>
+				<p class="mb-6 text-gray-600 dark:text-gray-400">
+					{searchQuery ? $t('teacher.noStudentsMatch') : $t('teacher.noStudentsYet')}
 				</p>
 				{#if !searchQuery}
-					<Button
-						href="/teacher/courses/create"
-						variant="primary"
-						size="medium"
-					>
-						Create Your First Course
+					<Button href="/teacher/courses/create" variant="primary" size="medium">
+						{$t('teacher.createFirstCourse')}
 					</Button>
 				{/if}
 			</div>
@@ -388,160 +420,184 @@ import { isTeacher } from '$lib/utils/helpers.js';
 			<!-- Students Table -->
 			<div in:fly={{ y: 20, delay: 200, duration: 600 }}>
 				<Card class="overflow-hidden">
-				<div class="px-6 py-4 bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-					<div class="flex justify-between items-center">
-						<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-							Students ({filteredStudents.length})
-						</h3>
-						<p class="text-sm text-gray-500 dark:text-gray-400">
-							Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredStudents.length)} - {Math.min(currentPage * itemsPerPage, filteredStudents.length)} of {filteredStudents.length}
-						</p>
-					</div>
-				</div>
-
-				<div class="overflow-x-auto">
-					<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-						<thead class="bg-gray-50 dark:bg-gray-800">
-							<tr>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-									Student
-								</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-									Courses
-								</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-									Average Progress
-								</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-									Last Active
-								</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-									Actions
-								</th>
-							</tr>
-						</thead>
-						<tbody class="bg-white divide-y divide-gray-200 dark:bg-gray-900 dark:divide-gray-700">
-							{#each paginatedStudents as student, index}
-								<tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
-									<td class="px-6 py-4 whitespace-nowrap">
-										<div class="flex items-center">
-											<div class="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-												<span class="text-blue-600 dark:text-blue-400 font-medium">
-													{student.name?.charAt(0)?.toUpperCase() || '?'}
-												</span>
-											</div>
-											<div class="ml-4">
-												<div class="text-sm font-medium text-gray-900 dark:text-white">
-													{student.name || 'Anonymous Student'}
-												</div>
-												<div class="text-sm text-gray-500 dark:text-gray-400">
-													{student.email || 'No email'}
-												</div>
-											</div>
-										</div>
-									</td>
-									<td class="px-6 py-4">
-										<div class="space-y-1">
-											{#each student.courses as course}
-												<div class="flex items-center justify-between">
-													<span class="text-sm text-gray-900 dark:text-white">
-														{course.name}
-													</span>
-													<Badge variant="secondary" size="small">
-														{course.progress || 0}%
-													</Badge>
-												</div>
-											{/each}
-										</div>
-									</td>
-									<td class="px-6 py-4 whitespace-nowrap">
-										<div class="flex items-center">
-											<div class="w-16 bg-gray-200 rounded-full h-2 mr-3 dark:bg-gray-700">
-												<div
-													class="bg-blue-600 h-2 rounded-full"
-													style="width: {getStudentAverageProgress(student)}%"
-												></div>
-											</div>
-											<span class="text-sm text-gray-900 dark:text-white">
-												{getStudentAverageProgress(student)}%
-											</span>
-										</div>
-									</td>
-									<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-										{formatters.relativeTime(student.last_active)}
-									</td>
-									<td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-										<div class="flex items-center space-x-2">
-											{#if student.courses.length === 1}
-												<Button
-													href="/teacher/courses/{student.courses[0].uuid}/analytics"
-													variant="outline"
-													size="small"
-												>
-													View Details
-												</Button>
-											{:else}
-												<select
-													onchange={(e) => goto(`/teacher/courses/${e.target.value}/analytics`)}
-													class="text-sm border border-gray-300 rounded px-2 py-1 dark:border-gray-600 dark:bg-gray-800"
-												>
-													<option value="">View Course</option>
-													{#each student.courses as course}
-														<option value={course.uuid}>{course.name}</option>
-													{/each}
-												</select>
-											{/if}
-										</div>
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
-
-				<!-- Pagination -->
-				{#if totalPages > 1}
-					<div class="px-6 py-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+					<div
+						class="border-b border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800"
+					>
 						<div class="flex items-center justify-between">
-							<div class="flex items-center space-x-2">
-								<Button
-									onclick={() => goToPage(currentPage - 1)}
-									disabled={currentPage === 1}
-									variant="outline"
-									size="small"
-								>
-									Previous
-								</Button>
-								
-								{#each Array(Math.min(5, totalPages)) as _, i}
-									{@const page = i + 1}
-									<Button
-										onclick={() => goToPage(page)}
-										variant={currentPage === page ? 'primary' : 'outline'}
-										size="small"
-									>
-										{page}
-									</Button>
-								{/each}
-								
-								<Button
-									onclick={() => goToPage(currentPage + 1)}
-									disabled={currentPage === totalPages}
-									variant="outline"
-									size="small"
-								>
-									Next
-								</Button>
-							</div>
-							
+							<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+								Students ({filteredStudents.length})
+							</h3>
 							<p class="text-sm text-gray-500 dark:text-gray-400">
-								Page {currentPage} of {totalPages}
+								{$t('teacher.showingOf', {
+									from: Math.min((currentPage - 1) * itemsPerPage + 1, filteredStudents.length),
+									to: Math.min(currentPage * itemsPerPage, filteredStudents.length),
+									total: filteredStudents.length
+								})}
 							</p>
 						</div>
 					</div>
-				{/if}
-			</Card>
-		</div>
+
+					<div class="overflow-x-auto">
+						<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+							<thead class="bg-gray-50 dark:bg-gray-800">
+								<tr>
+									<th
+										class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400"
+									>
+										{$t('teacher.student')}
+									</th>
+									<th
+										class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400"
+									>
+										{$t('teacher.courses')}
+									</th>
+									<th
+										class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400"
+									>
+										{$t('teacher.averageProgress')}
+									</th>
+									<th
+										class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400"
+									>
+										{$t('teacher.lastActive')}
+									</th>
+									<th
+										class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400"
+									>
+										{$t('teacher.actions')}
+									</th>
+								</tr>
+							</thead>
+							<tbody
+								class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900"
+							>
+								{#each paginatedStudents as student, index}
+									<tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+										<td class="px-6 py-4 whitespace-nowrap">
+											<div class="flex items-center">
+												<div
+													class="bg-primary-100 dark:bg-primary-900 flex h-10 w-10 items-center justify-center rounded-full"
+												>
+													<span class="text-primary-600 dark:text-primary-400 font-medium">
+														{student.name?.charAt(0)?.toUpperCase() || '?'}
+													</span>
+												</div>
+												<div class="ml-4">
+													<div class="text-sm font-medium text-gray-900 dark:text-white">
+														{student.name || $t('teacher.anonymousStudent')}
+													</div>
+													<div class="text-sm text-gray-500 dark:text-gray-400">
+														{student.email || $t('teacher.noEmail')}
+													</div>
+												</div>
+											</div>
+										</td>
+										<td class="px-6 py-4">
+											<div class="space-y-1">
+												{#each student.courses as course}
+													<div class="flex items-center justify-between">
+														<span class="text-sm text-gray-900 dark:text-white">
+															{course.name}
+														</span>
+														<Badge variant="secondary" size="small">
+															{course.progress || 0}%
+														</Badge>
+													</div>
+												{/each}
+											</div>
+										</td>
+										<td class="px-6 py-4 whitespace-nowrap">
+											<div class="flex items-center">
+												<div class="mr-3 h-2 w-16 rounded-full bg-gray-200 dark:bg-gray-700">
+													<div
+														class="bg-primary-600 h-2 rounded-full"
+														style="width: {getStudentAverageProgress(student)}%"
+													></div>
+												</div>
+												<span class="text-sm text-gray-900 dark:text-white">
+													{getStudentAverageProgress(student)}%
+												</span>
+											</div>
+										</td>
+										<td
+											class="px-6 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400"
+										>
+											{formatters.relativeTime(student.last_active, $locale)}
+										</td>
+										<td class="px-6 py-4 text-sm font-medium whitespace-nowrap">
+											<div class="flex items-center space-x-2">
+												{#if student.courses.length === 1}
+													<Button
+														href="/teacher/courses/{student.courses[0].uuid}/analytics"
+														variant="outline"
+														size="small"
+													>
+														{$t('teacher.viewDetails')}
+													</Button>
+												{:else}
+													<select
+														onchange={(e) => goto(`/teacher/courses/${e.target.value}/analytics`)}
+														class="rounded border border-gray-300 px-2 py-1 text-sm dark:border-gray-600 dark:bg-gray-800"
+													>
+														<option value="">{$t('teacher.viewCourse')}</option>
+														{#each student.courses as course}
+															<option value={course.uuid}>{course.name}</option>
+														{/each}
+													</select>
+												{/if}
+											</div>
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+
+					<!-- Pagination -->
+					{#if totalPages > 1}
+						<div
+							class="border-t border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800"
+						>
+							<div class="flex items-center justify-between">
+								<div class="flex items-center space-x-2">
+									<Button
+										onclick={() => goToPage(currentPage - 1)}
+										disabled={currentPage === 1}
+										variant="outline"
+										size="small"
+									>
+										{$t('teacher.previous')}
+									</Button>
+
+									{#each Array(Math.min(5, totalPages)) as _, i}
+										{@const page = i + 1}
+										<Button
+											onclick={() => goToPage(page)}
+											variant={currentPage === page ? 'primary' : 'outline'}
+											size="small"
+										>
+											{page}
+										</Button>
+									{/each}
+
+									<Button
+										onclick={() => goToPage(currentPage + 1)}
+										disabled={currentPage === totalPages}
+										variant="outline"
+										size="small"
+									>
+										{$t('teacher.next')}
+									</Button>
+								</div>
+
+								<p class="text-sm text-gray-500 dark:text-gray-400">
+									{$t('teacher.pageOf', { current: currentPage, total: totalPages })}
+								</p>
+							</div>
+						</div>
+					{/if}
+				</Card>
+			</div>
 		{/if}
 	</div>
 </div>

@@ -1,0 +1,60 @@
+[project]
+name = "back"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Ahmed Bashir", email = "rings9619@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "amqp>=5.4.1",
+    "asgiref>=3.12.1",
+    "billiard>=4.3.1",
+    "celery>=5.6.3",
+    "channels>=4.3.2",
+    "channels-redis>=4.3.0",
+    "click>=8.5.0",
+    "click-didyoumean>=0.3.1",
+    "click-plugins>=1.1.1.2",
+    "click-repl>=0.4.1",
+    "django>=6.1.2",
+    "django-cors-headers>=4.9.0",
+    "django-filter>=26.2",
+    "django-ratelimit>=4.1.0",
+    "django-redis>=7.0.0",
+    "djangorestframework>=3.18.3",
+    "djangorestframework-simplejwt>=5.5.1",
+    "gunicorn>=26.2.0",
+    "h11>=0.16.0",
+    "kaleido>=1.5.0",
+    "kombu>=5.6.2",
+    "msgpack>=1.2.3",
+    "numpy>=2.5.4",
+    "packaging>=26.3",
+    "pandas>=3.0.6",
+    "pillow>=13.0.0",
+    "plotly>=7.1.0",
+    "prompt-toolkit>=3.0.53",
+    "psycopg2-binary>=2.9.13",
+    "pyjwt>=2.15.1",
+    "python-dateutil>=2.9.0.post0",
+    "python-dotenv>=1.2.4",
+    "qrcode[pil]>=8.2",
+    "redis>=8.1.0",
+    "rest-framework-simplejwt>=0.0.2",
+    "six>=1.17.0",
+    "sqlparse>=0.6.0",
+    "tzdata>=2026.5",
+    "uvicorn>=0.54.0",
+    "vine>=5.1.0",
+    "wcwidth>=0.9.3",
+    "whitenoise>=6.12.0",
+]
+
+[project.scripts]
+back = "back:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"

@@ -1,22 +1,23 @@
-<!-- front/src/routes/+layout.svelte -->
 <script>
+	import { t } from '#lib/i18n/index.js';
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
-	import { browser } from '$app/environment';
+	import { page } from '$app/state';
+	import { browser } from '$app/env';
 	import {
 		authStore,
 		isAuthenticated,
 		isLoading,
 		isInitialized
-	} from '$lib/services/auth.service.js';
-	import { uiStore } from '$lib/stores/ui.store.js';
+	} from '#lib/services/auth.service.js';
+	import { uiStore } from '#lib/stores/ui.store.js';
 	import { goto } from '$app/navigation';
-	import { fade } from 'svelte/transition';
 	import '../app.css';
 
 	// Components
-	import Header from '$lib/components/layout/Header.svelte';
-	import NotificationToast from '$lib/components/common/NotificationToast.svelte';
+	import Header from '#lib/components/layout/Header.svelte';
+	import AppShell from '#lib/components/layout/AppShell.svelte';
+	import Logo from '#lib/components/common/Logo.svelte';
+	import NotificationToast from '#lib/components/common/NotificationToast.svelte';
 
 	let { children } = $props();
 
@@ -43,6 +44,12 @@
 	const isAuthRoute = (path) =>
 		authRoutes.some((route) => path === route || path.startsWith(route + '/'));
 
+	// Learn pages are full-screen "focus mode" with their own navigation
+	const isFocusRoute = $derived(/\/learn\/?$/.test(page.url.pathname));
+	const useAppShell = $derived(
+		$isAuthenticated && !isAuthRoute(page.url.pathname) && page.url.pathname !== '/'
+	);
+
 	onMount(async () => {
 		// Initialize stores
 		if (browser) {
@@ -54,70 +61,58 @@
 	// Handle routing after initialization
 	$effect(() => {
 		if ($isInitialized && browser) {
-			const currentPath = $page.url.pathname;
+			const currentPath = page.url.pathname;
 
 			// Redirect to login if not authenticated and accessing protected routes
 			if (!$isAuthenticated && !isPublicRoute(currentPath)) {
 				goto('/login');
-			}
-			// Redirect to dashboard if authenticated and on auth pages
-			else if ($isAuthenticated && isAuthRoute(currentPath)) {
+			} else if ($isAuthenticated && isAuthRoute(currentPath)) {
+				// Redirect to dashboard if authenticated and on auth pages
 				goto('/dashboard');
 			}
 		}
 	});
 </script>
 
+<!-- front/src/routes/+layout.svelte -->
+
 <svelte:head>
-	<title>244SCHOOL - Modern E-Learning Platform</title>
-	<meta name="description" content="244SCHOOL - Your gateway to quality online education" />
+	<title>{$t('ui.appTitle')}</title>
+	<meta name="description" content="Ilmora - Your gateway to quality online education" />
 	<meta name="theme-color" content="#6366f1" />
 </svelte:head>
 
 {#if !$isInitialized}
-	<!-- Loading State -->
 	<div
-		class="from-primary-50 to-secondary-50 flex min-h-screen items-center justify-center bg-gradient-to-br via-white dark:from-gray-900 dark:via-gray-800 dark:to-gray-900"
+		class="flex min-h-dvh flex-col items-center justify-center gap-6 bg-gray-50 dark:bg-gray-950"
 	>
-		<div class="text-center" transition:fade>
-			<div class="relative">
-				<div
-					class="inline-flex h-24 w-24 items-center justify-center rounded-3xl bg-white shadow-2xl dark:bg-gray-800"
-				>
-					<div
-						class="from-primary-500 to-secondary-600 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br"
-					>
-						<span class="text-3xl font-bold text-white">244</span>
-					</div>
-				</div>
-				<div
-					class="from-primary-400 to-secondary-400 absolute -inset-4 animate-pulse rounded-3xl bg-gradient-to-r opacity-20 blur-xl"
-				></div>
-			</div>
-			<h2
-				class="from-primary-600 to-secondary-600 mt-8 mb-2 bg-gradient-to-r bg-clip-text text-2xl font-bold text-transparent"
-			>
-				244SCHOOL
-			</h2>
-			<p class="text-gray-600 dark:text-gray-400">Preparing your learning experience...</p>
-		</div>
+		<Logo size="large" />
+		<div
+			class="border-primary-200 border-t-primary-600 dark:border-primary-900 dark:border-t-primary-400 size-6 animate-spin rounded-full border-2"
+			role="status"
+			aria-label={$t('ui.loading')}
+		></div>
 	</div>
+{:else if isFocusRoute || isAuthRoute(page.url.pathname)}
+	{@render children()}
+{:else if useAppShell}
+	<AppShell>
+		{@render children()}
+	</AppShell>
 {:else}
-	<div class="min-h-screen bg-gray-50 dark:bg-gray-900">
-		<!-- Header -->
-		<Header />
-
-		<!-- Main Content -->
-		<main class="pt-16">
-			<div transition:fade={{ duration: 200 }}>
+	<Header />
+	<main class="pt-16">
+		{#if page.url.pathname === '/'}
+			{@render children()}
+		{:else}
+			<div class="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
 				{@render children()}
 			</div>
-		</main>
-
-		<!-- Global Components -->
-		<NotificationToast />
-	</div>
+		{/if}
+	</main>
 {/if}
+
+<NotificationToast />
 
 <style>
 	:global(html) {

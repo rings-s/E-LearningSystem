@@ -1,127 +1,88 @@
 <script>
-	import { onMount, onDestroy } from 'svelte';
 	import Chart from 'chart.js/auto';
-	import { theme } from '$lib/stores/ui.store.js';
+	import { theme } from '#lib/stores/ui.store.js';
 
 	let { type = 'bar', data = {}, options = {}, height = '300px', class: className = '' } = $props();
 
-	let canvasElement;
-	let chartInstance = null;
+	let canvasElement = $state();
 
-	const defaultOptions = {
-		responsive: true,
-		maintainAspectRatio: false,
-		plugins: {
-			legend: {
-				labels: {
-					color: $theme === 'dark' ? '#e5e7eb' : '#374151',
-					font: {
-						size: 12
-					}
+	const palette = (dark) => ({
+		text: dark ? '#a1a1aa' : '#71717a',
+		grid: dark ? 'rgba(255,255,255,0.06)' : 'rgba(24,24,27,0.06)',
+		tooltipBg: dark ? '#18181b' : '#ffffff',
+		tooltipTitle: dark ? '#fafafa' : '#18181b',
+		tooltipBody: dark ? '#d4d4d8' : '#3f3f46',
+		tooltipBorder: dark ? 'rgba(255,255,255,0.1)' : '#e4e4e7'
+	});
+
+	function buildOptions(dark) {
+		const c = palette(dark);
+		const axis = {
+			grid: { color: c.grid },
+			border: { display: false },
+			ticks: { color: c.text, font: { size: 11 } }
+		};
+		const base = {
+			responsive: true,
+			maintainAspectRatio: false,
+			plugins: {
+				legend: { labels: { color: c.text, font: { size: 12 }, usePointStyle: true } },
+				tooltip: {
+					backgroundColor: c.tooltipBg,
+					titleColor: c.tooltipTitle,
+					bodyColor: c.tooltipBody,
+					borderColor: c.tooltipBorder,
+					borderWidth: 1,
+					padding: 10,
+					cornerRadius: 10,
+					displayColors: false,
+					titleFont: { size: 12, weight: 600 },
+					bodyFont: { size: 12 }
 				}
 			},
-			tooltip: {
-				backgroundColor: $theme === 'dark' ? '#1f2937' : '#ffffff',
-				titleColor: $theme === 'dark' ? '#f3f4f6' : '#111827',
-				bodyColor: $theme === 'dark' ? '#e5e7eb' : '#374151',
-				borderColor: $theme === 'dark' ? '#374151' : '#e5e7eb',
-				borderWidth: 1,
-				padding: 12,
-				cornerRadius: 8,
-				displayColors: false,
-				titleFont: {
-					size: 13,
-					weight: 600
-				},
-				bodyFont: {
-					size: 12
-				}
-			}
-		},
-		scales:
-			type !== 'pie' && type !== 'doughnut' && type !== 'radar'
-				? {
-						x: {
-							grid: {
-								color: $theme === 'dark' ? '#374151' : '#e5e7eb',
-								drawBorder: false
-							},
-							ticks: {
-								color: $theme === 'dark' ? '#9ca3af' : '#6b7280',
-								font: {
-									size: 11
-								}
-							}
-						},
-						y: {
-							grid: {
-								color: $theme === 'dark' ? '#374151' : '#e5e7eb',
-								drawBorder: false
-							},
-							ticks: {
-								color: $theme === 'dark' ? '#9ca3af' : '#6b7280',
-								font: {
-									size: 11
-								}
+			scales:
+				type === 'radar'
+					? {
+							r: {
+								grid: { color: c.grid },
+								angleLines: { color: c.grid },
+								pointLabels: { color: c.text, font: { size: 11 } },
+								ticks: { color: c.text, backdropColor: 'transparent', font: { size: 10 } }
 							}
 						}
-					}
-				: undefined
-	};
+					: type === 'pie' || type === 'doughnut'
+						? undefined
+						: { x: axis, y: axis }
+		};
 
-	onMount(() => {
-		createChart();
-	});
+		// Shallow-merge per section so callers can override individual keys
+		return {
+			...base,
+			...options,
+			plugins: { ...base.plugins, ...options.plugins },
+			scales: base.scales
+				? Object.fromEntries(
+						Object.keys({ ...base.scales, ...options.scales }).map((k) => [
+							k,
+							{ ...base.scales?.[k], ...options.scales?.[k] }
+						])
+					)
+				: options.scales
+		};
+	}
 
-	onDestroy(() => {
-		destroyChart();
-	});
-
+	// Rebuild whenever the data, options or theme change
 	$effect(() => {
-		// Watch for data and theme changes
-		if (chartInstance && canvasElement) {
-			destroyChart();
-			createChart();
-		}
-	});
-
-	function createChart() {
 		if (!canvasElement) return;
-
-		const ctx = canvasElement.getContext('2d');
-		
-		// Create a deep copy of data to avoid Svelte 5 $state descriptor issues
-		const chartData = JSON.parse(JSON.stringify(data));
-
-		chartInstance = new Chart(ctx, {
+		const chart = new Chart(canvasElement, {
 			type,
-			data: chartData,
-			options: {
-				...defaultOptions,
-				...options,
-				plugins: {
-					...defaultOptions.plugins,
-					...options.plugins
-				}
-			}
+			data: JSON.parse(JSON.stringify(data)),
+			options: buildOptions($theme === 'dark')
 		});
-	}
-
-	function destroyChart() {
-		if (chartInstance) {
-			chartInstance.destroy();
-			chartInstance = null;
-		}
-	}
+		return () => chart.destroy();
+	});
 </script>
 
-<div class="chart-container {className}" style="height: {height}">
+<div class="relative w-full {className}" style="height: {height}">
 	<canvas bind:this={canvasElement}></canvas>
 </div>
-
-<style>
-	.chart-container {
-		position: relative;
-		width: 100%;
-	}
-</style>

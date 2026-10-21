@@ -1,13 +1,14 @@
 <!-- front/src/routes/(app)/profile/+page.svelte -->
 <script>
+	import { t } from '#lib/i18n/index.js';
 	import { onMount } from 'svelte';
-	import { authStore, currentUser } from '$lib/stores/auth.store.js';
-	import { authApi } from '$lib/apis/auth.js';
-	import { uiStore } from '$lib/stores/ui.store.js';
-	import { validators, validateForm } from '$lib/utils/validators.js';
-	import { classNames } from '$lib/utils/helpers.js';
-	import Button from '$lib/components/common/Button.svelte';
-	import Card from '$lib/components/common/Card.svelte';
+	import { authStore, currentUser } from '#lib/stores/auth.store.js';
+	import { authApi } from '#lib/apis/auth.js';
+	import { uiStore } from '#lib/stores/ui.store.js';
+	import { validators, validateForm } from '#lib/utils/validators.js';
+	import { classNames } from '#lib/utils/helpers.js';
+	import Button from '#lib/components/common/Button.svelte';
+	import Card from '#lib/components/common/Card.svelte';
 
 	let loading = $state(false);
 	let uploadingAvatar = $state(false);
@@ -36,28 +37,27 @@
 	let errors = $state({});
 	let touched = $state({});
 
-	const validationRules = {
+	const validationRules = $derived({
 		first_name: [
-			{ validator: validators.required, message: 'First name is required' },
-			{ validator: validators.minLength(2), message: 'Name too short' }
+			{ validator: validators.required, message: $t('profilePage.firstNameRequired') },
+			{ validator: validators.minLength(2), message: $t('profilePage.nameTooShort') }
 		],
 		last_name: [
-			{ validator: validators.required, message: 'Last name is required' },
-			{ validator: validators.minLength(2), message: 'Name too short' }
+			{ validator: validators.required, message: $t('profilePage.lastNameRequired') },
+			{ validator: validators.minLength(2), message: $t('profilePage.nameTooShort') }
 		],
 		email: [
-			{ validator: validators.required, message: 'Email is required' },
-			{ validator: validators.email, message: 'Invalid email' }
+			{ validator: validators.required, message: $t('profilePage.emailRequired') },
+			{ validator: validators.email, message: $t('profilePage.invalidEmail') }
 		],
-		phone_number: [{ validator: validators.phoneNumber, message: 'Invalid phone number' }]
-	};
+		phone_number: [{ validator: validators.phoneNumber, message: $t('profilePage.invalidPhone') }]
+	});
 
-	// Reactive computations
-	let user = $state(null);
+	let user = $derived($currentUser);
 
-	// Watch for current user changes
+	// Copy the current user into the form whenever it changes
 	$effect(() => {
-		user = $currentUser;
+		const user = $currentUser;
 		if (user) {
 			// Update form data when user changes
 			formData.first_name = user.first_name || '';
@@ -79,7 +79,7 @@
 	});
 
 	function getFullName() {
-		if (!user) return 'Unknown User';
+		if (!user) return $t('profilePage.unknownUser');
 
 		const firstName = user.first_name?.trim() || '';
 		const lastName = user.last_name?.trim() || '';
@@ -91,7 +91,7 @@
 		} else if (lastName) {
 			return lastName;
 		} else {
-			return user.email || 'Unknown User';
+			return user.email || $t('profilePage.unknownUser');
 		}
 	}
 
@@ -119,8 +119,8 @@
 		if (!validTypes.includes(file.type)) {
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Invalid file type',
-				message: 'Please upload an image file (JPG, PNG, WebP)'
+				title: $t('profilePage.invalidFileType'),
+				message: $t('profilePage.uploadImage')
 			});
 			return;
 		}
@@ -128,8 +128,8 @@
 		if (file.size > 5 * 1024 * 1024) {
 			uiStore.showNotification({
 				type: 'error',
-				title: 'File too large',
-				message: 'Maximum file size is 5MB'
+				title: $t('profilePage.fileTooLarge'),
+				message: $t('profilePage.maxSize')
 			});
 			return;
 		}
@@ -144,15 +144,15 @@
 
 			uiStore.showNotification({
 				type: 'success',
-				title: 'Avatar updated',
-				message: 'Your avatar has been updated successfully'
+				title: $t('profilePage.avatarUpdated'),
+				message: $t('profilePage.avatarUpdatedMsg')
 			});
 		} catch (error) {
 			console.error('Avatar upload error:', error);
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Upload failed',
-				message: error.message || 'Failed to upload avatar'
+				title: $t('profilePage.uploadFailed'),
+				message: error.message || $t('profilePage.uploadFailedMsg')
 			});
 		} finally {
 			uploadingAvatar = false;
@@ -175,8 +175,8 @@
 
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Validation Error',
-				message: 'Please fix the errors below'
+				title: $t('profilePage.validationError'),
+				message: $t('profilePage.fixErrors')
 			});
 			return;
 		}
@@ -184,27 +184,31 @@
 		savingProfile = true;
 
 		try {
-			const result = await authStore.updateProfile(formData);
+			// An empty date must be sent as null; the API rejects ""
+			const result = await authStore.updateProfile({
+				...formData,
+				date_of_birth: formData.date_of_birth || null
+			});
 
 			if (result.success) {
 				uiStore.showNotification({
 					type: 'success',
-					title: 'Profile updated',
-					message: 'Your profile has been updated successfully'
+					title: $t('profilePage.profileUpdated'),
+					message: $t('profilePage.profileUpdatedMsg')
 				});
 
 				// Reset touched fields after successful save
 				touched = {};
 				errors = {};
 			} else {
-				throw new Error(result.error || 'Failed to update profile');
+				throw new Error(result.error || $t('profilePage.updateFailedMsg'));
 			}
 		} catch (error) {
 			console.error('Profile update error:', error);
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Update failed',
-				message: error.message || 'Failed to update profile'
+				title: $t('profilePage.updateFailed'),
+				message: error.message || $t('profilePage.updateFailedMsg')
 			});
 		} finally {
 			savingProfile = false;
@@ -236,15 +240,15 @@
 </script>
 
 <svelte:head>
-	<title>Profile - 244SCHOOL</title>
+	<title>{$t('profilePage.pageTitle')}</title>
 </svelte:head>
 
-<div class="container mx-auto px-4 py-8">
+<div>
 	<div class="mx-auto max-w-4xl space-y-6">
 		<!-- Header -->
 		<div>
-			<h1 class="text-2xl font-bold text-gray-900 dark:text-white">Profile</h1>
-			<p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Manage your profile information</p>
+			<h1 class="text-2xl font-bold text-gray-900 dark:text-white">{$t('profilePage.title')}</h1>
+			<p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{$t('profilePage.subtitle')}</p>
 		</div>
 
 		<!-- Avatar Section -->
@@ -256,7 +260,7 @@
 							<img src={user.avatar} alt={getFullName()} class="h-full w-full object-cover" />
 						{:else}
 							<div
-								class="flex h-full w-full items-center justify-center text-2xl font-bold text-gray-400 dark:text-gray-600"
+								class="brand-gradient flex h-full w-full items-center justify-center text-2xl font-semibold text-white"
 							>
 								{getUserInitials()}
 							</div>
@@ -308,7 +312,7 @@
 						{getFullName()}
 					</h3>
 					<p class="text-sm text-gray-500 capitalize dark:text-gray-400">
-						{user?.role || 'Student'}
+						{user?.role === 'teacher' ? $t('auth.teacher') : $t('profilePage.student')}
 					</p>
 					<Button
 						type="button"
@@ -318,7 +322,7 @@
 						class="mt-2"
 						disabled={uploadingAvatar}
 					>
-						{uploadingAvatar ? 'Uploading...' : 'Change Avatar'}
+						{uploadingAvatar ? $t('profilePage.uploading') : $t('profilePage.changeAvatar')}
 					</Button>
 				</div>
 			</div>
@@ -329,42 +333,46 @@
 			<form onsubmit={handleProfileSubmit}>
 				<!-- Tab Navigation -->
 				<div class="mb-6 border-b border-gray-200 dark:border-gray-700">
-					<nav class="-mb-px flex space-x-8">
+					<nav class="-mb-px flex scrollbar-thin gap-6 overflow-x-auto sm:gap-8">
 						<button
 							type="button"
 							onclick={() => (activeTab = 'personal')}
-							class="border-b-2 px-1 py-2 text-sm font-medium {activeTab === 'personal'
+							class="shrink-0 border-b-2 px-1 py-2 text-sm font-medium whitespace-nowrap {activeTab ===
+							'personal'
 								? 'border-primary-500 text-primary-600'
 								: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 						>
-							Personal Info
+							{$t('profilePage.personalInfo')}
 						</button>
 						<button
 							type="button"
 							onclick={() => (activeTab = 'education')}
-							class="border-b-2 px-1 py-2 text-sm font-medium {activeTab === 'education'
+							class="shrink-0 border-b-2 px-1 py-2 text-sm font-medium whitespace-nowrap {activeTab ===
+							'education'
 								? 'border-primary-500 text-primary-600'
 								: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 						>
-							Education
+							{$t('profilePage.education')}
 						</button>
 						<button
 							type="button"
 							onclick={() => (activeTab = 'preferences')}
-							class="border-b-2 px-1 py-2 text-sm font-medium {activeTab === 'preferences'
+							class="shrink-0 border-b-2 px-1 py-2 text-sm font-medium whitespace-nowrap {activeTab ===
+							'preferences'
 								? 'border-primary-500 text-primary-600'
 								: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 						>
-							Preferences
+							{$t('profilePage.preferences')}
 						</button>
 						<button
 							type="button"
 							onclick={() => (activeTab = 'social')}
-							class="border-b-2 px-1 py-2 text-sm font-medium {activeTab === 'social'
+							class="shrink-0 border-b-2 px-1 py-2 text-sm font-medium whitespace-nowrap {activeTab ===
+							'social'
 								? 'border-primary-500 text-primary-600'
 								: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 						>
-							Social Links
+							{$t('profilePage.socialLinks')}
 						</button>
 					</nav>
 				</div>
@@ -375,7 +383,7 @@
 						<div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
 							<div>
 								<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-									First Name *
+									{$t('profilePage.firstNameReq')}
 								</label>
 								<input
 									type="text"
@@ -387,7 +395,7 @@
 									)
 										? 'border-red-300 focus:border-red-500 focus:ring-red-500'
 										: ''}"
-									placeholder="Enter your first name"
+									placeholder={$t('profilePage.firstNamePlaceholder')}
 								/>
 								{#if getFieldError('first_name')}
 									<p class="mt-1 text-xs text-red-600">{getFieldError('first_name')}</p>
@@ -396,7 +404,7 @@
 
 							<div>
 								<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-									Last Name *
+									{$t('profilePage.lastNameReq')}
 								</label>
 								<input
 									type="text"
@@ -408,7 +416,7 @@
 									)
 										? 'border-red-300 focus:border-red-500 focus:ring-red-500'
 										: ''}"
-									placeholder="Enter your last name"
+									placeholder={$t('profilePage.lastNamePlaceholder')}
 								/>
 								{#if getFieldError('last_name')}
 									<p class="mt-1 text-xs text-red-600">{getFieldError('last_name')}</p>
@@ -418,7 +426,7 @@
 
 						<div>
 							<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-								Email *
+								{$t('profilePage.emailReq')}
 							</label>
 							<input
 								type="email"
@@ -426,12 +434,12 @@
 								disabled
 								class="block w-full cursor-not-allowed rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-sm text-gray-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-400"
 							/>
-							<p class="mt-1 text-xs text-gray-500">Email cannot be changed</p>
+							<p class="mt-1 text-xs text-gray-500">{$t('profilePage.emailLocked')}</p>
 						</div>
 
 						<div>
 							<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-								Phone Number
+								{$t('profilePage.phoneNumber')}
 							</label>
 							<input
 								type="tel"
@@ -447,7 +455,7 @@
 
 						<div>
 							<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-								Date of Birth
+								{$t('profilePage.dateOfBirth')}
 							</label>
 							<input
 								type="date"
@@ -458,13 +466,13 @@
 
 						<div>
 							<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-								Bio
+								{$t('profilePage.bio')}
 							</label>
 							<textarea
 								bind:value={formData.bio}
 								rows="4"
 								class="focus:ring-primary-500 focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors duration-200 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-								placeholder="Tell us about yourself..."
+								placeholder={$t('profilePage.bioPlaceholder')}
 							></textarea>
 						</div>
 					</div>
@@ -472,49 +480,49 @@
 					<div class="space-y-6">
 						<div>
 							<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-								Education Level
+								{$t('profilePage.educationLevel')}
 							</label>
 							<input
 								type="text"
 								bind:value={formData.education_level}
 								class="focus:ring-primary-500 focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors duration-200 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-								placeholder="e.g., Bachelor's Degree"
+								placeholder={$t('profilePage.degreePlaceholder')}
 							/>
 						</div>
 
 						<div>
 							<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-								Institution
+								{$t('profilePage.institution')}
 							</label>
 							<input
 								type="text"
 								bind:value={formData.institution}
 								class="focus:ring-primary-500 focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors duration-200 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-								placeholder="Your school or university"
+								placeholder={$t('profilePage.schoolPlaceholder')}
 							/>
 						</div>
 
 						<div>
 							<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-								Field of Study
+								{$t('profilePage.fieldOfStudy')}
 							</label>
 							<input
 								type="text"
 								bind:value={formData.field_of_study}
 								class="focus:ring-primary-500 focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors duration-200 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-								placeholder="Your major or field"
+								placeholder={$t('profilePage.fieldPlaceholder')}
 							/>
 						</div>
 
 						<div>
 							<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-								Learning Goals
+								{$t('profilePage.learningGoals')}
 							</label>
 							<textarea
 								bind:value={formData.learning_goals}
 								rows="4"
 								class="focus:ring-primary-500 focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors duration-200 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-								placeholder="What do you want to achieve?"
+								placeholder={$t('profilePage.goalsPlaceholder')}
 							></textarea>
 						</div>
 					</div>
@@ -522,31 +530,31 @@
 					<div class="space-y-6">
 						<div>
 							<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-								Preferred Language
+								{$t('profilePage.preferredLanguage')}
 							</label>
 							<select
 								bind:value={formData.preferred_language}
 								class="focus:ring-primary-500 focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors duration-200 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 							>
-								<option value="en">English</option>
+								<option value="en">{$t('profilePage.english')}</option>
 								<option value="ar">العربية (Arabic)</option>
 							</select>
 						</div>
 
 						<div>
 							<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-								Time Zone
+								{$t('profilePage.timeZone')}
 							</label>
 							<select
 								bind:value={formData.time_zone}
 								class="focus:ring-primary-500 focus:border-primary-500 block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors duration-200 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 							>
-								<option value="Africa/Khartoum">Sudan (CAT)</option>
-								<option value="UTC">UTC</option>
-								<option value="America/New_York">Eastern Time</option>
-								<option value="Europe/London">London</option>
-								<option value="Asia/Dubai">Dubai</option>
-								<option value="Asia/Riyadh">Riyadh</option>
+								<option value="Africa/Khartoum">{$t('profilePage.tzSudan')}</option>
+								<option value={$t('profilePage.tzUtc')}>{$t('profilePage.tzUtc')}</option>
+								<option value="America/New_York">{$t('profilePage.tzEastern')}</option>
+								<option value="Europe/London">{$t('profilePage.tzLondon')}</option>
+								<option value="Asia/Dubai">{$t('profilePage.tzDubai')}</option>
+								<option value="Asia/Riyadh">{$t('profilePage.tzRiyadh')}</option>
 							</select>
 						</div>
 					</div>
@@ -578,7 +586,7 @@
 
 						<div>
 							<label class="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">
-								Personal Website
+								{$t('profilePage.personalWebsite')}
 							</label>
 							<input
 								type="url"
@@ -600,7 +608,7 @@
 							disabled={savingProfile}
 							class="min-w-[120px]"
 						>
-							{savingProfile ? 'Saving...' : 'Save Changes'}
+							{savingProfile ? $t('profilePage.saving') : $t('profilePage.saveChanges')}
 						</Button>
 					</div>
 				</div>

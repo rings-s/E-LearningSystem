@@ -1,6 +1,7 @@
 <script>
-	import ChartWrapper from '$lib/components/charts/ChartWrapper.svelte';
-	import { formatters } from '$lib/utils/formatters.js';
+	import { t } from '#lib/i18n/index.js';
+	import ChartWrapper from '#lib/components/charts/ChartWrapper.svelte';
+	import { formatters } from '#lib/utils/formatters.js';
 
 	let { courses = [], height = '300px', class: className = '' } = $props();
 
@@ -8,13 +9,13 @@
 		labels: courses.map((c) => (c.title.length > 20 ? c.title.substring(0, 20) + '...' : c.title)),
 		datasets: [
 			{
-				label: 'Progress %',
+				label: $t('analyticsPage.progressPercent'),
 				data: courses.map((c) => c.progress_percentage || 0),
 				backgroundColor: courses.map((c) => {
 					const progress = c.progress_percentage || 0;
 					if (progress >= 80) return '#10b981';
 					if (progress >= 50) return '#f59e0b';
-					return '#3b82f6';
+					return '#5b4ff5';
 				}),
 				borderRadius: 6,
 				barThickness: 30
@@ -28,7 +29,7 @@
 			legend: { display: false },
 			tooltip: {
 				callbacks: {
-					label: (context) => `Progress: ${context.parsed.x}%`
+					label: (context) => $t('analyticsPage.progressValue', { value: context.parsed.x })
 				}
 			}
 		},

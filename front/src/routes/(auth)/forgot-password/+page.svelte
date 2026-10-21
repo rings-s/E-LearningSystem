@@ -1,15 +1,13 @@
 <!-- front/src/routes/(auth)/forgot-password/+page.svelte -->
 <script>
 	import { goto } from '$app/navigation';
-	import { authApi } from '$lib/apis/auth.js';
-	import { uiStore } from '$lib/stores/ui.store.js';
-	import { t } from '$lib/i18n/index.js';
-	import { validators, validateForm } from '$lib/utils/validators.js';
-	import { classNames } from '$lib/utils/helpers.js';
-	import FormField from '$lib/components/auth/FormField.svelte';
-	import Button from '$lib/components/common/Button.svelte';
-	import Card from '$lib/components/common/Card.svelte';
-	import Logo from '$lib/components/common/Logo.svelte';
+	import { authApi } from '#lib/apis/auth.js';
+	import { uiStore } from '#lib/stores/ui.store.js';
+	import { t } from '#lib/i18n/index.js';
+	import { validators, validateForm } from '#lib/utils/validators.js';
+	import { classNames } from '#lib/utils/helpers.js';
+	import Input from '#lib/components/common/Input.svelte';
+	import Button from '#lib/components/common/Button.svelte';
 
 	let email = $state('');
 	let loading = $state(false);
@@ -47,118 +45,79 @@
 </script>
 
 <svelte:head>
-	<title>{$t('auth.forgotPassword')} - EduVerse</title>
+	<title>{$t('auth.forgotPassword')} · Ilmora</title>
 </svelte:head>
 
-<div class="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-	<div class="w-full max-w-md">
-		<div class="mb-8 text-center">
-			<Logo size="large" showText={false} class="mx-auto mb-6" />
-			<h2 class="text-3xl font-bold text-gray-900 sm:text-4xl dark:text-white">
-				{$t('auth.forgotPassword')}
-			</h2>
-			<p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-				{submitted ? $t('auth.checkEmailForReset') : $t('auth.enterEmailForReset')}
-			</p>
-		</div>
-
-		<Card
-			variant="bordered"
-			padding="large"
-			class="bg-white/90 backdrop-blur-sm dark:bg-gray-800/90"
+{#if submitted}
+	<div class="text-center sm:text-start">
+		<span
+			class="bg-success-50 text-success-600 dark:bg-success-400/10 dark:text-success-400 mx-auto flex size-12 items-center justify-center rounded-2xl sm:mx-0"
 		>
-			{#if submitted}
-				<div class="space-y-6 text-center">
-					<div
-						class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-emerald-600 shadow-xl"
-					>
-						<svg class="h-10 w-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-							/>
-						</svg>
-					</div>
+			<svg class="size-6" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
+				<path
+					stroke-linecap="round"
+					stroke-linejoin="round"
+					d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
+				/>
+			</svg>
+		</span>
+		<h1 class="mt-6 text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
+			{$t('auth.checkEmail')}
+		</h1>
+		<p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+			{$t('auth.resetLinkSent')}
+			<strong class="font-medium text-gray-900 dark:text-white">{email}</strong>
+		</p>
 
-					<div>
-						<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-							{$t('auth.checkEmail')}
-						</h3>
-						<p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-							{$t('auth.resetLinkSent')}
-							<strong class="text-gray-900 dark:text-white">{email}</strong>
-						</p>
-					</div>
+		<Button
+			href={`/reset-password?email=${encodeURIComponent(email)}`}
+			size="large"
+			fullWidth
+			class="mt-8"
+		>
+			{$t('auth.enterResetCode')}
+		</Button>
 
-					<Button
-						href={`/reset-password?email=${encodeURIComponent(email)}`}
-						variant="primary"
-						fullWidth
-						class="from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 bg-gradient-to-r"
-					>
-						{$t('auth.enterResetCode')}
-					</Button>
-
-					<div class="space-y-3">
-						<p class="text-sm text-gray-600 dark:text-gray-400">
-							{$t('auth.didntReceiveEmail')}
-						</p>
-						<div class="flex flex-col justify-center gap-2 sm:flex-row">
-							<button
-								onclick={() => (submitted = false)}
-								class="text-primary-600 hover:text-primary-500 dark:text-primary-400 text-sm font-medium transition-colors"
-							>
-								{$t('auth.tryAgain')}
-							</button>
-							<span class="hidden text-gray-400 sm:inline">•</span>
-							<a
-								href="/help"
-								class="text-primary-600 hover:text-primary-500 dark:text-primary-400 text-sm font-medium transition-colors"
-							>
-								{$t('auth.contactSupport')}
-							</a>
-						</div>
-					</div>
-				</div>
-			{:else}
-				<form onsubmit={handleSubmit} class="space-y-6">
-					<FormField
-						type="email"
-						name="email"
-						label={$t('auth.email')}
-						bind:value={email}
-						error={error}
-						required
-						placeholder={$t('auth.enterEmail')}
-						icon='<path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />'
-					/>
-
-					<Button
-						type="submit"
-						variant="primary"
-						size="large"
-						fullWidth
-						{loading}
-						class="from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 transform bg-gradient-to-r transition-all duration-300 hover:scale-[1.02]"
-					>
-						{loading ? $t('auth.sending') : $t('auth.sendResetLink')}
-					</Button>
-				</form>
-			{/if}
-		</Card>
-
-		<div class="mt-6 text-center">
-			<p class="text-sm text-gray-600 dark:text-gray-400">
-				{$t('auth.rememberPassword')}
-				<a
-					href="/login"
-					class="text-primary-600 hover:text-primary-500 dark:text-primary-400 font-medium transition-colors"
-				>
-					{$t('auth.login')}
-				</a>
-			</p>
-		</div>
+		<p class="mt-6 text-sm text-gray-600 dark:text-gray-400">
+			{$t('auth.didntReceiveEmail')}
+			<button
+				type="button"
+				onclick={() => (submitted = false)}
+				class="text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium"
+			>
+				{$t('auth.tryAgain')}
+			</button>
+		</p>
 	</div>
-</div>
+{:else}
+	<h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
+		{$t('auth.forgotPassword')}
+	</h1>
+	<p class="mt-2 text-sm text-gray-600 dark:text-gray-400">{$t('auth.enterEmailForReset')}</p>
+
+	<form onsubmit={handleSubmit} class="mt-8 space-y-5" novalidate>
+		<Input
+			type="email"
+			name="email"
+			label={$t('auth.email')}
+			autocomplete="email"
+			bind:value={email}
+			{error}
+			required
+			placeholder={$t('auth.enterEmail')}
+		/>
+		<Button type="submit" size="large" fullWidth {loading}>
+			{loading ? $t('auth.sending') : $t('auth.sendResetLink')}
+		</Button>
+	</form>
+
+	<p class="mt-8 text-sm text-gray-600 dark:text-gray-400">
+		{$t('auth.rememberPassword')}
+		<a
+			href="/login"
+			class="text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium"
+		>
+			{$t('auth.login')}
+		</a>
+	</p>
+{/if}

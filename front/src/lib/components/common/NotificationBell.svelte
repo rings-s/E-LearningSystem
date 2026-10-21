@@ -2,10 +2,10 @@
 <script>
 	import { onMount } from 'svelte';
 	import { fade, scale } from 'svelte/transition';
-	import { coreApi } from '$lib/apis/core.js';
-	import { formatters } from '$lib/utils/formatters.js';
-	import { t, locale } from '$lib/i18n/index.js';
-	import { clickOutside } from '$lib/utils/helpers.js';
+	import { coreApi } from '#lib/apis/core.js';
+	import { formatters } from '#lib/utils/formatters.js';
+	import { t, locale } from '#lib/i18n/index.js';
+	import { clickOutside } from '#lib/utils/helpers.js';
 
 	let showDropdown = $state(false);
 	let notifications = $state([]);
@@ -83,22 +83,22 @@
 
 <div class="relative">
 	<button
+		type="button"
 		onclick={toggleDropdown}
-		class="relative rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-gray-200"
-		aria-label="Notifications"
+		class="relative flex size-10 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+		aria-label={$t('notifications.notifications')}
+		aria-expanded={showDropdown}
 	>
-		<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+		<svg class="size-5" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24">
 			<path
 				stroke-linecap="round"
 				stroke-linejoin="round"
-				stroke-width="2"
-				d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+				d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"
 			/>
 		</svg>
-
 		{#if unreadCount > 0}
 			<span
-				class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-medium text-white"
+				class="bg-danger-500 absolute end-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white ring-2 ring-white dark:ring-gray-950"
 				transition:scale
 			>
 				{unreadCount > 9 ? '9+' : unreadCount}
@@ -108,106 +108,84 @@
 
 	{#if showDropdown}
 		<div
-			class="absolute right-0 z-50 mt-2 w-80 rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800"
-			transition:fade={{ duration: 200 }}
+			class="fixed inset-x-3 top-16 z-50 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-gray-200/80 sm:absolute sm:inset-x-auto sm:end-0 sm:top-full sm:mt-2 sm:w-96 dark:bg-gray-900 dark:ring-white/10"
+			transition:fade={{ duration: 150 }}
 			use:clickOutside={() => (showDropdown = false)}
 		>
-			<!-- Header -->
-			<div class="border-b border-gray-200 px-4 py-3 dark:border-gray-700">
-				<div class="flex items-center justify-between">
-					<h3 class="text-base font-semibold text-gray-900 dark:text-white">
-						{$t('notifications.notifications')}
-					</h3>
-					{#if unreadCount > 0}
-						<button
-							onclick={markAllAsRead}
-							class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-xs"
-						>
-							{$t('notifications.markAllRead')}
-						</button>
-					{/if}
-				</div>
+			<div class="flex items-center justify-between px-4 py-3">
+				<h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+					{$t('notifications.notifications')}
+				</h3>
+				{#if unreadCount > 0}
+					<button
+						type="button"
+						onclick={markAllAsRead}
+						class="text-primary-600 hover:text-primary-700 dark:text-primary-400 text-xs font-medium"
+					>
+						{$t('notifications.markAllRead')}
+					</button>
+				{/if}
 			</div>
 
-			<!-- Notifications List -->
-			<div class="max-h-96 overflow-y-auto">
+			<div
+				class="max-h-[60dvh] scrollbar-thin overflow-y-auto border-t border-gray-100 dark:border-white/5"
+			>
 				{#if loading}
-					<div class="px-4 py-8 text-center">
-						<div
-							class="inline-flex h-8 w-8 animate-pulse items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700"
-						>
-							<div class="h-4 w-4 rounded-full bg-gray-300 dark:bg-gray-600"></div>
-						</div>
-						<p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-							{$t('common.loading')}
-						</p>
+					<div class="space-y-3 p-4">
+						{#each Array(3) as _}
+							<div class="flex gap-3">
+								<div class="skeleton size-9 rounded-full"></div>
+								<div class="flex-1 space-y-2">
+									<div class="skeleton h-3 w-2/3"></div>
+									<div class="skeleton h-3 w-full"></div>
+								</div>
+							</div>
+						{/each}
 					</div>
 				{:else if notifications.length === 0}
-					<div class="px-4 py-8 text-center">
-						<svg
-							class="mx-auto h-12 w-12 text-gray-400"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-							/>
-						</svg>
-						<p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+					<div class="px-4 py-10 text-center">
+						<p class="text-sm font-medium text-gray-900 dark:text-white">{$t('ui.allCaughtUp')}</p>
+						<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
 							{$t('notifications.noNotifications')}
 						</p>
 					</div>
 				{:else}
 					{#each notifications as notification}
 						<button
+							type="button"
 							onclick={() => markAsRead(notification)}
-							class="w-full border-b border-gray-100 px-4 py-3 transition-colors last:border-b-0 hover:bg-gray-50 dark:border-gray-700/50 dark:hover:bg-gray-700/50"
+							class="flex w-full gap-3 px-4 py-3 text-start transition-colors hover:bg-gray-50 dark:hover:bg-white/5"
 						>
-							<div class="flex gap-3">
-								<div
-									class="bg-primary-100 dark:bg-primary-900/30 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full"
+							<span
+								class="bg-primary-50 text-primary-600 dark:bg-primary-400/10 dark:text-primary-400 flex size-9 shrink-0 items-center justify-center rounded-full"
+							>
+								<svg
+									class="size-4"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									viewBox="0 0 24 24"
 								>
-									<svg
-										class="text-primary-600 dark:text-primary-400 h-5 w-5"
-										fill="none"
-										stroke="currentColor"
-										viewBox="0 0 24 24"
-									>
-										{@html getNotificationIcon(notification.notification_type)}
-									</svg>
-								</div>
-								<div class="flex-1 text-left">
-									<p class="text-sm font-medium text-gray-900 dark:text-white">
-										{notification.title}
-									</p>
-									<p class="line-clamp-2 text-xs text-gray-500 dark:text-gray-400">
-										{notification.message}
-									</p>
-									<p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
-										{formatters.relativeTime(notification.created_at, $locale)}
-									</p>
-								</div>
-								{#if !notification.is_read}
-									<div class="bg-primary-500 mt-2 h-2 w-2 flex-shrink-0 rounded-full"></div>
-								{/if}
-							</div>
+									{@html getNotificationIcon(notification.notification_type)}
+								</svg>
+							</span>
+							<span class="min-w-0 flex-1">
+								<span class="block text-sm font-medium text-gray-900 dark:text-white">
+									{notification.title}
+								</span>
+								<span class="line-clamp-2 block text-xs text-gray-500 dark:text-gray-400">
+									{notification.message}
+								</span>
+								<span class="mt-1 block text-xs text-gray-400 dark:text-gray-500">
+									{formatters.relativeTime(notification.created_at, $locale)}
+								</span>
+							</span>
+							{#if !notification.is_read}
+								<span class="bg-primary-500 mt-1.5 size-2 shrink-0 rounded-full"></span>
+							{/if}
 						</button>
 					{/each}
 				{/if}
-			</div>
-
-			<!-- Footer -->
-			<div class="border-t border-gray-200 px-4 py-3 dark:border-gray-700">
-				<a
-					href="/notifications"
-					class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 block text-center text-sm"
-				>
-					{$t('actions.viewAll')}
-				</a>
 			</div>
 		</div>
 	{/if}

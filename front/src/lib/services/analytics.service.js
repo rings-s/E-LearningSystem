@@ -17,8 +17,10 @@ class AnalyticsService {
 
 		try {
 			// Use the backend analytics endpoint directly with auth wrapper
-			const response = await authStore.makeAuthenticatedRequest(() => coreApi.getStudentAnalytics());
-			
+			const response = await authStore.makeAuthenticatedRequest(() =>
+				coreApi.getStudentAnalytics()
+			);
+
 			// Process and enhance the backend data
 			const analytics = {
 				summary: response.summary || {},
@@ -38,13 +40,13 @@ class AnalyticsService {
 				status: error.status,
 				url: error.config?.url
 			});
-			
+
 			// Only use fallback for network issues, not data errors
 			if (error.status >= 500 || error.status === 0 || !error.status) {
 				console.warn('Using fallback student analytics due to server/network error');
 				return this.getFallbackStudentAnalytics();
 			}
-			
+
 			// Re-throw for client errors to be handled by the dashboard
 			throw error;
 		}
@@ -57,8 +59,10 @@ class AnalyticsService {
 		if (cached) return cached;
 
 		try {
-			const response = await authStore.makeAuthenticatedRequest(() => coreApi.getTeacherAnalytics());
-			
+			const response = await authStore.makeAuthenticatedRequest(() =>
+				coreApi.getTeacherAnalytics()
+			);
+
 			const analytics = {
 				summary: response.summary || {},
 				course_performance: response.course_performance || [],
@@ -77,13 +81,13 @@ class AnalyticsService {
 				status: error.status,
 				url: error.config?.url
 			});
-			
+
 			// Only use fallback for network issues, not data errors
 			if (error.status >= 500 || error.status === 0 || !error.status) {
 				console.warn('Using fallback teacher analytics due to server/network error');
 				return this.getFallbackTeacherAnalytics();
 			}
-			
+
 			// Re-throw for client errors to be handled by the dashboard
 			throw error;
 		}
@@ -96,8 +100,10 @@ class AnalyticsService {
 		if (cached) return cached;
 
 		try {
-			const response = await authStore.makeAuthenticatedRequest(() => coreApi.getDashboardSummary());
-			
+			const response = await authStore.makeAuthenticatedRequest(() =>
+				coreApi.getDashboardSummary()
+			);
+
 			const analytics = {
 				platform_health: response.platform_stats || {},
 				user_growth: response.recent_activity || {},
@@ -116,13 +122,13 @@ class AnalyticsService {
 				status: error.status,
 				url: error.config?.url
 			});
-			
+
 			// Only use fallback for network issues, not data errors
 			if (error.status >= 500 || error.status === 0 || !error.status) {
 				console.warn('Using fallback platform analytics due to server/network error');
 				return this.getFallbackPlatformAnalytics();
 			}
-			
+
 			// Re-throw for client errors to be handled by the dashboard
 			throw error;
 		}
@@ -135,34 +141,37 @@ class AnalyticsService {
 				type: 'bar',
 				title: 'Course Progress',
 				data: {
-					labels: (data.courses || []).map(c => this.truncateText(c.course_title, 15)),
-					datasets: [{
-						label: 'Progress %',
-						data: (data.courses || []).map(c => c.progress),
-						backgroundColor: (data.courses || []).map(c => 
-							c.progress >= 80 ? '#10b981' : 
-							c.progress >= 50 ? '#f59e0b' : '#3b82f6'
-						),
-						borderRadius: 6
-					}]
+					labels: (data.courses || []).map((c) => this.truncateText(c.course_title, 15)),
+					datasets: [
+						{
+							label: 'Progress %',
+							data: (data.courses || []).map((c) => c.progress),
+							backgroundColor: (data.courses || []).map((c) =>
+								c.progress >= 80 ? '#10b981' : c.progress >= 50 ? '#f59e0b' : '#3b82f6'
+							),
+							borderRadius: 6
+						}
+					]
 				}
 			},
-			
+
 			studyTimeChart: {
 				type: 'line',
 				title: 'Daily Study Time',
 				data: {
-					labels: (data.study_time?.daily_breakdown || []).map(d => 
+					labels: (data.study_time?.daily_breakdown || []).map((d) =>
 						new Date(d.date).toLocaleDateString('en', { month: 'short', day: 'numeric' })
 					),
-					datasets: [{
-						label: 'Minutes',
-						data: (data.study_time?.daily_breakdown || []).map(d => d.minutes),
-						borderColor: '#6366f1',
-						backgroundColor: 'rgba(99, 102, 241, 0.1)',
-						fill: true,
-						tension: 0.4
-					}]
+					datasets: [
+						{
+							label: 'Minutes',
+							data: (data.study_time?.daily_breakdown || []).map((d) => d.minutes),
+							borderColor: '#6366f1',
+							backgroundColor: 'rgba(99, 102, 241, 0.1)',
+							fill: true,
+							tension: 0.4
+						}
+					]
 				}
 			}
 		};
@@ -176,14 +185,16 @@ class AnalyticsService {
 				title: 'Student Progress Distribution',
 				data: {
 					labels: ['Not Started', 'In Progress', 'Completed'],
-					datasets: [{
-						data: [
-							data.student_activity?.progress_distribution?.not_started || 0,
-							data.student_activity?.progress_distribution?.in_progress || 0,
-							data.student_activity?.progress_distribution?.completed || 0
-						],
-						backgroundColor: ['#ef4444', '#f59e0b', '#10b981']
-					}]
+					datasets: [
+						{
+							data: [
+								data.student_activity?.progress_distribution?.not_started || 0,
+								data.student_activity?.progress_distribution?.in_progress || 0,
+								data.student_activity?.progress_distribution?.completed || 0
+							],
+							backgroundColor: ['#ef4444', '#f59e0b', '#10b981']
+						}
+					]
 				}
 			}
 		};
@@ -213,7 +224,7 @@ class AnalyticsService {
 		} else if (userType === 'teacher') {
 			// Teacher-specific insights
 			const engagementRate = this.calculateEngagementRate(data);
-			
+
 			if (engagementRate < 50) {
 				insights.push({
 					type: 'warning',
@@ -222,7 +233,7 @@ class AnalyticsService {
 				});
 			}
 
-			if (data.course_performance?.some(course => course.avg_progress < 30)) {
+			if (data.course_performance?.some((course) => course.avg_progress < 30)) {
 				insights.push({
 					type: 'suggestion',
 					title: 'Course Progress Review',
@@ -239,7 +250,7 @@ class AnalyticsService {
 		const total = data.summary?.total_students || 0;
 		const active = data.summary?.active_students_7d || 0;
 		const engagementRate = total > 0 ? Math.round((active / total) * 100) : 0;
-		
+
 		return {
 			engagement_rate: engagementRate,
 			total_students: total,
@@ -268,11 +279,12 @@ class AnalyticsService {
 		// Analyze trends in platform data
 		const userGrowth = data.growth_metrics || [];
 		const categoryInsights = data.category_insights || [];
-		
+
 		return {
 			user_growth_trend: userGrowth.length > 1 ? 'growing' : 'stable',
-			popular_categories: categoryInsights.slice(0, 3).map(cat => cat.category || cat.name),
-			platform_health: data.platform_health?.user_engagement_rate > 70 ? 'healthy' : 'needs_attention'
+			popular_categories: categoryInsights.slice(0, 3).map((cat) => cat.category || cat.name),
+			platform_health:
+				data.platform_health?.user_engagement_rate > 70 ? 'healthy' : 'needs_attention'
 		};
 	}
 
@@ -302,11 +314,11 @@ class AnalyticsService {
 		return {
 			summary: { total_courses: 0, completed_courses: 0, study_hours_30d: 0, learning_streak: 0 },
 			performance: { total_quizzes: 0, avg_quiz_score: 0, quiz_pass_rate: 0 },
-			charts: { 
-				course_progress: { 
+			charts: {
+				course_progress: {
 					type: 'bar',
 					title: 'Course Progress',
-					data: { labels: [], datasets: [] } 
+					data: { labels: [], datasets: [] }
 				},
 				study_time_trend: {
 					type: 'line',
@@ -320,29 +332,31 @@ class AnalyticsService {
 
 	getFallbackTeacherAnalytics() {
 		return {
-			summary: { 
-				total_courses: 0, 
+			summary: {
+				total_courses: 0,
 				published_courses: 0,
-				total_students: 0, 
+				total_students: 0,
 				active_students_7d: 0,
-				avg_course_rating: 0 
+				avg_course_rating: 0
 			},
 			course_performance: [],
-			student_activity: { 
+			student_activity: {
 				total_students: 0,
-				progress_distribution: { not_started: 0, in_progress: 0, completed: 0 } 
+				progress_distribution: { not_started: 0, in_progress: 0, completed: 0 }
 			},
-			charts: { 
-				student_progress: { 
+			charts: {
+				student_progress: {
 					type: 'doughnut',
 					title: 'Student Progress Distribution',
-					data: { 
-						labels: ['Not Started', 'In Progress', 'Completed'], 
-						datasets: [{
-							data: [0, 0, 0],
-							backgroundColor: ['#ef4444', '#f59e0b', '#10b981']
-						}]
-					} 
+					data: {
+						labels: ['Not Started', 'In Progress', 'Completed'],
+						datasets: [
+							{
+								data: [0, 0, 0],
+								backgroundColor: ['#ef4444', '#f59e0b', '#10b981']
+							}
+						]
+					}
 				}
 			}
 		};

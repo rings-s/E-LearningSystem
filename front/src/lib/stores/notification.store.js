@@ -1,7 +1,7 @@
 // front/src/lib/stores/notification.store.js
 import { writable, derived } from 'svelte/store';
 import { notificationService } from '../services/notification.service.js';
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 
 function createNotificationStore() {
 	const { subscribe, set, update } = writable({

@@ -1,6 +1,6 @@
 // front/src/lib/stores/auth.store.js - Enhanced with better session persistence
 import { writable, derived } from 'svelte/store';
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import { authApi } from '../apis/auth.js';
 
 function createAuthStore() {
@@ -24,7 +24,7 @@ function createAuthStore() {
 
 	function setTokens(accessToken, refreshToken) {
 		if (!browser) return;
-		
+
 		if (accessToken) {
 			localStorage.setItem('access_token', accessToken);
 			// Schedule token refresh
@@ -46,9 +46,14 @@ function createAuthStore() {
 		try {
 			const base64Url = token.split('.')[1];
 			const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-			const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
-				return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-			}).join(''));
+			const jsonPayload = decodeURIComponent(
+				atob(base64)
+					.split('')
+					.map(function (c) {
+						return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+					})
+					.join('')
+			);
 			return JSON.parse(jsonPayload);
 		} catch {
 			return null;
@@ -57,13 +62,13 @@ function createAuthStore() {
 
 	function scheduleTokenRefresh(token) {
 		clearTokenRefreshTimer();
-		
+
 		const payload = parseJWTPayload(token);
 		if (!payload || !payload.exp) return;
-		
+
 		// Refresh 2 minutes before expiry
-		const refreshTime = (payload.exp * 1000) - Date.now() - (2 * 60 * 1000);
-		
+		const refreshTime = payload.exp * 1000 - Date.now() - 2 * 60 * 1000;
+
 		if (refreshTime > 0) {
 			refreshTimer = setTimeout(() => {
 				refreshAccessToken();
@@ -81,11 +86,11 @@ function createAuthStore() {
 	async function refreshAccessToken() {
 		const refreshToken = getRefreshToken();
 		if (!refreshToken) return false;
-		
+
 		try {
 			const response = await authApi.refreshToken(refreshToken);
 			const newAccessToken = response.access;
-			
+
 			if (newAccessToken) {
 				setTokens(newAccessToken, response.refresh || refreshToken);
 				return true;
@@ -127,7 +132,7 @@ function createAuthStore() {
 			try {
 				const token = getToken();
 				const refreshToken = getRefreshToken();
-				
+
 				if (!token || !refreshToken) {
 					set({ user: null, isLoading: false, isInitialized: true });
 					return;
@@ -135,8 +140,8 @@ function createAuthStore() {
 
 				// Check if token is expired
 				const payload = parseJWTPayload(token);
-				const isExpired = payload ? (payload.exp * 1000) < Date.now() : true;
-				
+				const isExpired = payload ? payload.exp * 1000 < Date.now() : true;
+
 				if (isExpired) {
 					// Try to refresh token
 					const refreshSuccess = await refreshAccessToken();
@@ -152,7 +157,7 @@ function createAuthStore() {
 
 				// Get current user data
 				const userData = await authApi.getCurrentUser();
-				
+
 				if (userData && userData.id) {
 					set({ user: userData, isLoading: false, isInitialized: true });
 				} else {
@@ -161,11 +166,11 @@ function createAuthStore() {
 				}
 			} catch (error) {
 				console.error('Auth initialization failed:', error);
-				
+
 				if (error.status === 401 || error.status === 403) {
 					clearTokens();
 				}
-				
+
 				set({ user: null, isLoading: false, isInitialized: true });
 			}
 		},
@@ -175,7 +180,7 @@ function createAuthStore() {
 
 			try {
 				const response = await authApi.login(credentials);
-				
+
 				const accessToken = response.tokens?.access || response.access;
 				const refreshToken = response.tokens?.refresh || response.refresh;
 				const userData = response.user;
@@ -212,7 +217,7 @@ function createAuthStore() {
 
 			try {
 				const response = await authApi.verifyEmail({ email, verification_code: code });
-				
+
 				const accessToken = response.tokens?.access || response.access;
 				const refreshToken = response.tokens?.refresh || response.refresh;
 				const userData = response.user;
@@ -246,9 +251,7 @@ function createAuthStore() {
 
 		async updateProfile(profileData) {
 			try {
-				const response = await makeAuthenticatedRequest(() => 
-					authApi.updateProfile(profileData)
-				);
+				const response = await makeAuthenticatedRequest(() => authApi.updateProfile(profileData));
 
 				update((state) => ({
 					...state,
@@ -302,16 +305,13 @@ function createAuthStore() {
 export const authStore = createAuthStore();
 
 // Derived stores
-export const isAuthenticated = derived(
-	authStore,
-	($auth) => {
-		if (!$auth.isInitialized) return false;
-		
-		// Check if we have valid tokens
-		const hasValidToken = !!getTokenFromStorage();
-		return hasValidToken && !!$auth.user;
-	}
-);
+export const isAuthenticated = derived(authStore, ($auth) => {
+	if (!$auth.isInitialized) return false;
+
+	// Check if we have valid tokens
+	const hasValidToken = !!getTokenFromStorage();
+	return hasValidToken && !!$auth.user;
+});
 
 export const currentUser = derived(authStore, ($auth) => $auth.user);
 export const userRole = derived(authStore, ($auth) => $auth.user?.role || null);

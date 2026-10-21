@@ -1,111 +1,103 @@
 <!-- front/src/lib/components/common/Tabs.svelte -->
 <script>
-	import { writable } from 'svelte/store';
 	import { fade } from 'svelte/transition';
-	import { classNames } from '$lib/utils/helpers.js';
+	import { classNames } from '#lib/utils/helpers.js';
 
 	let {
-		tabs = [],
+		tabs = [], // [{ label, icon?, badge?, disabled?, content? }]
 		defaultTab = 0,
-		variant = 'default', // 'default', 'pills', 'underline'
+		variant = 'underline', // 'underline' | 'pills'
 		fullWidth = false,
 		class: className = '',
 		activeTab = $bindable(defaultTab),
 		content
 	} = $props();
 
-	const setActiveTab = (index) => {
-		activeTab = index;
-	};
-
-	const tabStyles = {
-		default: {
-			container: 'border-b border-gray-200 dark:border-gray-700',
-			list: 'flex space-x-8',
-			tab: (active) =>
-				classNames(
-					'py-2 px-1 border-b-2 font-medium text-sm transition-colors',
-					active
-						? 'border-primary-500 text-primary-600 dark:text-primary-400'
-						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-				)
-		},
-		pills: {
-			container: '',
-			list: 'flex space-x-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg',
-			tab: (active) =>
-				classNames(
-					'px-4 py-2 rounded-md text-sm font-medium transition-all',
-					active
-						? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-						: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-				)
-		},
-		underline: {
-			container: '',
-			list: 'flex space-x-6',
-			tab: (active) =>
-				classNames(
-					'pb-2 border-b-2 text-sm font-medium transition-colors',
-					active
-						? 'border-primary-500 text-primary-600 dark:text-primary-400'
-						: 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
-				)
-		}
-	};
-
-	const styles = tabStyles[variant];
+	const isSvgMarkup = (icon) => typeof icon === 'string' && icon.trim().startsWith('<');
+	const hasPanels = $derived(!!content || tabs.some((t) => t.content));
 </script>
 
-<div class={classNames('tabs', className)}>
-	<div class={styles.container}>
-		<nav class={classNames(styles.list, fullWidth && 'w-full')} aria-label="Tabs">
+<div class={className}>
+	<!-- Scrolls sideways on small screens instead of wrapping -->
+	<div
+		class={classNames(
+			'-mx-4 scrollbar-thin overflow-x-auto px-4 sm:mx-0 sm:px-0',
+			variant === 'underline' && 'border-b border-gray-200 dark:border-white/10'
+		)}
+	>
+		<div
+			role="tablist"
+			class={classNames(
+				'flex min-w-max',
+				variant === 'pills' ? 'gap-1 rounded-xl bg-gray-100 p-1 dark:bg-white/5' : '-mb-px gap-6',
+				fullWidth && 'w-full'
+			)}
+		>
 			{#each tabs as tab, index}
+				{@const active = activeTab === index}
 				<button
-					onclick={() => setActiveTab(index)}
-					class={classNames(
-						styles.tab(activeTab === index),
-						fullWidth && 'flex-1 text-center',
-						tab.disabled && 'cursor-not-allowed opacity-50'
-					)}
+					type="button"
+					role="tab"
+					aria-selected={active}
 					disabled={tab.disabled}
-					aria-current={activeTab === index ? 'page' : undefined}
+					onclick={() => (activeTab = index)}
+					class={classNames(
+						'inline-flex items-center justify-center gap-2 text-sm font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+						variant === 'pills'
+							? classNames(
+									'rounded-lg px-3.5 py-2',
+									active
+										? 'bg-white text-gray-900 shadow-xs dark:bg-white/10 dark:text-white'
+										: 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white'
+								)
+							: classNames(
+									'border-b-2 px-1 py-3',
+									active
+										? 'border-primary-600 text-primary-700 dark:border-primary-400 dark:text-primary-300'
+										: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+								),
+						fullWidth && 'flex-1'
+					)}
 				>
 					{#if tab.icon}
-						<span class="inline-flex items-center space-x-2">
-							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						{#if isSvgMarkup(tab.icon)}
+							<svg
+								class="size-4"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2"
+								viewBox="0 0 24 24"
+							>
 								{@html tab.icon}
 							</svg>
-							<span>{tab.label}</span>
-						</span>
-					{:else}
-						{tab.label}
+						{:else}
+							<span aria-hidden="true">{tab.icon}</span>
+						{/if}
 					{/if}
+					{tab.label}
 					{#if tab.badge}
 						<span
-							class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+							class="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-white/10 dark:text-gray-300"
 						>
 							{tab.badge}
 						</span>
 					{/if}
 				</button>
 			{/each}
-		</nav>
+		</div>
 	</div>
 
-	<div class="mt-6">
-		{#if content && tabs[activeTab]}
-			<div in:fade={{ duration: 200 }}>
-				{@render content(tabs[activeTab])}
-			</div>
-		{:else}
-			{#each tabs as tab, index}
-				{#if activeTab === index && tab.content}
-					<div in:fade={{ duration: 200 }}>
-						{@render tab.content()}
-					</div>
-				{/if}
-			{/each}
-		{/if}
-	</div>
+	{#if hasPanels}
+		<div class="mt-6" role="tabpanel">
+			{#key activeTab}
+				<div in:fade={{ duration: 150 }}>
+					{#if content && tabs[activeTab]}
+						{@render content(tabs[activeTab])}
+					{:else if tabs[activeTab]?.content}
+						{@render tabs[activeTab].content()}
+					{/if}
+				</div>
+			{/key}
+		</div>
+	{/if}
 </div>

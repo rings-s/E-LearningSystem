@@ -6,7 +6,7 @@ import {
 	userRole,
 	isLoading,
 	isInitialized
-} from '$lib/stores/auth.store.js';
+} from '#lib/stores/auth.store.js';
 
 // Re-export store values for backward compatibility
 export { authStore, isAuthenticated, currentUser, userRole, isLoading, isInitialized };

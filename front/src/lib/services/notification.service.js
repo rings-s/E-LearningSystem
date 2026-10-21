@@ -1,6 +1,6 @@
 // front/src/lib/services/notification.service.js
 import { coreApi } from '../apis/core.js';
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 
 class NotificationService {
 	constructor() {
@@ -301,9 +301,9 @@ class NotificationService {
 			case 'system':
 				filtered = filtered.filter((n) => n.notification_type === 'system');
 				break;
-			// Add more filters as needed
 		}
 
+		// Add more filters as needed
 		// Filter by enabled types
 		filtered = filtered.filter((n) => this.shouldShowNotificationType(n.notification_type));
 

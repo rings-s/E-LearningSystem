@@ -1,7 +1,7 @@
 <!-- front/src/lib/components/auth/FormField.svelte -->
 <script>
-	import Input from '$lib/components/common/Input.svelte';
-	import Select from '$lib/components/common/Select.svelte';
+	import Input from '#lib/components/common/Input.svelte';
+	import Select from '#lib/components/common/Select.svelte';
 
 	let {
 		type = 'text',
@@ -21,5 +21,17 @@
 {#if type === 'select'}
 	<Select {name} {label} bind:value {error} {required} {options} {onblur} {oninput} {...rest} />
 {:else}
-	<Input {type} {name} {label} bind:value {error} {required} {icon} {onblur} {oninput} {...rest} />
+	<Input
+		{type}
+		{name}
+		{label}
+		bind:value
+		{error}
+		{required}
+		{icon}
+		{onblur}
+		{oninput}
+		showPasswordToggle={type === 'password'}
+		{...rest}
+	/>
 {/if}

@@ -1,24 +1,24 @@
 <script>
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { fade, fly } from 'svelte/transition';
-	import { coursesApi } from '$lib/apis/courses.js';
-	import { currentUser } from '$lib/stores/auth.store.js';
-	import { uiStore } from '$lib/stores/ui.store.js';
-	import { t } from '$lib/i18n/index.js';
-import { isTeacher } from '$lib/utils/helpers.js';
+	import { coursesApi } from '#lib/apis/courses.js';
+	import { currentUser } from '#lib/stores/auth.store.js';
+	import { uiStore } from '#lib/stores/ui.store.js';
+	import { t } from '#lib/i18n/index.js';
+	import { isTeacher, slugify } from '#lib/utils/helpers.js';
 
 	// Components
-	import Card from '$lib/components/common/Card.svelte';
-	import Button from '$lib/components/common/Button.svelte';
-	import Input from '$lib/components/common/Input.svelte';
-	import Select from '$lib/components/common/Select.svelte';
-	import Modal from '$lib/components/common/Modal.svelte';
-	import Steps from '$lib/components/common/Steps.svelte';
+	import Card from '#lib/components/common/Card.svelte';
+	import Button from '#lib/components/common/Button.svelte';
+	import Input from '#lib/components/common/Input.svelte';
+	import Select from '#lib/components/common/Select.svelte';
+	import Modal from '#lib/components/common/Modal.svelte';
+	import Steps from '#lib/components/common/Steps.svelte';
 
 	// Route params
-	let courseId = $page.params.uuid;
+	let courseId = page.params.uuid;
 
 	// State variables
 	let course = $state(null);
@@ -47,20 +47,21 @@ import { isTeacher } from '$lib/utils/helpers.js';
 	let showResourceModal = $state(false);
 
 	// Content type options
-	const contentTypes = [
-		{ value: 'text', label: 'Text Content' },
-		{ value: 'video', label: 'Video Lesson' },
-		{ value: 'pdf', label: 'PDF Document' },
-		{ value: 'quiz', label: 'Quiz/Assessment' }
-	];
+	const contentTypes = $derived([
+		{ value: 'text', label: $t('courseForm.textContent') },
+		{ value: 'video', label: $t('courseForm.videoLesson') },
+		{ value: 'pdf', label: $t('courseForm.pdfDocument') },
+		{ value: 'quiz', label: $t('courseForm.quiz') }
+	]);
 
 	// Steps configuration
-	const steps = [
-		{ id: 1, title: 'Basic Info', completed: false },
-		{ id: 2, title: 'Content', completed: false },
-		{ id: 3, title: 'Resources', completed: false },
-		{ id: 4, title: 'Review', completed: false }
-	];
+	// Step titles are i18n keys, translated where they are rendered
+	const steps = $state([
+		{ id: 1, title: 'courseForm.basicInfo', completed: false },
+		{ id: 2, title: 'courseForm.content', completed: false },
+		{ id: 3, title: 'courseForm.resources', completed: false },
+		{ id: 4, title: 'courseForm.review', completed: false }
+	]);
 
 	onMount(async () => {
 		// Check authorization
@@ -68,7 +69,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 			uiStore.showNotification({
 				type: 'error',
 				title: $t('errors.unauthorized'),
-				message: 'You need to be a teacher to create lessons'
+				message: $t('courseForm.teacherToCreateLessons')
 			});
 			goto('/my-courses');
 			return;
@@ -87,7 +88,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 			course = courseResponse;
 
 			// Verify user is the instructor
-			if (course.instructor?.uuid !== $currentUser.uuid && !$currentUser.is_staff) {
+			if (course.instructor?.id !== $currentUser.id && !$currentUser.is_staff) {
 				throw new Error('You are not authorized to create lessons for this course');
 			}
 
@@ -97,19 +98,20 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 			// Set default module if only one exists
 			if (modules.length === 1) {
-				lessonData.module = modules[0].uuid;
+				// Preselect the module passed from the manage page, if any
+				const requested = Number(page.url.searchParams.get('module'));
+				lessonData.module = modules.some((m) => m.id === requested) ? requested : modules[0].id;
 			}
 
 			// Calculate next lesson order
 			if (modules.length > 0 && lessonData.module) {
-				const moduleData = modules.find(m => m.uuid === lessonData.module);
+				const moduleData = modules.find((m) => m.id === lessonData.module);
 				lessonData.order = (moduleData?.lessons?.length || 0) + 1;
 			}
-
 		} catch (err) {
 			console.error('Failed to load course data:', err);
-			error = err.message || 'Failed to load course data';
-			
+			error = err.message || $t('courseForm.loadCourseFailed');
+
 			if (err.message.includes('not authorized')) {
 				goto('/teacher/courses');
 			}
@@ -123,22 +125,22 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 		if (step === 1) {
 			if (!lessonData.title?.trim()) {
-				errors.title = 'Lesson title is required';
+				errors.title = $t('courseForm.lessonTitleRequired');
 			}
 			if (!lessonData.module) {
-				errors.module = 'Please select a module';
+				errors.module = $t('courseForm.moduleRequired');
 			}
 			if (!lessonData.duration_minutes || lessonData.duration_minutes < 1) {
-				errors.duration_minutes = 'Duration must be at least 1 minute';
+				errors.duration_minutes = $t('courseForm.durationMinMinute');
 			}
 		}
 
 		if (step === 2) {
 			if (lessonData.content_type === 'video' && !lessonData.video_url?.trim()) {
-				errors.video_url = 'Video URL is required for video lessons';
+				errors.video_url = $t('courseForm.videoUrlRequired');
 			}
 			if (lessonData.content_type === 'text' && !lessonData.content?.trim()) {
-				errors.content = 'Content is required for text lessons';
+				errors.content = $t('courseForm.contentRequired');
 			}
 		}
 
@@ -155,8 +157,8 @@ import { isTeacher } from '$lib/utils/helpers.js';
 		} else {
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Validation Error',
-				message: 'Please fix the errors before continuing'
+				title: $t('courseForm.validationError'),
+				message: $t('courseForm.fixBeforeContinue')
 			});
 		}
 	}
@@ -177,8 +179,8 @@ import { isTeacher } from '$lib/utils/helpers.js';
 		if (!validateStep(1) || !validateStep(2)) {
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Validation Error',
-				message: 'Please fix all errors before creating the lesson'
+				title: $t('courseForm.validationError'),
+				message: $t('courseForm.fixAllBeforeLesson')
 			});
 			return;
 		}
@@ -191,6 +193,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 				description: lessonData.description?.trim() || '',
 				content: lessonData.content?.trim() || '',
 				module: lessonData.module,
+				slug: slugify(lessonData.title, 'lesson'),
 				duration_minutes: parseInt(lessonData.duration_minutes),
 				order: parseInt(lessonData.order),
 				is_preview: lessonData.is_preview,
@@ -213,20 +216,19 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 			uiStore.showNotification({
 				type: 'success',
-				title: 'Lesson Created',
-				message: 'Your lesson has been created successfully'
+				title: $t('courseForm.lessonCreated'),
+				message: $t('courseForm.lessonCreatedMsg')
 			});
 
 			// Redirect to course management
 			goto(`/teacher/courses/${courseId}/manage`);
-
 		} catch (err) {
 			console.error('Failed to create lesson:', err);
-			
+
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Creation Failed',
-				message: err.message || 'Failed to create lesson'
+				title: $t('courseForm.creationFailed'),
+				message: err.message || $t('courseForm.createLessonFailed')
 			});
 		} finally {
 			saving = false;
@@ -257,7 +259,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 	function handleModuleChange() {
 		// Update lesson order when module changes
 		if (lessonData.module && modules.length > 0) {
-			const moduleData = modules.find(m => m.uuid === lessonData.module);
+			const moduleData = modules.find((m) => m.id === lessonData.module);
 			lessonData.order = (moduleData?.lessons?.length || 0) + 1;
 		}
 	}
@@ -272,28 +274,33 @@ import { isTeacher } from '$lib/utils/helpers.js';
 </script>
 
 <svelte:head>
-	<title>Create Lesson - {course?.title || 'Course'} | E-Learning Platform</title>
+	<title>Create Lesson - {course?.title || $t('courseForm.course')} | E-Learning Platform</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gray-50 dark:bg-gray-900">
-	<div class="container mx-auto max-w-4xl px-4 py-8">
+<div>
+	<div class="mx-auto max-w-4xl">
 		<!-- Header -->
 		<div class="mb-8" in:fade={{ duration: 600 }}>
-			<div class="flex items-center gap-4 mb-4">
+			<div class="mb-4 flex items-center gap-4">
 				<Button
 					href="/teacher/courses/{courseId}/manage"
 					variant="ghost"
 					size="medium"
-					class="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
+					class="hover:text-primary-600 dark:hover:text-primary-400 text-gray-600 dark:text-gray-400"
 				>
 					<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M15 19l-7-7 7-7"
+						></path>
 					</svg>
-					Back to Course Management
+					{$t('courseForm.backToManagement')}
 				</Button>
 			</div>
-			<h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-				Create New Lesson
+			<h1 class="mb-2 text-3xl font-bold text-gray-900 dark:text-white">
+				{$t('courseForm.createNewLesson')}
 			</h1>
 			<p class="text-gray-600 dark:text-gray-400">
 				Add a new lesson to {course?.title || 'your course'}
@@ -302,17 +309,29 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 		<!-- Error State -->
 		{#if error}
-			<div class="text-center py-12" in:fade={{ duration: 300 }}>
+			<div class="py-12 text-center" in:fade={{ duration: 300 }}>
 				<div class="mb-4">
-					<svg class="mx-auto h-16 w-16 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+					<svg
+						class="mx-auto h-16 w-16 text-red-400"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+						></path>
 					</svg>
 				</div>
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Error Loading Course</h3>
-				<p class="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
-				<Button onclick={loadCourseData} variant="primary" size="medium">
-					Try Again
-				</Button>
+				<h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">
+					{$t('courseForm.errorLoadingCourse')}
+				</h3>
+				<p class="mb-6 text-gray-600 dark:text-gray-400">{error}</p>
+				<Button onclick={loadCourseData} variant="primary" size="medium"
+					>{$t('courseForm.tryAgain')}</Button
+				>
 			</div>
 		{:else if loading}
 			<!-- Loading State -->
@@ -320,10 +339,10 @@ import { isTeacher } from '$lib/utils/helpers.js';
 				{#each Array(3) as _}
 					<div class="animate-pulse">
 						<Card class="p-6">
-							<div class="h-4 bg-gray-200 rounded w-1/4 mb-4 dark:bg-gray-700"></div>
+							<div class="mb-4 h-4 w-1/4 rounded bg-gray-200 dark:bg-gray-700"></div>
 							<div class="space-y-3">
-								<div class="h-3 bg-gray-200 rounded w-full dark:bg-gray-700"></div>
-								<div class="h-3 bg-gray-200 rounded w-3/4 dark:bg-gray-700"></div>
+								<div class="h-3 w-full rounded bg-gray-200 dark:bg-gray-700"></div>
+								<div class="h-3 w-3/4 rounded bg-gray-200 dark:bg-gray-700"></div>
 							</div>
 						</Card>
 					</div>
@@ -333,28 +352,39 @@ import { isTeacher } from '$lib/utils/helpers.js';
 			<!-- No Modules State -->
 			<Card class="p-8 text-center">
 				<div class="mb-4">
-					<svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+					<svg
+						class="mx-auto h-16 w-16 text-gray-400"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+						></path>
 					</svg>
 				</div>
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">
-					No Modules Found
+				<h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">
+					{$t('courseForm.noModules')}
 				</h3>
-				<p class="text-gray-600 dark:text-gray-400 mb-6">
-					You need to create at least one module before adding lessons.
+				<p class="mb-6 text-gray-600 dark:text-gray-400">
+					{$t('courseForm.needModule')}
 				</p>
-				<Button
-					href="/teacher/courses/{courseId}/manage"
-					variant="primary"
-					size="medium"
-				>
-					Create Module First
+				<Button href="/teacher/courses/{courseId}/manage" variant="primary" size="medium">
+					{$t('courseForm.createModuleFirst')}
 				</Button>
 			</Card>
 		{:else}
 			<!-- Steps Indicator -->
+
 			<div class="mb-8" in:fly={{ y: 20, delay: 100, duration: 600 }}>
-				<Steps {steps} {currentStep} onStepClick={goToStep} />
+				<Steps
+					steps={steps.map((step) => ({ ...step, title: $t(step.title) }))}
+					{currentStep}
+					onStepClick={goToStep}
+				/>
 			</div>
 
 			<!-- Form Content -->
@@ -362,31 +392,31 @@ import { isTeacher } from '$lib/utils/helpers.js';
 				{#if currentStep === 1}
 					<!-- Step 1: Basic Information -->
 					<Card class="p-6">
-						<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-							Basic Information
+						<h3 class="mb-6 text-lg font-semibold text-gray-900 dark:text-white">
+							{$t('courseForm.basicInformation')}
 						</h3>
-						
+
 						<div class="space-y-6">
 							<Input
-								label="Lesson Title *"
+								label={$t('courseForm.lessonTitleReq')}
 								bind:value={lessonData.title}
 								error={validationErrors.title}
-								placeholder="Enter lesson title"
+								placeholder={$t('courseForm.lessonTitlePlaceholder')}
 							/>
 
 							<div>
-								<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-									Module *
+								<label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+									{$t('courseForm.moduleReq')}
 								</label>
 								<select
 									bind:value={lessonData.module}
 									onchange={handleModuleChange}
-									class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+									class="focus:border-primary-500 focus:ring-primary-500 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 									class:border-red-300={validationErrors.module}
 								>
-									<option value="">Select a module</option>
+									<option value="">{$t('courseForm.selectModule')}</option>
 									{#each modules as module}
-										<option value={module.uuid}>{module.title}</option>
+										<option value={module.id}>{module.title}</option>
 									{/each}
 								</select>
 								{#if validationErrors.module}
@@ -394,9 +424,9 @@ import { isTeacher } from '$lib/utils/helpers.js';
 								{/if}
 							</div>
 
-							<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+							<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
 								<Input
-									label="Duration (minutes) *"
+									label={$t('courseForm.durationMinutesReq')}
 									type="number"
 									bind:value={lessonData.duration_minutes}
 									error={validationErrors.duration_minutes}
@@ -405,7 +435,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 								/>
 
 								<Input
-									label="Lesson Order"
+									label={$t('courseForm.lessonOrder')}
 									type="number"
 									bind:value={lessonData.order}
 									min="1"
@@ -414,14 +444,14 @@ import { isTeacher } from '$lib/utils/helpers.js';
 							</div>
 
 							<div>
-								<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-									Description
+								<label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+									{$t('courseForm.description')}
 								</label>
 								<textarea
 									bind:value={lessonData.description}
-									class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+									class="focus:border-primary-500 focus:ring-primary-500 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 									rows="3"
-									placeholder="Brief description of the lesson"
+									placeholder={$t('courseForm.lessonDescPlaceholder')}
 								></textarea>
 							</div>
 
@@ -430,37 +460,36 @@ import { isTeacher } from '$lib/utils/helpers.js';
 									<input
 										type="checkbox"
 										bind:checked={lessonData.is_preview}
-										class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+										class="text-primary-600 focus:ring-primary-500 rounded border-gray-300"
 									/>
 									<span class="ml-2 text-sm text-gray-700 dark:text-gray-300">
-										Make this lesson available as a preview
+										{$t('courseForm.previewToggle')}
 									</span>
 								</label>
 							</div>
 						</div>
 
-						<div class="flex justify-end mt-6">
-							<Button onclick={nextStep} variant="primary" size="medium">
-								Next Step
-							</Button>
+						<div class="mt-6 flex justify-end">
+							<Button onclick={nextStep} variant="primary" size="medium"
+								>{$t('courseForm.nextStep')}</Button
+							>
 						</div>
 					</Card>
-
 				{:else if currentStep === 2}
 					<!-- Step 2: Content -->
 					<Card class="p-6">
-						<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-							Lesson Content
+						<h3 class="mb-6 text-lg font-semibold text-gray-900 dark:text-white">
+							{$t('courseForm.lessonContent')}
 						</h3>
-						
+
 						<div class="space-y-6">
 							<div>
-								<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-									Content Type *
+								<label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+									{$t('courseForm.contentTypeReq')}
 								</label>
 								<select
 									bind:value={lessonData.content_type}
-									class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+									class="focus:border-primary-500 focus:ring-primary-500 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 								>
 									{#each contentTypes as type}
 										<option value={type.value}>{type.label}</option>
@@ -470,23 +499,25 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 							{#if lessonData.content_type === 'video'}
 								<Input
-									label="Video URL *"
+									label={$t('courseForm.videoUrlReq')}
 									bind:value={lessonData.video_url}
 									error={validationErrors.video_url}
-									placeholder="https://youtube.com/watch?v=... or upload video file"
+									placeholder={$t('courseForm.videoUrlPlaceholder')}
 								/>
 							{/if}
 
 							{#if lessonData.content_type === 'text' || lessonData.content_type === 'quiz'}
 								<div>
-									<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-										Content *
+									<label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+										{$t('courseForm.contentReq')}
 									</label>
 									<textarea
 										bind:value={lessonData.content}
-										class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+										class="focus:border-primary-500 focus:ring-primary-500 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 										rows="12"
-										placeholder={lessonData.content_type === 'quiz' ? 'Enter quiz questions and answers...' : 'Enter lesson content...'}
+										placeholder={lessonData.content_type === 'quiz'
+											? $t('courseForm.quizPlaceholder')
+											: $t('courseForm.contentPlaceholder')}
 										class:border-red-300={validationErrors.content}
 									></textarea>
 									{#if validationErrors.content}
@@ -496,29 +527,30 @@ import { isTeacher } from '$lib/utils/helpers.js';
 							{/if}
 						</div>
 
-						<div class="flex justify-between mt-6">
-							<Button onclick={prevStep} variant="outline" size="medium">
-								Previous
-							</Button>
-							<Button onclick={nextStep} variant="primary" size="medium">
-								Next Step
-							</Button>
+						<div class="mt-6 flex justify-between">
+							<Button onclick={prevStep} variant="outline" size="medium"
+								>{$t('courseForm.previous')}</Button
+							>
+							<Button onclick={nextStep} variant="primary" size="medium"
+								>{$t('courseForm.nextStep')}</Button
+							>
 						</div>
 					</Card>
-
 				{:else if currentStep === 3}
 					<!-- Step 3: Resources -->
 					<Card class="p-6">
-						<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-							Lesson Resources (Optional)
+						<h3 class="mb-6 text-lg font-semibold text-gray-900 dark:text-white">
+							{$t('courseForm.lessonResources')}
 						</h3>
-						
+
 						<div class="space-y-6">
 							<div>
-								<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-									Upload Files
+								<label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+									{$t('courseForm.uploadFiles')}
 								</label>
-								<div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center">
+								<div
+									class="rounded-lg border-2 border-dashed border-gray-300 p-6 text-center dark:border-gray-600"
+								>
 									<input
 										type="file"
 										multiple
@@ -529,35 +561,55 @@ import { isTeacher } from '$lib/utils/helpers.js';
 									/>
 									<label
 										for="resource-upload"
-										class="cursor-pointer inline-flex flex-col items-center"
+										class="inline-flex cursor-pointer flex-col items-center"
 									>
-										<svg class="h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+										<svg
+											class="mb-4 h-12 w-12 text-gray-400"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+											></path>
 										</svg>
 										<span class="text-lg font-medium text-gray-900 dark:text-white">
-											Click to upload resources
+											{$t('courseForm.clickUploadResources')}
 										</span>
 										<span class="text-sm text-gray-500 dark:text-gray-400">
-											or drag and drop
+											{$t('courseForm.dragDrop')}
 										</span>
-										<span class="text-xs text-gray-400 mt-2">
-											PDF, DOC, PPT, TXT, ZIP files
-										</span>
+										<span class="mt-2 text-xs text-gray-400"> {$t('courseForm.fileTypes')} </span>
 									</label>
 								</div>
 							</div>
 
 							{#if resourceFiles.length > 0}
 								<div>
-									<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+									<h4 class="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">
 										Uploaded Files ({resourceFiles.length})
 									</h4>
 									<div class="space-y-2">
 										{#each resourceFiles as file, index}
-											<div class="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+											<div
+												class="flex items-center justify-between rounded-lg bg-gray-50 p-3 dark:bg-gray-800"
+											>
 												<div class="flex items-center space-x-3">
-													<svg class="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+													<svg
+														class="h-8 w-8 text-gray-400"
+														fill="none"
+														stroke="currentColor"
+														viewBox="0 0 24 24"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2"
+															d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+														></path>
 													</svg>
 													<div>
 														<p class="text-sm font-medium text-gray-900 dark:text-white">
@@ -574,8 +626,18 @@ import { isTeacher } from '$lib/utils/helpers.js';
 													size="small"
 													class="text-red-600 hover:text-red-700"
 												>
-													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+													<svg
+														class="h-4 w-4"
+														fill="none"
+														stroke="currentColor"
+														viewBox="0 0 24 24"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2"
+															d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+														></path>
 													</svg>
 												</Button>
 											</div>
@@ -585,60 +647,94 @@ import { isTeacher } from '$lib/utils/helpers.js';
 							{/if}
 						</div>
 
-						<div class="flex justify-between mt-6">
-							<Button onclick={prevStep} variant="outline" size="medium">
-								Previous
-							</Button>
-							<Button onclick={nextStep} variant="primary" size="medium">
-								Review & Create
-							</Button>
+						<div class="mt-6 flex justify-between">
+							<Button onclick={prevStep} variant="outline" size="medium"
+								>{$t('courseForm.previous')}</Button
+							>
+							<Button onclick={nextStep} variant="primary" size="medium"
+								>{$t('courseForm.reviewCreate')}</Button
+							>
 						</div>
 					</Card>
-
 				{:else if currentStep === 4}
 					<!-- Step 4: Review -->
 					<Card class="p-6">
-						<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-							Review & Create Lesson
+						<h3 class="mb-6 text-lg font-semibold text-gray-900 dark:text-white">
+							{$t('courseForm.reviewCreateLesson')}
 						</h3>
-						
+
 						<div class="space-y-6">
-							<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+							<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
 								<div>
-									<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Basic Information</h4>
+									<h4 class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+										{$t('courseForm.basicInformation')}
+									</h4>
 									<div class="space-y-2 text-sm">
-										<p><span class="font-medium">Title:</span> {lessonData.title}</p>
-										<p><span class="font-medium">Module:</span> {modules.find(m => m.uuid === lessonData.module)?.title}</p>
-										<p><span class="font-medium">Duration:</span> {lessonData.duration_minutes} minutes</p>
-										<p><span class="font-medium">Order:</span> {lessonData.order}</p>
-										<p><span class="font-medium">Preview:</span> {lessonData.is_preview ? 'Yes' : 'No'}</p>
+										<p>
+											<span class="font-medium">{$t('courseForm.titleColon')}</span>
+											{lessonData.title}
+										</p>
+
+										<p>
+											<span class="font-medium">{$t('courseForm.moduleColon')}</span>
+											{modules.find((m) => m.id === lessonData.module)?.title}
+										</p>
+
+										<p>
+											<span class="font-medium">{$t('courseForm.durationColon')}</span>
+											{lessonData.duration_minutes} minutes
+										</p>
+
+										<p>
+											<span class="font-medium">{$t('courseForm.orderColon')}</span>
+											{lessonData.order}
+										</p>
+
+										<p>
+											<span class="font-medium">{$t('courseForm.previewColon')}</span>
+											{lessonData.is_preview ? $t('courseForm.yes') : $t('courseForm.no')}
+										</p>
 									</div>
 								</div>
 
 								<div>
-									<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Content</h4>
+									<h4 class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+										{$t('courseForm.content')}
+									</h4>
 									<div class="space-y-2 text-sm">
-										<p><span class="font-medium">Type:</span> {contentTypes.find(t => t.value === lessonData.content_type)?.label}</p>
+										<p>
+											<span class="font-medium">{$t('courseForm.typeColon')}</span>
+											{contentTypes.find((t) => t.value === lessonData.content_type)?.label}
+										</p>
+
 										{#if lessonData.video_url}
-											<p><span class="font-medium">Video URL:</span> {lessonData.video_url}</p>
+											<p>
+												<span class="font-medium">{$t('courseForm.videoUrlColon')}</span>
+												{lessonData.video_url}
+											</p>
 										{/if}
-										<p><span class="font-medium">Resources:</span> {resourceFiles.length} files</p>
+										<p>
+											<span class="font-medium">{$t('courseForm.resourcesColon')}</span>
+											{resourceFiles.length} files
+										</p>
 									</div>
 								</div>
 							</div>
 
 							{#if lessonData.description}
 								<div>
-									<h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Description</h4>
+									<h4 class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+										{$t('courseForm.description')}
+									</h4>
 									<p class="text-sm text-gray-600 dark:text-gray-400">{lessonData.description}</p>
 								</div>
 							{/if}
 						</div>
 
-						<div class="flex justify-between mt-6">
-							<Button onclick={prevStep} variant="outline" size="medium">
-								Previous
-							</Button>
+						<div class="mt-6 flex justify-between">
+							<Button onclick={prevStep} variant="outline" size="medium"
+								>{$t('courseForm.previous')}</Button
+							>
 							<Button
 								onclick={createLesson}
 								variant="success"
@@ -646,7 +742,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 								disabled={saving}
 								loading={saving}
 							>
-								Create Lesson
+								{$t('courseForm.createLesson')}
 							</Button>
 						</div>
 					</Card>

@@ -1,39 +1,36 @@
 <script>
-	import { fade, fly } from 'svelte/transition';
-	import { isTeacher, isStudent, isAdmin } from '$lib/utils/helpers.js';
-	import { formatters } from '$lib/utils/formatters.js';
-	
-	// Components
-	import Card from '$lib/components/common/Card.svelte';
-	import Button from '$lib/components/common/Button.svelte';
-	import Badge from '$lib/components/common/Badge.svelte';
-	import StatsCard from '$lib/components/dashboard/StatsCard.svelte';
-	import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
-	import PerformanceRadar from '$lib/components/charts/PerformanceRadar.svelte';
+	import { t, locale } from '#lib/i18n/index.js';
+	import { isTeacher, isStudent, isAdmin } from '#lib/utils/helpers.js';
+	import { formatters } from '#lib/utils/formatters.js';
 
-	export let user;
-	export let data = {};
-	export let analytics = {};
-	export let courses = [];
-	export let onAction = () => {};
+	// Components
+	import Card from '#lib/components/common/Card.svelte';
+	import Button from '#lib/components/common/Button.svelte';
+	import Badge from '#lib/components/common/Badge.svelte';
+	import StatsCard from '#lib/components/dashboard/StatsCard.svelte';
+	import EmptyState from '#lib/components/common/EmptyState.svelte';
+	import ActivityChart from '#lib/components/charts/ActivityChart.svelte';
+	import PerformanceRadar from '#lib/components/charts/PerformanceRadar.svelte';
+
+	let { user, data = {}, analytics = {}, courses = [], onAction = () => {} } = $props();
 
 	// Utility functions - defined first for proper hoisting
 	function getUniqueStudentCount(coursesData) {
 		if (!coursesData || !Array.isArray(coursesData)) {
 			return 0;
 		}
-		
+
 		// Get unique students across all courses
 		const uniqueStudents = new Set();
-		
-		coursesData.forEach(course => {
+
+		coursesData.forEach((course) => {
 			if (course.enrolled_students && Array.isArray(course.enrolled_students)) {
-				course.enrolled_students.forEach(student => {
+				course.enrolled_students.forEach((student) => {
 					uniqueStudents.add(student.id || student.uuid);
 				});
 			}
 		});
-		
+
 		// Fallback to enrollment count sum if enrolled_students not available
 		if (uniqueStudents.size === 0) {
 			// Try both field names for compatibility
@@ -41,50 +38,53 @@
 				return sum + (c.enrollment_count || c.enrolled_count || 0);
 			}, 0);
 		}
-		
+
 		return uniqueStudents.size;
 	}
 
 	// Derived user role
-	$: userRole = user?.role || 'student';
-	$: userName = user?.name || user?.first_name || user?.username || 'User';
+	let userRole = $derived(user?.role || 'student');
+	let userName = $derived(
+		user?.name || user?.first_name || user?.username || $t('dashboardHome.user')
+	);
 
 	// Role-based data processing
-	$: stats = getStatsForRole(userRole, data, courses);
-	$: quickActions = getQuickActionsForRole(userRole);
-	$: recentItems = getRecentItemsForRole(userRole, courses, data);
+	let stats = $derived(getStatsForRole(userRole, data, courses));
+	let quickActions = $derived(getQuickActionsForRole(userRole));
+	let recentItems = $derived(getRecentItemsForRole(userRole, courses, data));
 
 	function getStatsForRole(role, dashboardData, coursesData) {
 		if (isTeacher(user)) {
 			return {
 				primary: {
-					title: 'Total Courses',
+					title: $t('dashboardHome.totalCourses'),
 					value: coursesData.length || 0,
 					icon: '📚',
-					trend: '+2 this month',
 					trendDirection: 'up'
 				},
 				secondary: [
 					{
-						title: 'Published Courses',
-						value: coursesData.filter(c => c.status === 'published').length || 0,
+						title: $t('dashboardHome.publishedCourses'),
+						value: coursesData.filter((c) => c.status === 'published').length || 0,
 						icon: '✅',
-						trend: '+1 this week',
 						trendDirection: 'up'
 					},
 					{
-						title: 'Total Students',
+						title: $t('dashboardHome.totalStudents'),
 						value: getUniqueStudentCount(coursesData),
 						icon: '👥',
-						trend: '+12 this month',
 						trendDirection: 'up'
 					},
 					{
-						title: 'Average Rating',
-						value: coursesData.length > 0 ? 
-							(coursesData.reduce((sum, c) => sum + (c.average_rating || 0), 0) / coursesData.length).toFixed(1) : '0.0',
+						title: $t('dashboardHome.averageRating'),
+						value:
+							coursesData.length > 0
+								? (
+										coursesData.reduce((sum, c) => sum + (c.average_rating || 0), 0) /
+										coursesData.length
+									).toFixed(1)
+								: '0.0',
 						icon: '⭐',
-						trend: '+0.2 this month',
 						trendDirection: 'up'
 					}
 				]
@@ -92,32 +92,28 @@
 		} else if (isStudent(user)) {
 			return {
 				primary: {
-					title: 'Enrolled Courses',
+					title: $t('dashboardHome.enrolledCourses'),
 					value: coursesData.length || 0,
 					icon: '🎓',
-					trend: '+1 this week',
 					trendDirection: 'up'
 				},
 				secondary: [
 					{
-						title: 'Completed',
-						value: coursesData.filter(c => c.progress === 100).length || 0,
+						title: $t('dashboardHome.completed'),
+						value: coursesData.filter((c) => c.progress === 100).length || 0,
 						icon: '✅',
-						trend: '+2 this month',
 						trendDirection: 'up'
 					},
 					{
-						title: 'In Progress',
-						value: coursesData.filter(c => c.progress > 0 && c.progress < 100).length || 0,
+						title: $t('dashboardHome.inProgress'),
+						value: coursesData.filter((c) => c.progress > 0 && c.progress < 100).length || 0,
 						icon: '📖',
-						trend: 'Active',
 						trendDirection: 'neutral'
 					},
 					{
-						title: 'Study Hours',
+						title: $t('dashboardHome.studyHours'),
 						value: dashboardData.total_study_hours || 0,
 						icon: '⏱️',
-						trend: '+5 this week',
 						trendDirection: 'up'
 					}
 				]
@@ -126,32 +122,28 @@
 			// Admin/Manager stats
 			return {
 				primary: {
-					title: 'Total Users',
+					title: $t('dashboardHome.totalUsers'),
 					value: dashboardData.total_users || 0,
 					icon: '👥',
-					trend: '+15 this month',
 					trendDirection: 'up'
 				},
 				secondary: [
 					{
-						title: 'Active Courses',
+						title: $t('dashboardHome.activeCourses'),
 						value: dashboardData.total_courses || 0,
 						icon: '📚',
-						trend: '+3 this week',
 						trendDirection: 'up'
 					},
 					{
-						title: 'Total Enrollments',
+						title: $t('dashboardHome.totalEnrollments'),
 						value: dashboardData.total_enrollments || 0,
 						icon: '🎓',
-						trend: '+45 this month',
 						trendDirection: 'up'
 					},
 					{
-						title: 'Active Today',
+						title: $t('dashboardHome.activeToday'),
 						value: dashboardData.active_users_today || 0,
 						icon: '🟢',
-						trend: 'Now',
 						trendDirection: 'neutral'
 					}
 				]
@@ -163,30 +155,30 @@
 		if (isTeacher(user)) {
 			return [
 				{
-					title: 'Create New Course',
-					description: 'Start building your next course',
+					title: $t('dashboardHome.createNewCourse'),
+					description: $t('dashboardHome.createNewCourseDesc'),
 					icon: '➕',
 					action: 'create_course',
 					href: '/teacher/courses/create',
 					primary: true
 				},
 				{
-					title: 'Manage Students',
-					description: 'View and manage your students',
+					title: $t('dashboardHome.manageStudents'),
+					description: $t('dashboardHome.manageStudentsDesc'),
 					icon: '👥',
 					action: 'manage_students',
 					href: '/teacher/students'
 				},
 				{
-					title: 'View All Courses',
-					description: 'Manage your existing courses',
+					title: $t('dashboardHome.viewAllCourses'),
+					description: $t('dashboardHome.viewAllCoursesDesc'),
 					icon: '📚',
 					action: 'view_courses',
 					href: '/teacher/courses'
 				},
 				{
-					title: 'Analytics',
-					description: 'View performance insights',
+					title: $t('dashboardHome.analytics'),
+					description: $t('dashboardHome.analyticsDesc'),
 					icon: '📊',
 					action: 'view_analytics',
 					href: '#'
@@ -195,62 +187,55 @@
 		} else if (isStudent(user)) {
 			return [
 				{
-					title: 'Browse Courses',
-					description: 'Discover new learning opportunities',
+					title: $t('dashboardHome.browseCourses'),
+					description: $t('dashboardHome.browseCoursesDesc'),
 					icon: '🔍',
 					action: 'browse_courses',
 					href: '/courses',
 					primary: true
 				},
 				{
-					title: 'My Courses',
-					description: 'Continue your learning journey',
+					title: $t('dashboardHome.myCourses'),
+					description: $t('dashboardHome.myCoursesDesc'),
 					icon: '📖',
 					action: 'my_courses',
 					href: '/my-courses'
 				},
 				{
-					title: 'Certificates',
-					description: 'View your achievements',
+					title: $t('dashboardHome.certificates'),
+					description: $t('dashboardHome.certificatesDesc'),
 					icon: '🏆',
 					action: 'certificates',
 					href: '/certificates'
-				},
-				{
-					title: 'Study Schedule',
-					description: 'Plan your learning time',
-					icon: '📅',
-					action: 'schedule',
-					href: '/schedule'
 				}
 			];
 		} else {
 			return [
 				{
-					title: 'Manage Courses',
-					description: 'Oversee platform courses',
+					title: $t('dashboardHome.manageCourses'),
+					description: $t('dashboardHome.manageCoursesDesc'),
 					icon: '📚',
 					action: 'manage_courses',
 					href: '/admin/courses',
 					primary: true
 				},
 				{
-					title: 'User Management',
-					description: 'Manage platform users',
+					title: $t('dashboardHome.userManagement'),
+					description: $t('dashboardHome.userManagementDesc'),
 					icon: '👤',
 					action: 'manage_users',
 					href: '/admin/users'
 				},
 				{
-					title: 'Analytics Dashboard',
-					description: 'Platform performance metrics',
+					title: $t('dashboardHome.analyticsDashboard'),
+					description: $t('dashboardHome.analyticsDashboardDesc'),
 					icon: '📊',
 					action: 'platform_analytics',
 					href: '/admin/analytics'
 				},
 				{
-					title: 'System Settings',
-					description: 'Configure platform settings',
+					title: $t('dashboardHome.systemSettings'),
+					description: $t('dashboardHome.systemSettingsDesc'),
 					icon: '⚙️',
 					action: 'settings',
 					href: '/admin/settings'
@@ -261,24 +246,27 @@
 
 	function getRecentItemsForRole(role, coursesData, dashboardData) {
 		if (isTeacher(user)) {
-			return coursesData
+			return [...coursesData]
 				.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 				.slice(0, 5)
-				.map(course => ({
+				.map((course) => ({
 					title: course.title,
-					description: `${course.enrollment_count || 0} students`,
+					description: $t('dashboardHome.studentsCount', { count: course.enrollment_count || 0 }),
 					status: course.status,
 					href: `/teacher/courses/${course.uuid}/manage`,
 					thumbnail: course.thumbnail,
 					date: course.created_at
 				}));
 		} else if (isStudent(user)) {
-			return coursesData
-				.sort((a, b) => new Date(b.last_accessed || b.enrolled_at) - new Date(a.last_accessed || a.enrolled_at))
+			return [...coursesData]
+				.sort(
+					(a, b) =>
+						new Date(b.last_accessed || b.enrolled_at) - new Date(a.last_accessed || a.enrolled_at)
+				)
 				.slice(0, 5)
-				.map(course => ({
+				.map((course) => ({
 					title: course.title,
-					description: `${course.progress || 0}% complete`,
+					description: $t('dashboardHome.percentComplete', { percent: course.progress || 0 }),
 					status: course.progress === 100 ? 'completed' : 'in_progress',
 					href: `/my-courses/${course.uuid}/learn`,
 					thumbnail: course.thumbnail,
@@ -294,92 +282,27 @@
 		onAction(action.action);
 	}
 
-	// Process analytics data for charts
-	function processAnalyticsData(analyticsData, userRole) {
-		// Generate robust activity data with proper created_at timestamps for ActivityChart
-		const now = new Date();
-		const defaultActivity = [];
-		
-		// Create 14 days of activity data
-		for (let i = 13; i >= 0; i--) {
-			const date = new Date(now.getTime() - (i * 24 * 60 * 60 * 1000));
-			const activityCount = Math.floor(Math.random() * 5) + 1;
-			
-			for (let j = 0; j < activityCount; j++) {
-				const activityTime = new Date(date.getTime() + (j * 3600000)); // Add hours
-				defaultActivity.push({
-					created_at: activityTime.toISOString(),
-					type: 'activity',
-					id: `activity-${i}-${j}`,
-					title: `Activity ${i}-${j}`,
-					user_id: 'user-123'
-				});
-			}
-		}
-		
-		const defaultPerformance = {
-			quizzes: 75,
-			assignments: 82,
-			participation: 68,
-			completion: 90,
-			consistency: 85
-		};
-
-		// Validate analytics data structure
-		let processedActivity = defaultActivity;
-		if (analyticsData?.activity && Array.isArray(analyticsData.activity)) {
-			processedActivity = analyticsData.activity.filter(activity => {
-				return activity && activity.created_at && !isNaN(new Date(activity.created_at).getTime());
-			});
-			
-			// If no valid activities, use default
-			if (processedActivity.length === 0) {
-				processedActivity = defaultActivity;
-			}
-		}
-
-		return {
-			activity: processedActivity,
-			performance: analyticsData?.performance || defaultPerformance
-		};
+	// Prepare analytics for the charts. Missing data shows an empty state instead of placeholder numbers.
+	function processAnalyticsData(analyticsData) {
+		const activity = Array.isArray(analyticsData?.activity)
+			? analyticsData.activity.filter(
+					(a) => a?.created_at && !isNaN(new Date(a.created_at).getTime())
+				)
+			: [];
+		const performance =
+			analyticsData?.performance && 'quizzes' in analyticsData.performance
+				? analyticsData.performance
+				: null;
+		return { activity: activity.length ? activity : null, performance };
 	}
 
-	$: processedAnalytics = processAnalyticsData(analytics, userRole);
+	let processedAnalytics = $derived(processAnalyticsData(analytics));
 </script>
 
-<div class="space-y-8">
-	<!-- Welcome Section -->
-	<div class="mb-8" in:fade={{ duration: 600 }}>
-		<h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-			Welcome back, {userName}!
-		</h1>
-		<p class="text-gray-600 dark:text-gray-400">
-			{#if isTeacher(user)}
-				Here's an overview of your teaching activity and course performance.
-			{:else if isStudent(user)}
-				Continue your learning journey and track your progress.
-			{:else}
-				Monitor platform performance and manage system operations.
-			{/if}
-		</p>
-	</div>
-
-	<!-- Stats Section -->
-	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8" in:fly={{ y: 20, delay: 100, duration: 600 }}>
-		<!-- Primary Stat -->
-		<div class="md:col-span-2 lg:col-span-1">
-			<StatsCard
-				title={stats.primary.title}
-				value={stats.primary.value}
-				icon={stats.primary.icon}
-				trend={stats.primary.trend}
-				trendDirection={stats.primary.trendDirection}
-				size="large"
-			/>
-		</div>
-
-		<!-- Secondary Stats -->
-		{#each stats.secondary as stat}
+<div class="space-y-6">
+	<!-- Stats -->
+	<div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+		{#each [stats.primary, ...stats.secondary] as stat}
 			<StatsCard
 				title={stat.title}
 				value={stat.value}
@@ -390,191 +313,170 @@
 		{/each}
 	</div>
 
-	<!-- Content Grid -->
-	<div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8" in:fly={{ y: 20, delay: 200, duration: 600 }}>
-		<!-- Activity Chart -->
-		<Card class="p-6">
-			<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-				Weekly Activity
-			</h3>
-			{#if processedAnalytics?.activity}
-				<ActivityChart activities={processedAnalytics.activity} />
-			{:else}
-				<div class="flex items-center justify-center h-64 text-gray-500">
-					<p>No activity data available</p>
-				</div>
-			{/if}
+	<!-- Charts -->
+	<div class="grid gap-6 lg:grid-cols-5">
+		<Card class="min-w-0 lg:col-span-3">
+			<h2 class="text-base font-semibold text-gray-900 dark:text-white">
+				{$t('dashboardHome.activity')}
+			</h2>
+			<p class="text-sm text-gray-500 dark:text-gray-400">{$t('dashboardHome.activityDesc')}</p>
+			<div class="mt-6">
+				{#if processedAnalytics?.activity}
+					<ActivityChart activities={processedAnalytics.activity} />
+				{:else}
+					<p class="py-16 text-center text-sm text-gray-500">{$t('dashboardHome.noActivity')}</p>
+				{/if}
+			</div>
 		</Card>
-
-		<!-- Performance Chart -->
-		<Card class="p-6">
-			<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-				Performance Overview
-			</h3>
-			{#if processedAnalytics?.performance}
-				<PerformanceRadar metrics={processedAnalytics.performance} />
-			{:else}
-				<div class="flex items-center justify-center h-64 text-gray-500">
-					<p>No performance data available</p>
-				</div>
-			{/if}
+		<Card class="min-w-0 lg:col-span-2">
+			<h2 class="text-base font-semibold text-gray-900 dark:text-white">
+				{$t('dashboardHome.performance')}
+			</h2>
+			<p class="text-sm text-gray-500 dark:text-gray-400">{$t('dashboardHome.performanceDesc')}</p>
+			<div class="mt-6">
+				{#if processedAnalytics?.performance}
+					<PerformanceRadar metrics={processedAnalytics.performance} />
+				{:else}
+					<p class="py-16 text-center text-sm text-gray-500">{$t('dashboardHome.noPerformance')}</p>
+				{/if}
+			</div>
 		</Card>
 	</div>
 
-	<!-- Recent Items and Quick Actions -->
-	<div class="grid grid-cols-1 lg:grid-cols-2 gap-8" in:fly={{ y: 20, delay: 300, duration: 600 }}>
-		<!-- Recent Items -->
-		<Card class="p-6">
-			<div class="flex justify-between items-center mb-6">
-				<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-					{#if isTeacher(user)}
-						Recent Courses
-					{:else if isStudent(user)}
-						Continue Learning
-					{:else}
-						Recent Activity
-					{/if}
-				</h3>
+	<div class="grid gap-6 lg:grid-cols-5">
+		<!-- Recent / continue learning -->
+		<Card padding="none" class="min-w-0 lg:col-span-3">
+			<div class="flex items-center justify-between px-5 pt-5 sm:px-6 sm:pt-6">
+				<h2 class="text-base font-semibold text-gray-900 dark:text-white">
+					{isTeacher(user)
+						? $t('dashboardHome.recentCourses')
+						: isStudent(user)
+							? $t('dashboardHome.continueLearning')
+							: $t('dashboardHome.recentActivity')}
+				</h2>
 				{#if recentItems.length > 0}
-					<Button
-						href={isTeacher(user) ? '/teacher/courses' : isStudent(user) ? '/my-courses' : '/admin'}
-						variant="outline"
-						size="small"
+					<a
+						href={isTeacher(user) ? '/teacher/courses' : '/my-courses'}
+						class="text-primary-600 hover:text-primary-700 dark:text-primary-400 text-sm font-medium"
 					>
-						View All
-					</Button>
+						{$t('dashboardHome.viewAll')}
+					</a>
 				{/if}
 			</div>
 
-			{#if recentItems && recentItems.length > 0}
-				<div class="space-y-4">
+			{#if recentItems?.length > 0}
+				<ul class="mt-3 divide-y divide-gray-100 pb-2 dark:divide-white/5">
 					{#each recentItems as item}
-						<div class="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-							<div class="flex items-center space-x-4">
+						<li>
+							<a
+								href={item.href}
+								class="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-gray-50 sm:px-6 dark:hover:bg-white/5"
+							>
 								{#if item.thumbnail}
-									<img 
-										src={item.thumbnail} 
-										alt={item.title}
-										class="w-12 h-12 object-cover rounded-lg"
+									<img
+										src={item.thumbnail}
+										alt=""
+										class="size-12 shrink-0 rounded-xl object-cover"
 									/>
 								{:else}
-									<div class="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center">
-										<span class="text-blue-600 dark:text-blue-400 font-medium">
-											{item.title?.charAt(0)?.toUpperCase() || '?'}
-										</span>
-									</div>
+									<span
+										class="bg-primary-50 text-primary-700 dark:bg-primary-400/10 dark:text-primary-300 flex size-12 shrink-0 items-center justify-center rounded-xl text-base font-semibold"
+									>
+										{item.title?.charAt(0)?.toUpperCase() || '?'}
+									</span>
 								{/if}
-								<div>
-									<h4 class="font-medium text-gray-900 dark:text-white">
+								<span class="min-w-0 flex-1">
+									<span
+										dir="auto"
+										class="block truncate text-sm font-medium text-gray-900 dark:text-white"
+									>
 										{item.title}
-									</h4>
-									<p class="text-sm text-gray-500 dark:text-gray-400">
-										{item.description} • {formatters.relativeTime(item.date)}
-									</p>
-								</div>
-							</div>
-							<div class="flex items-center space-x-2">
+									</span>
+									<span class="block truncate text-xs text-gray-500 dark:text-gray-400">
+										{item.description}{#if item.date}
+											· {formatters.relativeTime(item.date, $locale)}{/if}
+									</span>
+									{#if item.progress !== undefined && isStudent(user)}
+										<span
+											class="mt-2 block h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-white/10"
+										>
+											<span
+												class="bg-primary-600 dark:bg-primary-400 block h-full rounded-full"
+												style="width: {item.progress}%"
+											></span>
+										</span>
+									{/if}
+								</span>
 								{#if item.status}
 									<Badge
-										variant={item.status === 'published' || item.status === 'completed' ? 'success' : 'warning'}
+										variant={item.status === 'published' || item.status === 'completed'
+											? 'success'
+											: 'warning'}
 										size="small"
+										class="hidden capitalize sm:inline-flex"
 									>
-										{item.status}
+										{$t(
+											{
+												completed: 'dashboardHome.completed',
+												published: 'dashboardHome.published',
+												draft: 'dashboardHome.draft'
+											}[item.status] ?? 'dashboardHome.inProgress'
+										)}
 									</Badge>
 								{/if}
-								{#if item.progress !== undefined && isStudent(user)}
-									<div class="w-16 bg-gray-200 rounded-full h-2 dark:bg-gray-700">
-										<div
-											class="bg-blue-600 h-2 rounded-full"
-											style="width: {item.progress}%"
-										></div>
-									</div>
-								{/if}
-								<Button
-									href={item.href}
-									variant="ghost"
-									size="small"
-								>
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-									</svg>
-								</Button>
-							</div>
-						</div>
+							</a>
+						</li>
 					{/each}
-				</div>
+				</ul>
 			{:else}
-				<div class="text-center py-8 text-gray-500 dark:text-gray-400">
-					<svg class="mx-auto h-16 w-16 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						{#if isTeacher(user)}
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-						{:else if isStudent(user)}
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-						{:else}
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-						{/if}
-					</svg>
-					<p class="text-lg font-medium mb-2">
-						{#if isTeacher(user)}
-							No courses yet
-						{:else if isStudent(user)}
-							No enrolled courses
-						{:else}
-							No recent activity
-						{/if}
-					</p>
-					<p class="mb-4">
-						{#if isTeacher(user)}
-							Start teaching by creating your first course
-						{:else if isStudent(user)}
-							Start learning by enrolling in a course
-						{:else}
-							Platform activity will appear here
-						{/if}
-					</p>
-					{#if isTeacher(user)}
-						<Button
-							href="/teacher/courses/create"
-							variant="primary"
-							size="medium"
-						>
-							Create Your First Course
-						</Button>
-					{:else if isStudent(user)}
-						<Button
-							href="/courses"
-							variant="primary"
-							size="medium"
-						>
-							Browse Courses
-						</Button>
-					{/if}
+				<div class="p-5 sm:p-6">
+					<EmptyState
+						title={isTeacher(user)
+							? $t('dashboardHome.noCoursesYet')
+							: $t('dashboardHome.noEnrolled')}
+						description={isTeacher(user)
+							? $t('dashboardHome.noCoursesDesc')
+							: $t('dashboardHome.noEnrolledDesc')}
+					>
+						{#snippet actions()}
+							{#if isTeacher(user)}
+								<Button href="/teacher/courses/create">{$t('dashboardHome.createCourse')}</Button>
+							{:else}
+								<Button href="/courses">{$t('dashboardHome.browseCoursesLower')}</Button>
+							{/if}
+						{/snippet}
+					</EmptyState>
 				</div>
 			{/if}
 		</Card>
 
-		<!-- Quick Actions -->
-		<Card class="p-6">
-			<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-6">
-				Quick Actions
-			</h3>
-			
-			<div class="space-y-4">
+		<!-- Quick actions -->
+		<Card class="min-w-0 lg:col-span-2">
+			<h2 class="text-base font-semibold text-gray-900 dark:text-white">
+				{$t('dashboardHome.quickActions')}
+			</h2>
+			<div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
 				{#each quickActions as action}
-					<Button
-						href={action.href}
+					<button
+						type="button"
 						onclick={() => handleActionClick(action)}
-						variant={action.primary ? 'primary' : 'outline'}
-						size="medium"
-						fullWidth
-						class="justify-start"
+						class="group flex items-start gap-3 rounded-xl p-3 text-start ring-1 ring-gray-200/80 transition-colors hover:bg-gray-50 hover:ring-gray-300 dark:ring-white/10 dark:hover:bg-white/5"
 					>
-						<span class="text-xl mr-3">{action.icon}</span>
-						<div class="text-left">
-							<div class="font-medium">{action.title}</div>
-							<div class="text-sm opacity-75">{action.description}</div>
-						</div>
-					</Button>
+						<span
+							class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-base dark:bg-white/10"
+							aria-hidden="true"
+						>
+							{action.icon}
+						</span>
+						<span class="min-w-0">
+							<span class="block text-sm font-medium text-gray-900 dark:text-white"
+								>{action.title}</span
+							>
+							<span class="block text-xs text-gray-500 dark:text-gray-400"
+								>{action.description}</span
+							>
+						</span>
+					</button>
 				{/each}
 			</div>
 		</Card>

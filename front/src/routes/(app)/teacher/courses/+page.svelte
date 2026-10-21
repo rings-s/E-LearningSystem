@@ -2,19 +2,20 @@
 	import { onMount } from 'svelte';
 	import { fade, fly } from 'svelte/transition';
 	import { goto } from '$app/navigation';
-	import { coursesApi } from '$lib/apis/courses.js';
-	import { currentUser } from '$lib/stores/auth.store.js';
-	import { uiStore } from '$lib/stores/ui.store.js';
-	import { t } from '$lib/i18n/index.js';
-	import { formatters } from '$lib/utils/formatters.js';
-import { isTeacher } from '$lib/utils/helpers.js';
+	import { coursesApi } from '#lib/apis/courses.js';
+	import { currentUser } from '#lib/stores/auth.store.js';
+	import { uiStore } from '#lib/stores/ui.store.js';
+	import { t, locale } from '#lib/i18n/index.js';
+	import { formatters } from '#lib/utils/formatters.js';
+	import { isTeacher } from '#lib/utils/helpers.js';
 
 	// Components
-	import Card from '$lib/components/common/Card.svelte';
-	import Button from '$lib/components/common/Button.svelte';
-	import Badge from '$lib/components/common/Badge.svelte';
-	import Input from '$lib/components/common/Input.svelte';
-	import CourseCard from '$lib/components/course/CourseCard.svelte';
+	import CourseCover from '#lib/components/course/CourseCover.svelte';
+	import Card from '#lib/components/common/Card.svelte';
+	import Button from '#lib/components/common/Button.svelte';
+	import Badge from '#lib/components/common/Badge.svelte';
+	import Input from '#lib/components/common/Input.svelte';
+	import CourseCard from '#lib/components/course/CourseCard.svelte';
 
 	// State variables
 	let courses = $state([]);
@@ -32,28 +33,30 @@ import { isTeacher } from '$lib/utils/helpers.js';
 	let totalCourses = $state(0);
 
 	// Filter options
-	const statusOptions = [
-		{ value: 'all', label: 'All Courses' },
-		{ value: 'draft', label: 'Draft' },
-		{ value: 'published', label: 'Published' },
-		{ value: 'archived', label: 'Archived' }
-	];
+	const statusOptions = $derived([
+		{ value: 'all', label: $t('teacher.allCourses') },
+		{ value: 'draft', label: $t('teacher.draft') },
+		{ value: 'published', label: $t('teacher.published') },
+		{ value: 'archived', label: $t('teacher.archived') }
+	]);
 
-	const sortOptions = [
-		{ value: 'updated', label: 'Last Updated' },
-		{ value: 'created', label: 'Date Created' },
-		{ value: 'title', label: 'Title' },
-		{ value: 'students', label: 'Student Count' }
-	];
+	const sortOptions = $derived([
+		{ value: 'updated', label: $t('teacher.lastUpdated') },
+		{ value: 'created', label: $t('teacher.dateCreated') },
+		{ value: 'title', label: $t('teacher.titleSort') },
+		{ value: 'students', label: $t('teacher.studentCount') }
+	]);
 
 	// Derived states
-	let stats = $derived(() => {
-		const published = courses.filter(c => c.status === 'published').length;
-		const draft = courses.filter(c => c.status === 'draft').length;
+	let stats = $derived.by(() => {
+		const published = courses.filter((c) => c.status === 'published').length;
+		const draft = courses.filter((c) => c.status === 'draft').length;
 		const totalStudents = courses.reduce((sum, c) => sum + (c.enrollment_count || 0), 0);
-		const avgRating = courses.length > 0 ? 
-			courses.reduce((sum, c) => sum + (c.average_rating || 0), 0) / courses.length : 0;
-		
+		const avgRating =
+			courses.length > 0
+				? courses.reduce((sum, c) => sum + (c.average_rating || 0), 0) / courses.length
+				: 0;
+
 		return {
 			total: courses.length,
 			published,
@@ -63,25 +66,13 @@ import { isTeacher } from '$lib/utils/helpers.js';
 		};
 	});
 
-	let paginatedCourses = $derived(() => {
+	let paginatedCourses = $derived.by(() => {
 		const start = (currentPage - 1) * itemsPerPage;
 		const end = start + itemsPerPage;
 		return filteredCourses.slice(start, end);
 	});
 
-	let totalPages = $derived(() => Math.ceil(filteredCourses.length / itemsPerPage));
-
-	// Debug state variables properly for Svelte 5
-	$inspect('Current user:', $currentUser);
-	$inspect('User role:', $currentUser?.role);
-	$inspect('Is teacher:', isTeacher($currentUser));
-	$inspect('Courses array:', courses);
-	$inspect('Courses count:', courses.length);
-	$inspect('Filtered courses:', filteredCourses);
-	$inspect('Filtered count:', filteredCourses.length);
-	$inspect('Loading state:', loading);
-	$inspect('Error state:', error);
-	$inspect('Total courses:', totalCourses);
+	let totalPages = $derived.by(() => Math.ceil(filteredCourses.length / itemsPerPage));
 
 	onMount(async () => {
 		// Check authorization
@@ -89,9 +80,9 @@ import { isTeacher } from '$lib/utils/helpers.js';
 			uiStore.showNotification({
 				type: 'error',
 				title: $t('errors.unauthorized'),
-				message: 'You need to be logged in to access this page'
+				message: $t('teacher.mustLogin')
 			});
-			goto('/auth/login');
+			goto('/login');
 			return;
 		}
 
@@ -99,7 +90,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 			uiStore.showNotification({
 				type: 'error',
 				title: $t('errors.unauthorized'),
-				message: `You need to be a teacher to access this page. Current role: ${$currentUser?.role || 'unknown'}`
+				message: $t('teacher.mustBeTeacherRole', { role: $currentUser?.role || '-' })
 			});
 			goto('/dashboard');
 			return;
@@ -108,8 +99,6 @@ import { isTeacher } from '$lib/utils/helpers.js';
 		await loadCourses();
 	});
 
-
-
 	async function loadCourses() {
 		loading = true;
 		error = '';
@@ -117,12 +106,12 @@ import { isTeacher } from '$lib/utils/helpers.js';
 		try {
 			console.log('🔍 [FRONTEND] Calling getTeacherCourses...');
 			const response = await coursesApi.getTeacherCourses();
-			
+
 			console.log('📦 [FRONTEND] Raw API response:', response);
 			console.log('📦 [FRONTEND] Response type:', typeof response);
 			console.log('📦 [FRONTEND] Is array:', Array.isArray(response));
 			console.log('📦 [FRONTEND] Response length:', response?.length);
-			
+
 			if (response && typeof response === 'object' && !Array.isArray(response)) {
 				console.log('📦 [FRONTEND] Response keys:', Object.keys(response));
 				if (response.results) {
@@ -130,7 +119,7 @@ import { isTeacher } from '$lib/utils/helpers.js';
 					console.log('📦 [FRONTEND] Results length:', response.results.length);
 				}
 			}
-			
+
 			// Process the response more robustly
 			if (Array.isArray(response)) {
 				courses = response;
@@ -145,24 +134,23 @@ import { isTeacher } from '$lib/utils/helpers.js';
 				console.warn('📦 [FRONTEND] Unexpected response format, setting empty array');
 				courses = [];
 			}
-			
+
 			totalCourses = courses.length;
-			
+
 			console.log('✅ [FRONTEND] Final courses array:', courses);
 			console.log('✅ [FRONTEND] Courses count:', totalCourses);
-			
-			applyFilters();
 
+			applyFilters();
 		} catch (err) {
 			console.error('❌ [COURSES] Failed to load courses:', err);
-			
+
 			// Provide specific error messages based on error type
 			if (err.message?.includes('403') || err.message?.includes('Forbidden')) {
-				error = 'You need to be a teacher to access this page. Please contact an administrator if you believe this is an error.';
+				error = $t('teacher.mustBeTeacherContact');
 			} else if (err.message?.includes('401') || err.message?.includes('Unauthorized')) {
-				error = 'Your session has expired. Please log in again.';
+				error = $t('teacher.sessionExpiredMsg');
 			} else {
-				error = err.message || 'Failed to load courses';
+				error = err.message || $t('teacher.loadCoursesFailed');
 			}
 		} finally {
 			loading = false;
@@ -173,23 +161,24 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 		// Filter by status
 		if (selectedStatus !== 'all') {
-			filtered = filtered.filter(course => course.status === selectedStatus);
+			filtered = filtered.filter((course) => course.status === selectedStatus);
 		}
 
 		// Filter by search query
 		if (searchQuery.trim()) {
 			const query = searchQuery.toLowerCase();
-			filtered = filtered.filter(course => 
-				course.title.toLowerCase().includes(query) ||
-				course.description?.toLowerCase().includes(query) ||
-				course.short_description?.toLowerCase().includes(query)
+			filtered = filtered.filter(
+				(course) =>
+					course.title.toLowerCase().includes(query) ||
+					course.description?.toLowerCase().includes(query) ||
+					course.short_description?.toLowerCase().includes(query)
 			);
 		}
 
 		// Sort
 		filtered.sort((a, b) => {
 			let aValue, bValue;
-			
+
 			switch (sortBy) {
 				case 'updated':
 					aValue = new Date(a.updated_at || a.created_at);
@@ -247,115 +236,129 @@ import { isTeacher } from '$lib/utils/helpers.js';
 			// This would need to be implemented in the backend
 			uiStore.showNotification({
 				type: 'info',
-				title: 'Feature Coming Soon',
-				message: 'Course duplication will be available soon'
+				title: $t('teacher.comingSoon'),
+				message: $t('teacher.duplicationSoon')
 			});
 		} catch (err) {
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Duplication Failed',
-				message: err.message || 'Failed to duplicate course'
+				title: $t('teacher.duplicationFailed'),
+				message: err.message || $t('teacher.duplicationFailedMsg')
 			});
 		}
 	}
 
 	async function deleteCourse(courseId) {
-		if (!confirm('Are you sure you want to delete this course? This action cannot be undone.')) {
+		if (!confirm($t('teacher.deleteConfirm'))) {
 			return;
 		}
 
 		try {
 			await coursesApi.deleteCourse(courseId);
-			courses = courses.filter(c => c.uuid !== courseId);
+			courses = courses.filter((c) => c.uuid !== courseId);
 			applyFilters();
 
 			uiStore.showNotification({
 				type: 'success',
-				title: 'Course Deleted',
-				message: 'Course has been permanently deleted'
+				title: $t('teacher.courseDeleted'),
+				message: $t('teacher.courseDeletedMsg')
 			});
 		} catch (err) {
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Delete Failed',
-				message: err.message || 'Failed to delete course'
+				title: $t('teacher.deleteFailed'),
+				message: err.message || $t('teacher.deleteFailedMsg')
 			});
 		}
 	}
 </script>
 
 <svelte:head>
-	<title>My Courses | E-Learning Platform</title>
-	<meta name="description" content="Manage your courses and track student progress" />
+	<title>{$t('teacher.coursesPageTitle')}</title>
+	<meta name="description" content={$t('teacher.manageCoursesDesc')} />
 </svelte:head>
 
-<div class="min-h-screen bg-gray-50 dark:bg-gray-900">
-	<div class="container mx-auto max-w-7xl px-4 py-8">
+<div>
+	<div>
 		<!-- Header -->
 		<div class="mb-8" in:fade={{ duration: 600 }}>
-			<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+			<div class="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
 				<div>
-					<div class="flex items-center gap-4 mb-2">
+					<div class="mb-2 flex items-center gap-4">
 						<Button
 							href="/dashboard"
 							variant="ghost"
 							size="medium"
-							class="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
+							class="hover:text-primary-600 dark:hover:text-primary-400 text-gray-600 dark:text-gray-400"
 						>
 							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M15 19l-7-7 7-7"
+								/>
 							</svg>
-							Back to Dashboard
+							{$t('teacher.backToDashboard')}
 						</Button>
 					</div>
-					<h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-						My Courses
+					<h1 class="mb-2 text-3xl font-bold text-gray-900 dark:text-white">
+						{$t('teacher.myCourses')}
 					</h1>
 					<p class="text-gray-600 dark:text-gray-400">
-						Manage your courses and track student progress
+						{$t('teacher.manageCoursesDesc')}
 					</p>
-					{#if import.meta.env.DEV && $currentUser}
-						<div class="mt-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-							Debug: User "{$currentUser.name || $currentUser.email}" | Role: "{$currentUser.role || 'none'}" | Teacher: {isTeacher($currentUser) ? 'Yes' : 'No'}
-						</div>
-					{/if}
 				</div>
 
-				<div class="flex flex-col sm:flex-row gap-3">
-					<Button
-						href="/teacher/courses/create"
-						variant="primary"
-						size="medium"
-					>
+				<div class="flex flex-col gap-3 sm:flex-row">
+					<Button href="/teacher/courses/create" variant="primary" size="medium">
 						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M12 4v16m8-8H4"
+							/>
 						</svg>
-						Create Course
+						{$t('teacher.createCourse')}
 					</Button>
-					<Button
-						href="/teacher/students"
-						variant="outline"
-						size="medium"
-					>
+					<Button href="/teacher/students" variant="outline" size="medium">
 						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+							/>
 						</svg>
-						Manage Students
+						{$t('teacher.manageStudents')}
 					</Button>
 				</div>
 			</div>
 
 			<!-- Stats Cards -->
-			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+			<div class="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
 				<Card class="p-6">
 					<div class="flex items-center">
-						<div class="rounded-lg bg-blue-100 p-3 dark:bg-blue-900/30">
-							<svg class="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+						<div class="bg-primary-100 dark:bg-primary-900/30 rounded-lg p-3">
+							<svg
+								class="text-primary-600 dark:text-primary-400 h-6 w-6"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+								/>
 							</svg>
 						</div>
 						<div class="ml-4">
-							<p class="text-sm font-medium text-gray-600 dark:text-gray-400">Total Courses</p>
+							<p class="text-sm font-medium text-gray-600 dark:text-gray-400">
+								{$t('teacher.totalCourses')}
+							</p>
 							<p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
 						</div>
 					</div>
@@ -364,12 +367,24 @@ import { isTeacher } from '$lib/utils/helpers.js';
 				<Card class="p-6">
 					<div class="flex items-center">
 						<div class="rounded-lg bg-green-100 p-3 dark:bg-green-900/30">
-							<svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+							<svg
+								class="h-6 w-6 text-green-600 dark:text-green-400"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+								/>
 							</svg>
 						</div>
 						<div class="ml-4">
-							<p class="text-sm font-medium text-gray-600 dark:text-gray-400">Published</p>
+							<p class="text-sm font-medium text-gray-600 dark:text-gray-400">
+								{$t('teacher.published')}
+							</p>
 							<p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.published}</p>
 						</div>
 					</div>
@@ -377,13 +392,25 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 				<Card class="p-6">
 					<div class="flex items-center">
-						<div class="rounded-lg bg-purple-100 p-3 dark:bg-purple-900/30">
-							<svg class="h-6 w-6 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+						<div class="bg-secondary-100 dark:bg-secondary-900/30 rounded-lg p-3">
+							<svg
+								class="text-secondary-600 dark:text-secondary-400 h-6 w-6"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+								/>
 							</svg>
 						</div>
 						<div class="ml-4">
-							<p class="text-sm font-medium text-gray-600 dark:text-gray-400">Total Students</p>
+							<p class="text-sm font-medium text-gray-600 dark:text-gray-400">
+								{$t('teacher.totalStudents')}
+							</p>
 							<p class="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalStudents}</p>
 						</div>
 					</div>
@@ -392,13 +419,27 @@ import { isTeacher } from '$lib/utils/helpers.js';
 				<Card class="p-6">
 					<div class="flex items-center">
 						<div class="rounded-lg bg-yellow-100 p-3 dark:bg-yellow-900/30">
-							<svg class="h-6 w-6 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+							<svg
+								class="h-6 w-6 text-yellow-600 dark:text-yellow-400"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+								/>
 							</svg>
 						</div>
 						<div class="ml-4">
-							<p class="text-sm font-medium text-gray-600 dark:text-gray-400">Avg Rating</p>
-							<p class="text-2xl font-bold text-gray-900 dark:text-white">{(stats.avgRating || 0).toFixed(1)}</p>
+							<p class="text-sm font-medium text-gray-600 dark:text-gray-400">
+								{$t('teacher.avgRating')}
+							</p>
+							<p class="text-2xl font-bold text-gray-900 dark:text-white">
+								{(stats.avgRating || 0).toFixed(1)}
+							</p>
 						</div>
 					</div>
 				</Card>
@@ -407,136 +448,177 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 		<!-- Filters and Search -->
 		<div in:fly={{ y: 20, delay: 100, duration: 600 }}>
-			<Card class="p-6 mb-8">
-			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-				<!-- Search -->
-				<div class="lg:col-span-2">
-					<Input
-						label="Search Courses"
-						placeholder="Search by title or description"
-						bind:value={searchQuery}
-						onchange={handleSearch}
-						oninput={handleSearch}
-					>
-						<svg slot="icon" class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-						</svg>
-					</Input>
-				</div>
-
-				<!-- Status Filter -->
-				<div>
-					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-						Filter by Status
-					</label>
-					<select
-						bind:value={selectedStatus}
-						onchange={handleFilterChange}
-						class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-					>
-						{#each statusOptions as option}
-							<option value={option.value}>{option.label}</option>
-						{/each}
-					</select>
-				</div>
-
-				<!-- Sort -->
-				<div>
-					<label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-						Sort by
-					</label>
-					<div class="flex gap-2">
-						<select
-							bind:value={sortBy}
-							onchange={handleFilterChange}
-							class="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+			<Card class="mb-8 p-6">
+				<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+					<!-- Search -->
+					<div class="lg:col-span-2">
+						<Input
+							label={$t('teacher.searchCourses')}
+							placeholder={$t('teacher.searchCoursesPlaceholder')}
+							bind:value={searchQuery}
+							onchange={handleSearch}
+							oninput={handleSearch}
 						>
-							{#each sortOptions as option}
+							<svg
+								slot="icon"
+								class="h-4 w-4 text-gray-400"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+								/>
+							</svg>
+						</Input>
+					</div>
+
+					<!-- Status Filter -->
+					<div>
+						<label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+							{$t('teacher.filterByStatus')}
+						</label>
+						<select
+							bind:value={selectedStatus}
+							onchange={handleFilterChange}
+							class="focus:border-primary-500 focus:ring-primary-500 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+						>
+							{#each statusOptions as option}
 								<option value={option.value}>{option.label}</option>
 							{/each}
 						</select>
-						<Button
-							onclick={toggleSortOrder}
-							variant="outline"
-							size="medium"
-							class="px-3"
-						>
-							<svg 
-								class="h-4 w-4 transform {sortOrder === 'desc' ? 'rotate-180' : ''}" 
-								fill="none" 
-								stroke="currentColor" 
-								viewBox="0 0 24 24"
+					</div>
+
+					<!-- Sort -->
+					<div>
+						<label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+							{$t('teacher.sortBy')}
+						</label>
+						<div class="flex gap-2">
+							<select
+								bind:value={sortBy}
+								onchange={handleFilterChange}
+								class="focus:border-primary-500 focus:ring-primary-500 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 							>
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12" />
-							</svg>
-						</Button>
+								{#each sortOptions as option}
+									<option value={option.value}>{option.label}</option>
+								{/each}
+							</select>
+							<Button onclick={toggleSortOrder} variant="outline" size="medium" class="px-3">
+								<svg
+									class="h-4 w-4 {sortOrder === 'desc' ? 'rotate-180' : ''}"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M7 11l5-5m0 0l5 5m-5-5v12"
+									/>
+								</svg>
+							</Button>
+						</div>
 					</div>
 				</div>
-			</div>
-		</Card>
-	</div>
+			</Card>
+		</div>
 
 		<!-- Error State -->
 		{#if error}
-			<div class="text-center py-12" in:fade={{ duration: 300 }}>
+			<div class="py-12 text-center" in:fade={{ duration: 300 }}>
 				<div class="mb-4">
 					{#if error.includes('teacher') || error.includes('403')}
-						<svg class="mx-auto h-16 w-16 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+						<svg
+							class="mx-auto h-16 w-16 text-yellow-400"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"
+							/>
 						</svg>
 					{:else if error.includes('session') || error.includes('401')}
-						<svg class="mx-auto h-16 w-16 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+						<svg
+							class="text-primary-400 mx-auto h-16 w-16"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+							/>
 						</svg>
 					{:else}
-						<svg class="mx-auto h-16 w-16 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+						<svg
+							class="mx-auto h-16 w-16 text-red-400"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+							/>
 						</svg>
 					{/if}
 				</div>
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">
+				<h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">
 					{#if error.includes('teacher') || error.includes('403')}
-						Access Restricted
+						{$t('teacher.accessRestricted')}
 					{:else if error.includes('session') || error.includes('401')}
-						Session Expired
+						{$t('teacher.sessionExpired')}
 					{:else}
-						Error Loading Courses
+						{$t('teacher.errorLoadingCourses')}
 					{/if}
 				</h3>
-				<p class="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">{error}</p>
-				
-				<div class="flex flex-col sm:flex-row gap-3 justify-center">
+				<p class="mx-auto mb-6 max-w-md text-gray-600 dark:text-gray-400">{error}</p>
+
+				<div class="flex flex-col justify-center gap-3 sm:flex-row">
 					{#if error.includes('session') || error.includes('401')}
-						<Button href="/auth/login" variant="primary" size="medium">
-							Log In Again
-						</Button>
+						<Button href="/auth/login" variant="primary" size="medium"
+							>{$t('teacher.logInAgain')}</Button
+						>
 					{:else if error.includes('teacher') || error.includes('403')}
-						<Button href="/dashboard" variant="outline" size="medium">
-							Back to Dashboard
-						</Button>
-						<Button href="/profile" variant="primary" size="medium">
-							Check Profile
-						</Button>
+						<Button href="/dashboard" variant="outline" size="medium"
+							>{$t('teacher.backToDashboard')}</Button
+						>
+						<Button href="/profile" variant="primary" size="medium"
+							>{$t('teacher.checkProfile')}</Button
+						>
 					{:else}
-						<Button onclick={loadCourses} variant="primary" size="medium">
-							Try Again
-						</Button>
-						<Button href="/dashboard" variant="outline" size="medium">
-							Back to Dashboard
-						</Button>
+						<Button onclick={loadCourses} variant="primary" size="medium"
+							>{$t('teacher.tryAgain')}</Button
+						>
+						<Button href="/dashboard" variant="outline" size="medium"
+							>{$t('teacher.backToDashboard')}</Button
+						>
 					{/if}
 				</div>
 			</div>
 		{:else if loading}
 			<!-- Loading State -->
-			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+			<div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
 				{#each Array(6) as _}
 					<div class="animate-pulse">
 						<Card class="p-6">
-							<div class="h-4 bg-gray-200 rounded w-3/4 mb-4 dark:bg-gray-700"></div>
+							<div class="mb-4 h-4 w-3/4 rounded bg-gray-200 dark:bg-gray-700"></div>
 							<div class="space-y-3">
-								<div class="h-3 bg-gray-200 rounded w-full dark:bg-gray-700"></div>
-								<div class="h-3 bg-gray-200 rounded w-2/3 dark:bg-gray-700"></div>
+								<div class="h-3 w-full rounded bg-gray-200 dark:bg-gray-700"></div>
+								<div class="h-3 w-2/3 rounded bg-gray-200 dark:bg-gray-700"></div>
 							</div>
 						</Card>
 					</div>
@@ -544,52 +626,51 @@ import { isTeacher } from '$lib/utils/helpers.js';
 			</div>
 		{:else if filteredCourses.length === 0}
 			<!-- Empty State -->
-			<div class="text-center py-12" in:fade={{ duration: 300 }}>
+			<div class="py-12 text-center" in:fade={{ duration: 300 }}>
 				<div class="mb-4">
-					<svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+					<svg
+						class="mx-auto h-16 w-16 text-gray-400"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+						/>
 					</svg>
 				</div>
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">
-					{courses.length === 0 ? 'No Courses Yet' : 'No Courses Found'}
+				<h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">
+					{courses.length === 0 ? $t('teacher.noCoursesYet') : $t('teacher.noCoursesFound')}
 				</h3>
-				<p class="text-gray-600 dark:text-gray-400 mb-6">
-					{courses.length === 0 
-						? 'Start teaching by creating your first course' 
-						: 'No courses match your search criteria'}
+				<p class="mb-6 text-gray-600 dark:text-gray-400">
+					{courses.length === 0 ? $t('teacher.startTeaching') : $t('teacher.noCoursesMatch')}
 				</p>
 				{#if courses.length === 0}
-					<Button
-						href="/teacher/courses/create"
-						variant="primary"
-						size="medium"
-					>
-						Create Your First Course
+					<Button href="/teacher/courses/create" variant="primary" size="medium">
+						{$t('teacher.createFirstCourse')}
 					</Button>
 				{/if}
 			</div>
 		{:else}
 			<!-- Courses Grid -->
-			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8" in:fly={{ y: 20, delay: 200, duration: 600 }}>
+			<div
+				class="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3"
+				in:fly={{ y: 20, delay: 200, duration: 600 }}
+			>
 				{#each paginatedCourses as course}
-					<Card class="overflow-hidden hover:shadow-lg transition-shadow duration-300">
-						<div class="aspect-video bg-gray-200 dark:bg-gray-700 relative">
-							{#if course.thumbnail}
-								<img 
-									src={course.thumbnail} 
-									alt={course.title}
-									class="w-full h-full object-cover"
-								/>
-							{:else}
-								<div class="w-full h-full flex items-center justify-center">
-									<svg class="h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
-									</svg>
-								</div>
-							{/if}
-							<div class="absolute top-4 right-4">
+					<Card padding="none" class="overflow-hidden hover:shadow-lg">
+						<div class="relative aspect-video bg-gray-100 dark:bg-white/5">
+							<CourseCover {course} />
+							<div class="absolute end-3 top-3">
 								<Badge
-									variant={course.status === 'published' ? 'success' : course.status === 'draft' ? 'warning' : 'secondary'}
+									variant={course.status === 'published'
+										? 'success'
+										: course.status === 'draft'
+											? 'warning'
+											: 'secondary'}
 									size="small"
 								>
 									{course.status}
@@ -599,22 +680,31 @@ import { isTeacher } from '$lib/utils/helpers.js';
 
 						<div class="p-6">
 							<div class="mb-4">
-								<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2 line-clamp-2">
+								<h3 class="mb-2 line-clamp-2 text-lg font-semibold text-gray-900 dark:text-white">
 									{course.title}
 								</h3>
-								<p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-3">
+								<p class="line-clamp-3 text-sm text-gray-600 dark:text-gray-400">
 									{course.short_description || course.description}
 								</p>
 							</div>
 
-							<div class="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400 mb-4">
+							<div
+								class="mb-4 flex items-center justify-between text-sm text-gray-500 dark:text-gray-400"
+							>
 								<div class="flex items-center">
-									<svg class="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+									<svg class="mr-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+										/>
 									</svg>
 									{course.enrollment_count || 0} students
 								</div>
-								<span>{formatters.relativeTime(course.updated_at || course.created_at)}</span>
+								<span
+									>{formatters.relativeTime(course.updated_at || course.created_at, $locale)}</span
+								>
 							</div>
 
 							<div class="flex items-center justify-between">
@@ -625,9 +715,14 @@ import { isTeacher } from '$lib/utils/helpers.js';
 										size="small"
 									>
 										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+											/>
 										</svg>
-										Edit
+										{$t('teacher.edit')}
 									</Button>
 									<Button
 										href="/teacher/courses/{course.uuid}/analytics"
@@ -635,9 +730,14 @@ import { isTeacher } from '$lib/utils/helpers.js';
 										size="small"
 									>
 										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+											/>
 										</svg>
-										Analytics
+										{$t('teacher.analytics')}
 									</Button>
 								</div>
 
@@ -649,7 +749,12 @@ import { isTeacher } from '$lib/utils/helpers.js';
 										class="text-gray-400 hover:text-gray-600"
 									>
 										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+											/>
 										</svg>
 									</Button>
 									<Button
@@ -659,7 +764,12 @@ import { isTeacher } from '$lib/utils/helpers.js';
 										class="text-red-400 hover:text-red-600"
 									>
 										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+											/>
 										</svg>
 									</Button>
 								</div>
@@ -679,9 +789,9 @@ import { isTeacher } from '$lib/utils/helpers.js';
 							variant="outline"
 							size="small"
 						>
-							Previous
+							{$t('teacher.previous')}
 						</Button>
-						
+
 						{#each Array(Math.min(5, totalPages)) as _, i}
 							{@const page = i + 1}
 							<Button
@@ -692,19 +802,23 @@ import { isTeacher } from '$lib/utils/helpers.js';
 								{page}
 							</Button>
 						{/each}
-						
+
 						<Button
 							onclick={() => goToPage(currentPage + 1)}
 							disabled={currentPage === totalPages}
 							variant="outline"
 							size="small"
 						>
-							Next
+							{$t('teacher.next')}
 						</Button>
 					</div>
-					
+
 					<p class="text-sm text-gray-500 dark:text-gray-400">
-						Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredCourses.length)} - {Math.min(currentPage * itemsPerPage, filteredCourses.length)} of {filteredCourses.length} courses
+						{$t('teacher.showingOf', {
+							from: Math.min((currentPage - 1) * itemsPerPage + 1, filteredCourses.length),
+							to: Math.min(currentPage * itemsPerPage, filteredCourses.length),
+							total: filteredCourses.length
+						})}
 					</p>
 				</div>
 			{/if}

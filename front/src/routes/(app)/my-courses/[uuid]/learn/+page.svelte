@@ -1,31 +1,30 @@
 <script>
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { onMount, onDestroy } from 'svelte';
 	import { fade, fly, slide } from 'svelte/transition';
 	import { goto } from '$app/navigation';
-	import { coursesApi } from '$lib/apis/courses.js';
-	import { currentUser } from '$lib/stores/auth.store.js';
-	import { uiStore } from '$lib/stores/ui.store.js';
-	import { debounce, classNames } from '$lib/utils/helpers.js';
-	import { formatters } from '$lib/utils/formatters.js';
-	import { APP_NAME } from '$lib/utils/constants.js';
-	import { browser } from '$app/environment';
-	import { locale, t } from '$lib/i18n/index.js';
-	import { replaceState } from '$app/navigation';
+	import { coursesApi } from '#lib/apis/courses.js';
+	import { currentUser } from '#lib/stores/auth.store.js';
+	import { uiStore } from '#lib/stores/ui.store.js';
+	import { debounce, classNames } from '#lib/utils/helpers.js';
+	import { formatters } from '#lib/utils/formatters.js';
+	import { APP_NAME } from '#lib/utils/constants.js';
+	import { browser } from '$app/env';
+	import { locale, t } from '#lib/i18n/index.js';
 
 	// Components
-	import YouTubePlayer from '$lib/components/course/YouTubePlayer.svelte';
-	import PDFViewer from '$lib/components/course/PDFViewer.svelte';
-	import LessonList from '$lib/components/course/LessonList.svelte';
-	import CourseProgress from '$lib/components/course/CourseProgress.svelte';
-	import NotesSection from '$lib/components/course/NotesSection.svelte';
-	import Button from '$lib/components/common/Button.svelte';
-	import Card from '$lib/components/common/Card.svelte';
-	import Badge from '$lib/components/common/Badge.svelte';
-	import Input from '$lib/components/common/Input.svelte';
-	import Modal from '$lib/components/common/Modal.svelte';
+	import YouTubePlayer from '#lib/components/course/YouTubePlayer.svelte';
+	import PDFViewer from '#lib/components/course/PDFViewer.svelte';
+	import LessonList from '#lib/components/course/LessonList.svelte';
+	import CourseProgress from '#lib/components/course/CourseProgress.svelte';
+	import NotesSection from '#lib/components/course/NotesSection.svelte';
+	import Button from '#lib/components/common/Button.svelte';
+	import Card from '#lib/components/common/Card.svelte';
+	import Badge from '#lib/components/common/Badge.svelte';
+	import Input from '#lib/components/common/Input.svelte';
+	import Modal from '#lib/components/common/Modal.svelte';
 
-	let courseId = $page.params.uuid;
+	let courseId = page.params.uuid;
 
 	// State variables
 	let course = $state(null);
@@ -58,67 +57,71 @@
 	let autoSaveTimer = null;
 
 	// UI state
-	let sidebar = $state({ 
-		collapsed: false, 
+	let sidebar = $state({
+		collapsed: false,
 		activeTab: 'overview',
-		mobileMenuOpen: false 
+		mobileMenuOpen: false
 	});
 	let showKeyboardShortcuts = $state(false);
 	let isMobile = $state(false);
 
 	// Derived states
-	let lessons = $derived(() => {
+	let lessons = $derived.by(() => {
 		if (!course?.modules || !Array.isArray(course.modules)) return [];
-		
-		return course.modules.flatMap(module => {
+
+		return course.modules.flatMap((module) => {
 			if (!module || !module.lessons || !Array.isArray(module.lessons)) return [];
+
 			return module.lessons
-				.filter(lesson => lesson && typeof lesson === 'object' && lesson.uuid)
-				.map(lesson => ({
+				.filter((lesson) => lesson && typeof lesson === 'object' && lesson.uuid)
+				.map((lesson) => ({
 					...lesson,
-					moduleTitle: module.title || 'Unknown Module',
+					moduleTitle: module.title || $t('learn.unknownModule'),
 					is_completed: Boolean(lesson.is_completed)
 				}));
 		});
 	});
 
-	let currentLessonIndex = $derived(() => {
+	let currentLessonIndex = $derived.by(() => {
 		if (!currentLesson?.uuid || !Array.isArray(lessons) || lessons.length === 0) return -1;
-		return lessons.findIndex(lesson => lesson?.uuid === currentLesson.uuid);
+		return lessons.findIndex((lesson) => lesson?.uuid === currentLesson.uuid);
 	});
 
-	let previousLesson = $derived(() => {
+	let previousLesson = $derived.by(() => {
 		const index = currentLessonIndex;
 		if (index <= 0 || !Array.isArray(lessons) || lessons.length === 0) return null;
 		const prevLesson = lessons[index - 1];
-		return (prevLesson?.uuid) ? prevLesson : null;
+		return prevLesson?.uuid ? prevLesson : null;
 	});
 
-	let nextLesson = $derived(() => {
+	let nextLesson = $derived.by(() => {
 		const index = currentLessonIndex;
-		if (index < 0 || !Array.isArray(lessons) || lessons.length === 0 || index >= lessons.length - 1) return null;
+		if (index < 0 || !Array.isArray(lessons) || lessons.length === 0 || index >= lessons.length - 1)
+			return null;
 		const nextLesson = lessons[index + 1];
-		return (nextLesson?.uuid) ? nextLesson : null;
+		return nextLesson?.uuid ? nextLesson : null;
 	});
 
-	let totalLessonsCount = $derived(() => {
+	let totalLessonsCount = $derived.by(() => {
 		return Array.isArray(lessons) ? lessons.length : 0;
 	});
 
 	let completedLessonsCount = $derived.by(() => {
 		if (!Array.isArray(lessons)) return 0;
-		return lessons.filter(lesson => 
-			lesson && 
-			typeof lesson === 'object' && 
-			'is_completed' in lesson && 
-			lesson.is_completed === true
+
+		return lessons.filter(
+			(lesson) =>
+				lesson &&
+				typeof lesson === 'object' &&
+				'is_completed' in lesson &&
+				lesson.is_completed === true
 		).length;
 	});
 
 	let progressValue = $derived.by(() => {
 		const total = totalLessonsCount;
 		const completed = completedLessonsCount;
-		
+
 		if (!total || total === 0) return 0;
 		return Math.round((completed / total) * 100);
 	});
@@ -129,9 +132,9 @@
 			uiStore.showNotification({
 				type: 'error',
 				title: $t('errors.unauthorized'),
-				message: 'Please log in to access course content'
+				message: $t('learn.loginToAccess')
 			});
-			goto('/auth/login');
+			goto('/login');
 			return;
 		}
 
@@ -147,22 +150,19 @@
 
 	async function initializePage() {
 		try {
-			await Promise.all([
-				loadCourse(),
-				loadEnrollment()
-			]);
-			
+			await Promise.all([loadCourse(), loadEnrollment()]);
+
 			// Check if user is enrolled
 			if (!enrollment) {
 				uiStore.showNotification({
 					type: 'error',
-					title: 'Not Enrolled',
-					message: 'You need to enroll in this course to access the content'
+					title: $t('learn.notEnrolled'),
+					message: $t('learn.enrollToAccess')
 				});
 				goto(`/courses/${courseId}`);
 				return;
 			}
-			
+
 			await loadNotes();
 		} catch (err) {
 			error = err.message || $t('course.somethingWentWrong');
@@ -175,18 +175,20 @@
 	async function loadCourse() {
 		try {
 			course = await coursesApi.getCourse(courseId);
-			
+
 			if (!course.modules || !Array.isArray(course.modules)) {
 				try {
 					const modulesResponse = await coursesApi.getModules(courseId);
-					course.modules = Array.isArray(modulesResponse) ? modulesResponse : (modulesResponse.results || []);
+					course.modules = Array.isArray(modulesResponse)
+						? modulesResponse
+						: modulesResponse.results || [];
 				} catch (modulesErr) {
 					console.warn('Could not load modules:', modulesErr);
 					course.modules = [];
 				}
 			}
-			
-			const allLessons = course.modules?.flatMap(m => m.lessons || []) || [];
+
+			const allLessons = course.modules?.flatMap((m) => m.lessons || []) || [];
 			if (allLessons.length === 0) {
 				console.warn('Course has no lessons yet');
 				return;
@@ -195,16 +197,16 @@
 			// Find appropriate lesson to start
 			const urlParams = new URLSearchParams(window.location.search);
 			const lessonId = urlParams.get('lesson');
-			
+
 			let lessonToLoad;
 			if (lessonId && course.modules) {
-				lessonToLoad = allLessons.find(l => l.uuid === lessonId);
+				lessonToLoad = allLessons.find((l) => l.uuid === lessonId);
 			}
-			
+
 			if (!lessonToLoad && course.modules) {
-				lessonToLoad = allLessons.find(lesson => !lesson.is_completed) || allLessons[0];
+				lessonToLoad = allLessons.find((lesson) => !lesson.is_completed) || allLessons[0];
 			}
-			
+
 			if (lessonToLoad) {
 				await loadLesson(lessonToLoad);
 			}
@@ -217,10 +219,13 @@
 	async function loadEnrollment() {
 		try {
 			const response = await coursesApi.getMyEnrollments();
-			const enrollmentsList = Array.isArray(response) ? response : (response.results || response.enrollments || []);
-			
+
+			const enrollmentsList = Array.isArray(response)
+				? response
+				: response.results || response.enrollments || [];
+
 			if (Array.isArray(enrollmentsList)) {
-				enrollment = enrollmentsList.find(e => e.course?.uuid === courseId) || null;
+				enrollment = enrollmentsList.find((e) => e.course?.uuid === courseId) || null;
 			} else {
 				console.warn('Enrollment response is not an array:', response);
 				enrollment = null;
@@ -243,30 +248,29 @@
 
 			currentLesson = await coursesApi.getCourseLesson(courseId, lesson.uuid);
 			videoProgress = { currentTime: 0, duration: 0, progress: 0 };
-			
+
 			if (browser) {
 				const url = new URL(window.location);
 				url.searchParams.set('lesson', lesson.uuid);
-				replaceState(url.toString(), {});
+				goto(url.toString(), { shallow: true, replace: true });
 			}
 
 			await loadLessonNotes();
 			await startLessonTracking();
-			
 		} catch (err) {
 			console.error('Failed to load lesson:', err);
-			
-			let errorMessage = 'Failed to load lesson';
+
+			let errorMessage = $t('learn.loadLessonFailed');
 			if (err.message) {
 				if (err.message.includes('404') || err.message.includes('Not Found')) {
-					errorMessage = 'Lesson not found or you may not have access to it.';
+					errorMessage = $t('learn.lessonNotFound');
 				} else if (err.message.includes('403') || err.message.includes('Forbidden')) {
-					errorMessage = 'You do not have permission to access this lesson.';
+					errorMessage = $t('learn.noPermission');
 				} else {
 					errorMessage = err.message;
 				}
 			}
-			
+
 			uiStore.showNotification({
 				type: 'error',
 				title: $t('common.error'),
@@ -280,7 +284,7 @@
 		analytics.interactionCount = 0;
 
 		if (browser) {
-			['click', 'keydown', 'scroll'].forEach(event => {
+			['click', 'keydown', 'scroll'].forEach((event) => {
 				document.addEventListener(event, trackInteraction);
 			});
 		}
@@ -305,48 +309,52 @@
 
 	async function loadLessonNotes() {
 		if (!currentLesson) return;
-		
+
 		loadingNotes = true;
 		try {
 			const response = await coursesApi.getLessonNotes(courseId, currentLesson.uuid);
-			
-			const existingNotes = notes.filter(n => n.lessonId !== currentLesson.uuid);
-			
+
+			const existingNotes = notes.filter((n) => n.lessonId !== currentLesson.uuid);
+
 			if (response && response.notes) {
 				let lessonNotes = [];
 				try {
 					const parsedNotes = JSON.parse(response.notes);
 					if (Array.isArray(parsedNotes)) {
 						lessonNotes = parsedNotes
-							.filter(n => n && n.content)
-							.map(n => ({
+							.filter((n) => n && n.content)
+							.map((n) => ({
 								...n,
 								lessonId: currentLesson.uuid,
 								lessonTitle: currentLesson.title
 							}));
 					} else if (typeof parsedNotes === 'string' && parsedNotes.trim()) {
-						lessonNotes = [{
-							id: Date.now(),
-							content: parsedNotes,
-							lessonId: currentLesson.uuid,
-							lessonTitle: currentLesson.title,
-							timestamp: 0,
-							createdAt: new Date().toISOString()
-						}];
+						lessonNotes = [
+							{
+								id: Date.now(),
+								content: parsedNotes,
+								lessonId: currentLesson.uuid,
+								lessonTitle: currentLesson.title,
+								timestamp: 0,
+								createdAt: new Date().toISOString()
+							}
+						];
 					}
 				} catch (parseError) {
 					if (response.notes.trim()) {
-						lessonNotes = [{
-							id: Date.now(),
-							content: response.notes,
-							lessonId: currentLesson.uuid,
-							lessonTitle: currentLesson.title,
-							timestamp: 0,
-							createdAt: new Date().toISOString()
-						}];
+						lessonNotes = [
+							{
+								id: Date.now(),
+								content: response.notes,
+								lessonId: currentLesson.uuid,
+								lessonTitle: currentLesson.title,
+								timestamp: 0,
+								createdAt: new Date().toISOString()
+							}
+						];
 					}
 				}
-				
+
 				if (lessonNotes.length > 0) {
 					notes = [...existingNotes, ...lessonNotes];
 				} else {
@@ -384,7 +392,7 @@
 			courseId,
 			lessonId: currentLesson?.uuid
 		};
-		
+
 		setInterval(() => {
 			if (learningSession) {
 				console.log('Session update:', {
@@ -400,13 +408,13 @@
 		if (learningSession) {
 			console.log('Learning session ended');
 		}
-		
+
 		if (autoSaveTimer) {
 			clearTimeout(autoSaveTimer);
 		}
 
 		if (browser) {
-			['click', 'keydown', 'scroll'].forEach(event => {
+			['click', 'keydown', 'scroll'].forEach((event) => {
 				document.removeEventListener(event, trackInteraction);
 			});
 		}
@@ -424,7 +432,7 @@
 				completed: currentLesson.is_completed,
 				interactionCount: analytics.interactionCount
 			};
-			
+
 			localStorage.setItem(`lesson_progress_${currentLesson.uuid}`, JSON.stringify(progressData));
 		}
 	}, 2000);
@@ -437,9 +445,9 @@
 				console.warn('Could not save notes to localStorage:', err);
 			}
 		}
-		
+
 		if (currentLesson) {
-			const lessonNotes = notes.filter(n => n.lessonId === currentLesson.uuid);
+			const lessonNotes = notes.filter((n) => n.lessonId === currentLesson.uuid);
 			try {
 				await coursesApi.saveLessonNotes(courseId, currentLesson.uuid, JSON.stringify(lessonNotes));
 			} catch (err) {
@@ -465,7 +473,7 @@
 				title: $t('course.lessonCompleted'),
 				message: `${$t('course.greatJob')} "${currentLesson.title}"`
 			});
-			
+
 			setTimeout(() => {
 				try {
 					const lesson = nextLesson;
@@ -476,12 +484,11 @@
 					console.error('Error in auto-advance:', error);
 				}
 			}, 2000);
-
 		} catch (err) {
 			uiStore.showNotification({
 				type: 'error',
 				title: $t('common.error'),
-				message: 'Failed to mark lesson as complete'
+				message: $t('learn.markCompleteFailed')
 			});
 		} finally {
 			completingLesson = false;
@@ -515,7 +522,7 @@
 
 			notes = [note, ...notes];
 			currentNote = '';
-			
+
 			setupAutoSave();
 
 			uiStore.showNotification({
@@ -528,7 +535,7 @@
 			uiStore.showNotification({
 				type: 'error',
 				title: $t('common.error'),
-				message: 'Failed to save note'
+				message: $t('learn.saveNoteFailed')
 			});
 		} finally {
 			savingNote = false;
@@ -539,14 +546,14 @@
 		if (autoSaveTimer) {
 			clearTimeout(autoSaveTimer);
 		}
-		
+
 		autoSaveTimer = setTimeout(() => {
 			saveNotes();
 		}, 2000);
 	}
 
 	function deleteNote(noteId) {
-		notes = notes.filter(n => n.id !== noteId);
+		notes = notes.filter((n) => n.id !== noteId);
 		setupAutoSave();
 	}
 
@@ -563,7 +570,7 @@
 			uiStore.showNotification({
 				type: 'error',
 				title: $t('common.error'),
-				message: err.message || 'Failed to load lesson'
+				message: err.message || $t('learn.loadLessonFailed')
 			});
 		}
 	}
@@ -577,7 +584,7 @@
 				uiStore.showNotification({
 					type: 'info',
 					title: $t('course.navigation'),
-					message: 'This is the first lesson'
+					message: $t('learn.firstLesson')
 				});
 			}
 		} catch (error) {
@@ -594,7 +601,7 @@
 				uiStore.showNotification({
 					type: 'info',
 					title: $t('course.navigation'),
-					message: 'This is the last lesson'
+					message: $t('learn.lastLesson')
 				});
 			}
 		} catch (error) {
@@ -644,34 +651,46 @@
 
 	let filteredNotes = $derived.by(() => {
 		if (!Array.isArray(notes)) return [];
-		
+
 		if (!noteSearchQuery || !noteSearchQuery.trim()) {
 			return notes;
 		}
-		
+
 		const query = noteSearchQuery.toLowerCase();
-		return notes.filter(note => {
+		return notes.filter((note) => {
 			if (!note) return false;
-			
+
 			const contentMatch = note.content && note.content.toLowerCase().includes(query);
 			const titleMatch = note.lessonTitle && note.lessonTitle.toLowerCase().includes(query);
-			
+
 			return contentMatch || titleMatch;
 		});
 	});
 </script>
 
 <svelte:head>
-	<title>{currentLesson?.title || $t('course.loading')} - {course?.title || 'Course'} - {APP_NAME}</title>
-	<meta name="description" content="Continue your learning journey with {course?.title || 'this course'} on {APP_NAME}" />
+	<title
+		>{$t('learn.pageTitle', {
+			lesson: currentLesson?.title || $t('course.loading'),
+			course: course?.title || $t('learn.course')
+		})}</title
+	>
+	<meta
+		name="description"
+		content={$t('learn.metaDescription', { course: course?.title || $t('learn.thisCourse') })}
+	/>
 </svelte:head>
 
 <!-- Loading State -->
 {#if loading}
-	<div class="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900" in:fade>
+	<div class="flex h-dvh items-center justify-center bg-gray-50 dark:bg-gray-900" in:fade>
 		<div class="text-center">
-			<div class="mx-auto mb-6 h-16 w-16 animate-spin rounded-full border-4 border-primary-600 border-t-transparent"></div>
-			<h3 class="mb-2 text-xl font-semibold text-gray-900 dark:text-white">{$t('course.loading')}</h3>
+			<div
+				class="border-primary-600 mx-auto mb-6 h-16 w-16 animate-spin rounded-full border-4 border-t-transparent"
+			></div>
+			<h3 class="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
+				{$t('course.loading')}
+			</h3>
 			<p class="text-gray-600 dark:text-gray-400">{$t('course.preparingExperience')}</p>
 		</div>
 	</div>
@@ -679,18 +698,32 @@
 
 <!-- Error State -->
 {#if error && !loading}
-	<div class="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900" in:fade>
+	<div class="flex h-dvh items-center justify-center bg-gray-50 dark:bg-gray-900" in:fade>
 		<div class="text-center">
 			<div class="mx-auto mb-6 rounded-full bg-red-100 p-6 dark:bg-red-900/30">
-				<svg class="h-16 w-16 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+				<svg
+					class="h-16 w-16 text-red-600 dark:text-red-400"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+					></path>
 				</svg>
 			</div>
-			<h3 class="mb-2 text-xl font-semibold text-gray-900 dark:text-white">{$t('course.somethingWentWrong')}</h3>
+			<h3 class="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
+				{$t('course.somethingWentWrong')}
+			</h3>
 			<p class="mb-6 text-gray-600 dark:text-gray-400">{error}</p>
-			<div class="flex gap-4 justify-center">
-				<Button onclick={() => window.location.reload()} variant="primary">{$t('course.tryAgain')}</Button>
-				<Button href="/my-courses" variant="outline">My Courses</Button>
+			<div class="flex justify-center gap-4">
+				<Button onclick={() => window.location.reload()} variant="primary"
+					>{$t('course.tryAgain')}</Button
+				>
+				<Button href="/my-courses" variant="outline">{$t('learn.myCourses')}</Button>
 			</div>
 		</div>
 	</div>
@@ -698,21 +731,33 @@
 
 <!-- No Content State -->
 {#if !loading && !error && course && (!course.modules || course.modules.length === 0 || lessons.length === 0)}
-	<div class="flex h-screen items-center justify-center bg-gray-50 dark:bg-gray-900" in:fade>
-		<div class="text-center max-w-md">
-			<div class="mx-auto mb-6 rounded-full bg-blue-100 p-6 dark:bg-blue-900/30">
-				<svg class="h-16 w-16 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+	<div class="flex h-dvh items-center justify-center bg-gray-50 dark:bg-gray-900" in:fade>
+		<div class="max-w-md text-center">
+			<div class="bg-primary-100 dark:bg-primary-900/30 mx-auto mb-6 w-fit rounded-full p-6">
+				<svg
+					class="text-primary-600 dark:text-primary-400 h-16 w-16"
+					fill="none"
+					stroke="currentColor"
+					viewBox="0 0 24 24"
+				>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+					></path>
 				</svg>
 			</div>
-			<h3 class="mb-2 text-xl font-semibold text-gray-900 dark:text-white">Course Content Coming Soon</h3>
+			<h3 class="mb-2 text-xl font-semibold text-gray-900 dark:text-white">
+				{$t('learn.comingSoon')}
+			</h3>
 			<p class="mb-6 text-gray-600 dark:text-gray-400">
-				The instructor is still preparing the lessons for "{course.title}". 
-				Please check back later or contact support if you think this is an error.
+				The instructor is still preparing the lessons for "{course.title}". Please check back later
+				or contact support if you think this is an error.
 			</p>
-			<div class="flex gap-4 justify-center">
-				<Button href="/courses" variant="primary">Browse Other Courses</Button>
-				<Button href={`/courses/${courseId}`} variant="outline">Course Details</Button>
+			<div class="flex justify-center gap-4">
+				<Button href="/courses" variant="primary">{$t('learn.browseOther')}</Button>
+				<Button href={`/courses/${courseId}`} variant="outline">{$t('learn.courseDetails')}</Button>
 			</div>
 		</div>
 	</div>
@@ -720,37 +765,41 @@
 
 <!-- Main Learning Interface -->
 {#if !loading && !error && currentLesson}
-	<div class="flex h-screen bg-gray-50 dark:bg-gray-900" in:fade>
-		
+	<div class="flex h-dvh bg-gray-50 dark:bg-gray-900" in:fade>
 		<!-- Enhanced Sidebar -->
-		<div class={classNames(
-			'transition-all duration-300 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800',
-			sidebar.collapsed ? 'w-16' : 'w-80',
-			isMobile && 'absolute z-50 h-full shadow-xl',
-			isMobile && !sidebar.mobileMenuOpen && '-translate-x-full'
-		)}>
-			
+		<div
+			class={classNames(
+				'border-r border-gray-200 bg-white transition-all duration-300 dark:border-gray-700 dark:bg-gray-800',
+				sidebar.collapsed ? 'w-16' : 'w-80',
+				isMobile && 'absolute z-50 h-full shadow-xl',
+				isMobile && !sidebar.mobileMenuOpen && '-translate-x-full'
+			)}
+		>
 			<!-- Sidebar Header -->
-			<div class="flex h-16 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-700">
+			<div
+				class="flex h-16 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-700"
+			>
 				{#if !sidebar.collapsed}
 					<div>
-						<h2 class="font-semibold text-gray-900 dark:text-white truncate">
-							{course?.title || 'Course'}
+						<h2 class="truncate font-semibold text-gray-900 dark:text-white">
+							{course?.title || $t('learn.course')}
 						</h2>
-						<div class="text-xs text-gray-500 dark:text-gray-400">
-							Student Learning Mode
-						</div>
+						<div class="text-xs text-gray-500 dark:text-gray-400">{$t('learn.studentMode')}</div>
 					</div>
 				{/if}
-				
+
 				<button
-					onclick={() => sidebar.collapsed = !sidebar.collapsed}
+					onclick={() => (sidebar.collapsed = !sidebar.collapsed)}
 					class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
-					aria-label={sidebar.collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+					aria-label={sidebar.collapsed ? $t('learn.expandSidebar') : $t('learn.collapseSidebar')}
 				>
 					<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-							d={sidebar.collapsed ? "M13 5l7 7-7 7M5 5l7 7-7 7" : "M11 19l-7-7 7-7m8 14l-7-7 7-7"}></path>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d={sidebar.collapsed ? 'M13 5l7 7-7 7M5 5l7 7-7 7' : 'M11 19l-7-7 7-7m8 14l-7-7 7-7'}
+						></path>
 					</svg>
 				</button>
 			</div>
@@ -758,18 +807,13 @@
 			{#if !sidebar.collapsed}
 				<!-- Sidebar Tabs -->
 				<div class="flex border-b border-gray-200 dark:border-gray-700">
-					{#each [
-						{ id: 'overview', label: $t('course.overview'), icon: '📊' },
-						{ id: 'lessons', label: $t('course.lessons'), icon: '📚' },
-						{ id: 'notes', label: $t('course.notes'), icon: '📝' },
-						{ id: 'progress', label: 'Progress', icon: '📈' }
-					] as tab}
+					{#each [{ id: 'overview', label: $t('course.overview'), icon: '📊' }, { id: 'lessons', label: $t('course.lessons'), icon: '📚' }, { id: 'notes', label: $t('course.notes'), icon: '📝' }, { id: 'progress', label: 'Progress', icon: '📈' }] as tab}
 						<button
-							onclick={() => sidebar.activeTab = tab.id}
+							onclick={() => (sidebar.activeTab = tab.id)}
 							class={classNames(
 								'flex-1 px-3 py-2 text-sm font-medium transition-colors',
-								sidebar.activeTab === tab.id 
-									? 'border-b-2 border-primary-600 text-primary-600 dark:text-primary-400'
+								sidebar.activeTab === tab.id
+									? 'border-primary-600 text-primary-600 dark:text-primary-400 border-b-2'
 									: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
 							)}
 						>
@@ -785,7 +829,9 @@
 						<!-- Course Overview -->
 						<div class="space-y-4">
 							<div>
-								<h3 class="mb-2 font-medium text-gray-900 dark:text-white">{$t('course.progress')} Overview</h3>
+								<h3 class="mb-2 font-medium text-gray-900 dark:text-white">
+									{$t('course.progress')} Overview
+								</h3>
 								<CourseProgress progress={progressValue} showLabel={true} size="large" />
 								<div class="mt-2 grid grid-cols-2 gap-2 text-sm">
 									<div class="text-center">
@@ -793,14 +839,16 @@
 										<div class="text-gray-500">{$t('course.completed')}</div>
 									</div>
 									<div class="text-center">
-										<div class="font-semibold text-blue-600">{Math.max(0, totalLessonsCount - completedLessonsCount)}</div>
+										<div class="text-primary-600 font-semibold">
+											{Math.max(0, totalLessonsCount - completedLessonsCount)}
+										</div>
 										<div class="text-gray-500">{$t('course.remaining')}</div>
 									</div>
 								</div>
 							</div>
 
 							<!-- Back to Course -->
-							<div class="pt-4 border-t border-gray-200 dark:border-gray-700">
+							<div class="border-t border-gray-200 pt-4 dark:border-gray-700">
 								<Button
 									href={`/courses/${courseId}`}
 									variant="outline"
@@ -809,13 +857,17 @@
 									class="justify-start"
 								>
 									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M15 19l-7-7 7-7"
+										></path>
 									</svg>
-									<span class="ml-2">Back to Course Details</span>
+									<span class="ml-2">{$t('learn.backToCourseDetails')}</span>
 								</Button>
 							</div>
 						</div>
-
 					{:else if sidebar.activeTab === 'lessons'}
 						<!-- Lesson List -->
 						{#if course?.modules}
@@ -826,7 +878,6 @@
 								isEnrolled={!!enrollment}
 							/>
 						{/if}
-
 					{:else if sidebar.activeTab === 'notes'}
 						<!-- Note-taking Interface -->
 						<NotesSection
@@ -840,66 +891,93 @@
 							onAddNote={addNote}
 							onDeleteNote={deleteNote}
 						/>
-
 					{:else if sidebar.activeTab === 'progress'}
 						<!-- Learning Progress -->
 						<div class="space-y-4">
-							<h3 class="font-medium text-gray-900 dark:text-white">Your Learning Progress</h3>
-							
-							<div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
-								<div class="text-2xl font-bold text-blue-600 dark:text-blue-400">
+							<h3 class="font-medium text-gray-900 dark:text-white">
+								{$t('learn.yourLearningProgress')}
+							</h3>
+
+							<div class="bg-primary-50 dark:bg-primary-900/20 rounded-lg p-3">
+								<div class="text-primary-600 dark:text-primary-400 text-2xl font-bold">
 									{progressValue || 0}%
 								</div>
-								<div class="text-sm text-blue-800 dark:text-blue-200">Course Completion</div>
+								<div class="text-primary-800 dark:text-primary-200 text-sm">
+									{$t('learn.courseCompletion')}
+								</div>
 							</div>
 
 							<div class="grid grid-cols-2 gap-2">
 								<div class="rounded-lg bg-green-50 p-3 dark:bg-green-900/20">
 									<div class="text-lg font-bold text-green-600 dark:text-green-400">
-										{formatters.duration(analytics.sessionStartTime ? (Date.now() - analytics.sessionStartTime) / 1000 : 0)}
+										{formatters.duration(
+											analytics.sessionStartTime
+												? (Date.now() - analytics.sessionStartTime) / 1000
+												: 0
+										)}
 									</div>
-									<div class="text-xs text-green-800 dark:text-green-200">Session Time</div>
+									<div class="text-xs text-green-800 dark:text-green-200">
+										{$t('learn.sessionTime')}
+									</div>
 								</div>
-								<div class="rounded-lg bg-purple-50 p-3 dark:bg-purple-900/20">
-									<div class="text-lg font-bold text-purple-600 dark:text-purple-400">
+								<div class="bg-secondary-50 dark:bg-secondary-900/20 rounded-lg p-3">
+									<div class="text-secondary-600 dark:text-secondary-400 text-lg font-bold">
 										{analytics.interactionCount}
 									</div>
-									<div class="text-xs text-purple-800 dark:text-purple-200">Interactions</div>
+									<div class="text-secondary-800 dark:text-secondary-200 text-xs">
+										{$t('learn.interactions')}
+									</div>
 								</div>
 							</div>
 
 							<div class="space-y-2">
-								<div class="text-sm font-medium">Lesson Progress</div>
+								<div class="text-sm font-medium">{$t('learn.lessonProgress')}</div>
 								<div class="text-xs text-gray-600 dark:text-gray-400">
-									Lesson {Math.max(1, currentLessonIndex + 1)} of {totalLessonsCount}
+									{$t('learn.lesson')}
+									{$t('learn.lessonOf', {
+										current: Math.max(1, currentLessonIndex + 1),
+										total: totalLessonsCount
+									})}
 								</div>
-								<div class="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
-									<div 
-										class="bg-gradient-to-r from-primary-500 to-secondary-500 h-2 rounded-full transition-all duration-300" 
-										style="width: {totalLessonsCount > 0 ? ((currentLessonIndex + 1) / totalLessonsCount) * 100 : 0}%"
+
+								<div class="h-2 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+									<div
+										class="from-primary-500 to-secondary-500 h-2 rounded-full bg-gradient-to-r transition-all duration-300"
+										style="width: {totalLessonsCount > 0
+											? ((currentLessonIndex + 1) / totalLessonsCount) * 100
+											: 0}%"
 									></div>
 								</div>
 							</div>
 
 							<!-- Certificate Progress -->
 							{#if progressValue >= 100}
-								<div class="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
+								<div class="rounded-lg bg-yellow-50 p-4 dark:bg-yellow-900/20">
 									<div class="flex items-center">
-										<svg class="h-8 w-8 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+										<svg
+											class="h-8 w-8 text-yellow-600 dark:text-yellow-400"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"
+											></path>
 										</svg>
 										<div class="ml-3">
-											<h4 class="font-semibold text-yellow-800 dark:text-yellow-200">Course Completed!</h4>
-											<p class="text-sm text-yellow-600 dark:text-yellow-300">Your certificate is ready</p>
+											<h4 class="font-semibold text-yellow-800 dark:text-yellow-200">
+												{$t('learn.courseCompleted')}
+											</h4>
+											<p class="text-sm text-yellow-600 dark:text-yellow-300">
+												{$t('learn.certificateReady')}
+											</p>
 										</div>
 									</div>
-									<Button
-										href="/certificates"
-										variant="primary"
-										size="small"
-										class="mt-3 w-full"
-									>
-										View Certificate
+									<Button href="/certificates" variant="primary" size="small" class="mt-3 w-full">
+										{$t('learn.viewCertificate')}
 									</Button>
 								</div>
 							{/if}
@@ -910,55 +988,79 @@
 		</div>
 
 		<!-- Main Content -->
-		<div class="flex flex-1 flex-col">
+		<div class="flex min-w-0 flex-1 flex-col">
 			<!-- Top Bar -->
-			<div class="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6 dark:border-gray-700 dark:bg-gray-800">
+			<div
+				class="flex h-16 items-center justify-between gap-3 border-b border-gray-200 bg-white px-4 sm:px-6 dark:border-gray-700 dark:bg-gray-800"
+			>
 				{#if isMobile}
 					<button
-						onclick={() => sidebar.mobileMenuOpen = !sidebar.mobileMenuOpen}
+						onclick={() => (sidebar.mobileMenuOpen = !sidebar.mobileMenuOpen)}
 						class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
 					>
 						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M4 6h16M4 12h16M4 18h16"
+							></path>
 						</svg>
 					</button>
 				{/if}
 
-				<div class="flex-1">
-					<div class="flex items-center gap-3">
-						<h1 class="text-lg font-semibold text-gray-900 dark:text-white truncate">
+				<div class="min-w-0 flex-1">
+					<div class="flex min-w-0 items-center gap-3">
+						<h1 class="truncate text-lg font-semibold text-gray-900 dark:text-white">
 							{currentLesson.title}
 						</h1>
-						<Badge variant="info" size="small">
-							{Math.max(1, currentLessonIndex + 1)} of {totalLessonsCount}
+						<Badge variant="info" size="small" class="hidden sm:inline-flex">
+							{$t('learn.lessonOf', {
+								current: Math.max(1, currentLessonIndex + 1),
+								total: totalLessonsCount
+							})}
 						</Badge>
 						{#if currentLesson.is_completed}
-							<Badge variant="success" size="small">
+							<Badge variant="success" size="small" class="hidden sm:inline-flex">
 								<svg class="mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M5 13l4 4L19 7"
+									></path>
 								</svg>
 								{$t('course.completed')}
 							</Badge>
 						{/if}
 					</div>
 					<div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-						{currentLesson.moduleTitle || 'Module'} • {formatters.duration((currentLesson.estimated_time_minutes || 0) * 60)}
+						{currentLesson.moduleTitle || $t('learn.module')} • {formatters.duration(
+							(currentLesson.estimated_time_minutes || 0) * 60
+						)}
 					</div>
 				</div>
 
 				<div class="flex items-center gap-2">
 					<Button
-						onclick={() => showKeyboardShortcuts = true}
+						onclick={() => (showKeyboardShortcuts = true)}
 						variant="ghost"
 						size="small"
+						class="hidden sm:inline-flex"
+						aria-label={$t('learn.keyboardShortcuts')}
 					>
 						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+							></path>
 						</svg>
 					</Button>
-					
-					<div class="text-sm text-gray-500 dark:text-gray-400">
-						{progressValue}% Complete
+
+					<div class="text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">
+						{progressValue}%<span class="hidden sm:inline"> {$t('learn.complete')}</span>
 					</div>
 				</div>
 			</div>
@@ -971,12 +1073,17 @@
 						<Card variant="bordered" class="overflow-hidden shadow-lg">
 							<div class="-m-6">
 								{#if currentLesson.content_type === 'video' && currentLesson.video_url}
-									<div class="relative w-full bg-black" style="max-height: calc(100vh - 300px); min-height: 400px;">
-										<div class="aspect-video w-full h-full max-h-full flex items-center justify-center">
+									<div
+										class="relative w-full bg-black"
+										style="max-height: calc(100vh - 300px); min-height: 400px;"
+									>
+										<div
+											class="flex aspect-video h-full max-h-full w-full items-center justify-center"
+										>
 											<YouTubePlayer
 												videoId={currentLesson.video_url}
 												onProgress={handleVideoProgress}
-												class="h-full w-full [&_iframe]:object-contain [&_iframe]:w-full [&_iframe]:h-full"
+												class="h-full w-full [&_iframe]:h-full [&_iframe]:w-full [&_iframe]:object-contain"
 											/>
 										</div>
 									</div>
@@ -989,14 +1096,26 @@
 										/>
 									</div>
 								{:else if currentLesson.content_type === 'text' && currentLesson.text_content}
-									<div class="prose prose-lg dark:prose-invert max-w-none p-6 max-h-96 overflow-y-auto">
+									<div
+										class="prose prose-lg dark:prose-invert max-h-96 max-w-none overflow-y-auto p-6"
+									>
 										{@html currentLesson.text_content}
 									</div>
 								{:else}
 									<div class="flex h-96 items-center justify-center bg-gray-100 dark:bg-gray-800">
 										<div class="text-center text-gray-500 dark:text-gray-400">
-											<svg class="mx-auto mb-4 h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+											<svg
+												class="mx-auto mb-4 h-16 w-16"
+												fill="none"
+												stroke="currentColor"
+												viewBox="0 0 24 24"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													stroke-width="2"
+													d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+												></path>
 											</svg>
 											<p>{$t('course.contentNotAvailable')}</p>
 										</div>
@@ -1007,8 +1126,14 @@
 					</div>
 
 					<!-- Lesson Controls -->
-					<div class="mb-6 lg:fixed lg:bottom-6 lg:left-1/2 lg:transform lg:-translate-x-1/2 lg:z-40" style="lg:max-width: calc(100vw - 400px);">
-						<Card variant="bordered" class="bg-white/95 backdrop-blur-sm shadow-md dark:bg-gray-800/95 lg:shadow-2xl mx-auto max-w-4xl">
+					<div
+						class="mb-6 lg:fixed lg:bottom-6 lg:left-1/2 lg:z-40 lg:-translate-x-1/2 lg:transform"
+						style="lg:max-width: calc(100vw - 400px);"
+					>
+						<Card
+							variant="bordered"
+							class="mx-auto max-w-4xl bg-white/95 shadow-md backdrop-blur-sm lg:shadow-2xl dark:bg-gray-800/95"
+						>
 							<div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
 								<div class="flex flex-wrap items-center gap-4">
 									{#if !currentLesson.is_completed}
@@ -1023,8 +1148,18 @@
 										</Button>
 									{:else}
 										<Badge variant="success" size="large">
-											<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+											<svg
+												class="mr-2 h-4 w-4"
+												fill="none"
+												stroke="currentColor"
+												viewBox="0 0 24 24"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													stroke-width="2"
+													d="M5 13l4 4L19 7"
+												></path>
 											</svg>
 											{$t('course.completed')}
 										</Badge>
@@ -1032,8 +1167,10 @@
 
 									{#if videoProgress.duration > 0}
 										<div class="text-sm text-gray-600 dark:text-gray-400">
-											Video: {Math.round(videoProgress.progress)}% • 
-											{formatters.duration(videoProgress.currentTime)} / {formatters.duration(videoProgress.duration)}
+											Video: {Math.round(videoProgress.progress)}% •
+											{formatters.duration(videoProgress.currentTime)} / {formatters.duration(
+												videoProgress.duration
+											)}
 										</div>
 									{/if}
 								</div>
@@ -1046,7 +1183,12 @@
 										disabled={!previousLesson}
 									>
 										<svg class="mr-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M15 19l-7-7 7-7"
+											></path>
 										</svg>
 										{$t('course.previous')}
 									</Button>
@@ -1059,7 +1201,12 @@
 									>
 										{$t('course.next')}
 										<svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M9 5l7 7-7 7"
+											></path>
 										</svg>
 									</Button>
 								</div>
@@ -1075,9 +1222,19 @@
 						<div class="mb-6 lg:mb-32">
 							<Card variant="bordered" class="shadow-md">
 								<div class="flex items-start gap-4">
-									<div class="rounded-lg bg-blue-100 p-3 dark:bg-blue-900/30">
-										<svg class="h-6 w-6 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+									<div class="bg-primary-100 dark:bg-primary-900/30 rounded-lg p-3">
+										<svg
+											class="text-primary-600 dark:text-primary-400 h-6 w-6"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+											></path>
 										</svg>
 									</div>
 									<div class="flex-1">
@@ -1100,22 +1257,21 @@
 
 <!-- Keyboard Shortcuts Modal -->
 {#if showKeyboardShortcuts}
-	<Modal isOpen={showKeyboardShortcuts} onClose={() => showKeyboardShortcuts = false}>
-		<div class="p-6">
-			<h2 class="mb-6 text-xl font-bold text-gray-900 dark:text-white">{$t('course.showShortcuts')}</h2>
-			
+	<Modal
+		open={showKeyboardShortcuts}
+		title={$t('course.showShortcuts')}
+		onClose={() => (showKeyboardShortcuts = false)}
+	>
+		<div>
 			<div class="space-y-4">
-				{#each [
-					{ keys: ['←'], description: $t('shortcuts.previousLesson') },
-					{ keys: ['→'], description: $t('shortcuts.nextLesson') },
-					{ keys: ['?'], description: $t('shortcuts.showShortcuts') },
-					{ keys: ['Esc'], description: $t('shortcuts.closeModal') }
-				] as shortcut}
+				{#each [{ keys: ['←'], description: $t('shortcuts.previousLesson') }, { keys: ['→'], description: $t('shortcuts.nextLesson') }, { keys: ['?'], description: $t('shortcuts.showShortcuts') }, { keys: ['Esc'], description: $t('shortcuts.closeModal') }] as shortcut}
 					<div class="flex items-center justify-between">
 						<span class="text-gray-900 dark:text-white">{shortcut.description}</span>
 						<div class="flex gap-1">
 							{#each shortcut.keys as key}
-								<kbd class="rounded bg-gray-100 px-2 py-1 text-xs font-mono text-gray-700 dark:bg-gray-700 dark:text-gray-300">
+								<kbd
+									class="rounded bg-gray-100 px-2 py-1 font-mono text-xs text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+								>
 									{key}
 								</kbd>
 							{/each}
@@ -1129,11 +1285,11 @@
 
 <!-- Mobile Sidebar Overlay -->
 {#if isMobile && sidebar.mobileMenuOpen}
-	<button 
+	<button
 		class="fixed inset-0 z-40 bg-black/50"
-		onclick={() => sidebar.mobileMenuOpen = false}
+		onclick={() => (sidebar.mobileMenuOpen = false)}
 		onkeydown={(e) => e.key === 'Enter' && (sidebar.mobileMenuOpen = false)}
 		transition:fade
-		aria-label="Close mobile menu"
+		aria-label={$t('learn.closeMobileMenu')}
 	></button>
 {/if}

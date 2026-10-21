@@ -1,5 +1,5 @@
 // front/src/lib/utils/helpers.js
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 
 export function debounce(func, wait) {
 	let timeout;
@@ -26,6 +26,16 @@ export function throttle(func, limit) {
 
 export function deepClone(obj) {
 	return JSON.parse(JSON.stringify(obj));
+}
+
+// URL slugs the API accepts (a-z, 0-9, dashes). Titles without Latin letters
+// (e.g. Arabic) would produce an empty slug, so fall back to a short unique one.
+export function slugify(text, fallbackPrefix = 'item') {
+	const slug = (text || '')
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '');
+	return slug || `${fallbackPrefix}-${Date.now().toString(36)}`;
 }
 
 export function getInitials(name) {
@@ -213,14 +223,14 @@ export function validateUUID(value, fieldName = 'UUID') {
 	if (!value) {
 		return { isValid: false, error: `${fieldName} is required` };
 	}
-	
+
 	if (!isValidUUID(value)) {
-		return { 
-			isValid: false, 
-			error: `Invalid ${fieldName} format. Expected format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` 
+		return {
+			isValid: false,
+			error: `Invalid ${fieldName} format. Expected format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
 		};
 	}
-	
+
 	return { isValid: true, value: normalizeUUID(value) };
 }
 

@@ -69,7 +69,11 @@ export const authApi = {
 
 	async refreshToken(refreshToken) {
 		try {
-			return await api.post('/api/accounts/refresh/', { refresh: refreshToken }, { skipAuth: true });
+			return await api.post(
+				'/api/accounts/refresh/',
+				{ refresh: refreshToken },
+				{ skipAuth: true }
+			);
 		} catch (error) {
 			console.error('Failed to refresh token:', error);
 			throw error;

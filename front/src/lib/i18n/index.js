@@ -1,6 +1,6 @@
 // front/src/lib/i18n/index.js
 import { derived, writable } from 'svelte/store';
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 import en from './en.js';
 import ar from './ar.js';
 import { languages, defaultLanguage } from './config.js';

@@ -1,5 +1,5 @@
 // front/src/lib/apis/index.js
-import { browser } from '$app/environment';
+import { browser } from '$app/env';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
@@ -46,7 +46,7 @@ class ApiClient {
 				const response = await fetch(`${this.baseURL}/api/accounts/refresh/`, {
 					method: 'POST',
 					headers: {
-						'Content-Type': 'application/json',
+						'Content-Type': 'application/json'
 					},
 					body: JSON.stringify({ refresh: refreshToken })
 				});
@@ -56,16 +56,16 @@ class ApiClient {
 				}
 
 				const data = await response.json();
-				
+
 				// Handle standardized response format
 				const tokenData = data.data || data;
 				const newAccessToken = tokenData.access;
-				
+
 				if (newAccessToken) {
 					this.setTokens(newAccessToken, refreshToken);
 					return newAccessToken;
 				}
-				
+
 				throw new Error('No access token in refresh response');
 			} finally {
 				this.refreshPromise = null;
@@ -78,10 +78,10 @@ class ApiClient {
 	async request(endpoint, options = {}) {
 		const baseURL = this.baseURL || 'http://localhost:8000';
 		const cleanEndpoint = String(endpoint || '').trim();
-		
+
 		// Construct URL properly
 		const url = `${baseURL}${cleanEndpoint.startsWith('/') ? cleanEndpoint : '/' + cleanEndpoint}`;
-		
+
 		const token = this.getToken();
 
 		const config = {
@@ -99,7 +99,7 @@ class ApiClient {
 
 		try {
 			const response = await fetch(url, config);
-			
+
 			// Handle 401 with token refresh
 			if (response.status === 401 && !options.skipAuth && !options._isRetry) {
 				try {
@@ -116,7 +116,7 @@ class ApiClient {
 					throw new Error('Authentication failed');
 				}
 			}
-			
+
 			if (!response.ok) {
 				let errorData;
 				try {
@@ -124,10 +124,10 @@ class ApiClient {
 				} catch (jsonError) {
 					errorData = { message: `HTTP ${response.status} ${response.statusText}` };
 				}
-				
+
 				// Handle standardized error response
 				let errorMessage = `HTTP ${response.status}`;
-				
+
 				// Handle UUID validation errors specifically
 				if (response.status === 404 && errorData.message?.includes('UUID')) {
 					errorMessage = errorData.message || 'Invalid UUID format';
@@ -140,7 +140,7 @@ class ApiClient {
 				} else if (errorData.detail) {
 					errorMessage = errorData.detail;
 				}
-				
+
 				const error = new Error(errorMessage);
 				error.status = response.status;
 				error.data = errorData;
@@ -149,12 +149,12 @@ class ApiClient {
 			}
 
 			const data = await response.json();
-			
+
 			// Handle standardized success response format
 			if (data.success !== undefined || data.status === 'success') {
 				return data.data || data;
 			}
-			
+
 			// Fallback for direct data responses
 			return data;
 		} catch (error) {
@@ -163,7 +163,7 @@ class ApiClient {
 				networkError.isNetworkError = true;
 				throw networkError;
 			}
-			
+
 			// Don't log 401 errors during token refresh
 			if (error.status !== 401 || options._isRetry) {
 				console.error('API Error:', {

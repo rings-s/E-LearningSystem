@@ -1,7 +1,8 @@
-import { build, files, version } from '$service-worker';
+import { version } from '$app/env';
+import { immutable, assets } from '$app/manifest';
 
 const CACHE = `cache-${version}`;
-const ASSETS = [...build, ...files];
+const ASSETS = [...immutable, ...assets].map((file) => file.path);
 
 self.addEventListener('install', (event) => {
 	event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));

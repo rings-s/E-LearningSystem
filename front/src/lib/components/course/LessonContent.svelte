@@ -1,13 +1,14 @@
 <!-- front/src/lib/components/course/LessonContent.svelte -->
 <script>
+	import { t } from '#lib/i18n/index.js';
 	import { onMount } from 'svelte';
-	import { courseStore } from '$lib/stores/course.store.js';
-	import { classNames } from '$lib/utils/helpers.js';
+	import { courseStore } from '#lib/stores/course.store.js';
+	import { classNames } from '#lib/utils/helpers.js';
 	import VideoPlayer from './VideoPlayer.svelte';
-	import Button from '$lib/components/common/Button.svelte';
-	import Card from '$lib/components/common/Card.svelte';
-	import Badge from '$lib/components/common/Badge.svelte';
-	import { formatters } from '$lib/utils/formatters.js';
+	import Button from '#lib/components/common/Button.svelte';
+	import Card from '#lib/components/common/Card.svelte';
+	import Badge from '#lib/components/common/Badge.svelte';
+	import { formatters } from '#lib/utils/formatters.js';
 
 	let {
 		lesson = null,
@@ -65,7 +66,7 @@
 			<div class="mb-2 flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
 				<span>{lesson.module.title}</span>
 				<span>/</span>
-				<span>Lesson {lesson.order}</span>
+				<span>{$t('learn.lesson')} {lesson.order}</span>
 			</div>
 			<h1 class="text-2xl font-bold text-gray-900 dark:text-white">
 				{lesson.title}
@@ -83,7 +84,7 @@
 							d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
 						/>
 					</svg>
-					Completed
+					{$t('learn.completed')}
 				</Badge>
 			{/if}
 
@@ -123,14 +124,14 @@
 				</Card>
 			{:else if lesson.content_type === 'slides'}
 				<Card>
-					<p class="text-gray-500 dark:text-gray-400">Slides viewer not implemented yet</p>
+					<p class="text-gray-500 dark:text-gray-400">{$t('learn.slidesUnavailable')}</p>
 				</Card>
 			{/if}
 
 			<!-- Description -->
 			{#if lesson.description}
 				<Card>
-					<h3 class="mb-3 text-lg font-semibold">About this lesson</h3>
+					<h3 class="mb-3 text-lg font-semibold">{$t('learn.aboutLesson')}</h3>
 					<p class="text-gray-600 dark:text-gray-400">
 						{lesson.description}
 					</p>
@@ -140,7 +141,7 @@
 			<!-- Resources -->
 			{#if lesson.resources?.length > 0}
 				<Card>
-					<h3 class="mb-4 text-lg font-semibold">Resources</h3>
+					<h3 class="mb-4 text-lg font-semibold">{$t('learn.resources')}</h3>
 					<div class="space-y-3">
 						{#each lesson.resources as resource}
 							<a
@@ -200,11 +201,11 @@
 		<div class="space-y-6">
 			<!-- Progress Card -->
 			<Card>
-				<h3 class="mb-4 text-lg font-semibold">Your Progress</h3>
+				<h3 class="mb-4 text-lg font-semibold">{$t('learn.yourProgress')}</h3>
 				<div class="space-y-4">
 					<div>
 						<div class="mb-2 flex justify-between text-sm">
-							<span class="text-gray-600 dark:text-gray-400">Course Progress</span>
+							<span class="text-gray-600 dark:text-gray-400">{$t('learn.courseProgress')}</span>
 							<span class="font-medium">{enrollment?.progress_percentage || 0}%</span>
 						</div>
 						<div class="h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
@@ -216,7 +217,9 @@
 					</div>
 
 					{#if !isCompleted}
-						<Button onclick={handleComplete} variant="primary" fullWidth>Mark as Complete</Button>
+						<Button onclick={handleComplete} variant="primary" fullWidth
+							>{$t('learn.markComplete')}</Button
+						>
 					{/if}
 				</div>
 			</Card>
@@ -224,12 +227,12 @@
 			<!-- Notes -->
 			<Card>
 				<div class="mb-4 flex items-center justify-between">
-					<h3 class="text-lg font-semibold">Notes</h3>
+					<h3 class="text-lg font-semibold">{$t('learn.notes')}</h3>
 					<button
 						onclick={() => (showNotes = !showNotes)}
 						class="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 text-sm"
 					>
-						{showNotes ? 'Hide' : 'Show'}
+						{showNotes ? $t('learn.hide') : $t('learn.show')}
 					</button>
 				</div>
 
@@ -237,7 +240,7 @@
 					<div class="space-y-3">
 						<textarea
 							bind:value={notes}
-							placeholder="Take notes here..."
+							placeholder={$t('learn.takeNotesHere')}
 							class="focus:ring-primary-500 focus:border-primary-500 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 							rows="4"
 						/>
@@ -248,7 +251,7 @@
 							fullWidth
 							disabled={!notes.trim()}
 						>
-							Save Note
+							{$t('learn.saveNote')}
 						</Button>
 					</div>
 				{/if}
@@ -256,7 +259,7 @@
 
 			<!-- Navigation -->
 			<Card>
-				<h3 class="mb-4 text-lg font-semibold">Navigation</h3>
+				<h3 class="mb-4 text-lg font-semibold">{$t('learn.navigation')}</h3>
 				<div class="space-y-2">
 					<Button onclick={onPrevious} variant="outline" fullWidth disabled={!hasPrevious}>
 						<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -267,11 +270,11 @@
 								d="M15 19l-7-7 7-7"
 							/>
 						</svg>
-						Previous Lesson
+						{$t('learn.previousLesson')}
 					</Button>
 
 					<Button onclick={onNext} variant="primary" fullWidth disabled={!hasNext}>
-						Next Lesson
+						{$t('learn.nextLesson')}
 						<svg class="ml-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path
 								stroke-linecap="round"

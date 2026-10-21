@@ -1,28 +1,27 @@
-<!-- front/src/routes/(app)/teacher/courses/[uuid]/analytics/+page.svelte -->
 <script>
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { onMount, onDestroy } from 'svelte';
 	import { fade, fly, slide } from 'svelte/transition';
-	import { coursesApi } from '$lib/apis/courses.js';
-	import { coreApi } from '$lib/apis/core.js';
-	import { analyticsService } from '$lib/services/analytics.js';
-	import { currentUser } from '$lib/stores/auth.store.js';
-	import { uiStore } from '$lib/stores/ui.store.js';
-	import { t, locale } from '$lib/i18n/index.js';
-	import { formatters } from '$lib/utils/formatters.js';
-	import { debounce } from '$lib/utils/helpers.js';
+	import { coursesApi } from '#lib/apis/courses.js';
+	import { coreApi } from '#lib/apis/core.js';
+	import { analyticsService } from '#lib/services/analytics.js';
+	import { currentUser } from '#lib/stores/auth.store.js';
+	import { uiStore } from '#lib/stores/ui.store.js';
+	import { t, locale } from '#lib/i18n/index.js';
+	import { formatters } from '#lib/utils/formatters.js';
+	import { debounce } from '#lib/utils/helpers.js';
 
 	// Components
-	import Card from '$lib/components/common/Card.svelte';
-	import Button from '$lib/components/common/Button.svelte';
-	import Badge from '$lib/components/common/Badge.svelte';
-	import StatsCard from '$lib/components/dashboard/StatsCard.svelte';
-	import ChartWrapper from '$lib/components/charts/ChartWrapper.svelte';
-	import ProgressChart from '$lib/components/charts/ProgressChart.svelte';
-	import ActivityChart from '$lib/components/charts/ActivityChart.svelte';
+	import Card from '#lib/components/common/Card.svelte';
+	import Button from '#lib/components/common/Button.svelte';
+	import Badge from '#lib/components/common/Badge.svelte';
+	import StatsCard from '#lib/components/dashboard/StatsCard.svelte';
+	import ChartWrapper from '#lib/components/charts/ChartWrapper.svelte';
+	import ProgressChart from '#lib/components/charts/ProgressChart.svelte';
+	import ActivityChart from '#lib/components/charts/ActivityChart.svelte';
 
 	// Route params
-	let courseId = $page.params.uuid;
+	let courseId = page.params.uuid;
 
 	// State variables
 	let course = $state(null);
@@ -43,24 +42,24 @@
 	let refreshInterval;
 
 	// Time range options
-	const timeRanges = [
-		{ value: '7d', label: 'Last 7 days' },
-		{ value: '30d', label: 'Last 30 days' },
-		{ value: '90d', label: 'Last 3 months' },
-		{ value: 'all', label: 'All time' }
-	];
+	const timeRanges = $derived([
+		{ value: '7d', label: $t('analyticsPage.last7') },
+		{ value: '30d', label: $t('analyticsPage.last30') },
+		{ value: '90d', label: $t('analyticsPage.last90') },
+		{ value: 'all', label: $t('analyticsPage.allTime') }
+	]);
 
 	// Tab options
-	const tabs = [
-		{ id: 'overview', label: 'Overview', icon: '📊' },
-		{ id: 'students', label: 'Students', icon: '👥' },
-		{ id: 'progress', label: 'Progress', icon: '📈' },
-		{ id: 'engagement', label: 'Engagement', icon: '⚡' },
-		{ id: 'performance', label: 'Performance', icon: '🎯' }
-	];
+	const tabs = $derived([
+		{ id: 'overview', label: $t('analyticsPage.overview'), icon: '📊' },
+		{ id: 'students', label: $t('analyticsPage.students'), icon: '👥' },
+		{ id: 'progress', label: $t('analyticsPage.progress'), icon: '📈' },
+		{ id: 'engagement', label: $t('analyticsPage.engagement'), icon: '⚡' },
+		{ id: 'performance', label: $t('analyticsPage.performance'), icon: '🎯' }
+	]);
 
 	// Derived analytics with better error handling
-	let progressDistribution = $derived(() => {
+	let progressDistribution = $derived.by(() => {
 		if (!analytics?.studentActivity?.progress_distribution) {
 			return { not_started: 0, in_progress: 0, completed: 0 };
 		}
@@ -72,17 +71,19 @@
 		};
 	});
 
-	let averageProgress = $derived(() => {
+	let averageProgress = $derived.by(() => {
 		if (!studentsData || !Array.isArray(studentsData) || studentsData.length === 0) return 0;
+
 		const validProgresses = studentsData
-			.map(student => Number(student.progress) || 0)
-			.filter(progress => !isNaN(progress));
+			.map((student) => Number(student.progress) || 0)
+			.filter((progress) => !isNaN(progress));
+
 		if (validProgresses.length === 0) return 0;
 		const total = validProgresses.reduce((sum, progress) => sum + progress, 0);
 		return Math.round(total / validProgresses.length);
 	});
 
-	let completionRate = $derived(() => {
+	let completionRate = $derived.by(() => {
 		if (!progressDistribution) return 0;
 		const notStarted = Number(progressDistribution.not_started) || 0;
 		const inProgress = Number(progressDistribution.in_progress) || 0;
@@ -93,7 +94,7 @@
 		return isNaN(rate) ? 0 : Math.round(rate);
 	});
 
-	let engagementRate = $derived(() => {
+	let engagementRate = $derived.by(() => {
 		if (!analytics?.summary) return 0;
 		const total = Number(analytics.summary.total_students) || 0;
 		const active = Number(analytics.summary.active_students_7d) || 0;
@@ -103,46 +104,56 @@
 	});
 
 	// Chart configurations
-	let progressChartData = $derived(() => ({
-		labels: ['Not Started', 'In Progress', 'Completed'],
-		datasets: [{
-			label: 'Students',
-			data: [
-				progressDistribution.not_started,
-				progressDistribution.in_progress,
-				progressDistribution.completed
-			],
-			backgroundColor: ['#ef4444', '#f59e0b', '#10b981'],
-			borderWidth: 2,
-			borderColor: '#ffffff'
-		}]
+	let progressChartData = $derived.by(() => ({
+		labels: [
+			$t('analyticsPage.notStarted'),
+			$t('analyticsPage.inProgress'),
+			$t('analyticsPage.completed')
+		],
+		datasets: [
+			{
+				label: $t('analyticsPage.students'),
+				data: [
+					progressDistribution.not_started,
+					progressDistribution.in_progress,
+					progressDistribution.completed
+				],
+				backgroundColor: ['#ef4444', '#f59e0b', '#10b981'],
+				borderWidth: 2,
+				borderColor: '#ffffff'
+			}
+		]
 	}));
 
-	let engagementChartData = $derived(() => {
+	let engagementChartData = $derived.by(() => {
 		if (!engagementData || engagementData.length === 0) {
 			return {
 				labels: [],
-				datasets: [{
-					label: 'Active Students',
-					data: [],
-					borderColor: '#3b82f6',
-					backgroundColor: 'rgba(59, 130, 246, 0.1)',
-					fill: true,
-					tension: 0.4
-				}]
+				datasets: [
+					{
+						label: $t('analyticsPage.activeStudents'),
+						data: [],
+						borderColor: '#3b82f6',
+						backgroundColor: 'rgba(59, 130, 246, 0.1)',
+						fill: true,
+						tension: 0.4
+					}
+				]
 			};
 		}
 
 		return {
-			labels: engagementData.map(d => formatters.shortDate(d.date)),
-			datasets: [{
-				label: 'Active Students',
-				data: engagementData.map(d => d.active_students),
-				borderColor: '#3b82f6',
-				backgroundColor: 'rgba(59, 130, 246, 0.1)',
-				fill: true,
-				tension: 0.4
-			}]
+			labels: engagementData.map((d) => formatters.shortDate(d.date)),
+			datasets: [
+				{
+					label: $t('analyticsPage.activeStudents'),
+					data: engagementData.map((d) => d.active_students),
+					borderColor: '#3b82f6',
+					backgroundColor: 'rgba(59, 130, 246, 0.1)',
+					fill: true,
+					tension: 0.4
+				}
+			]
 		};
 	});
 
@@ -152,7 +163,7 @@
 			uiStore.showNotification({
 				type: 'error',
 				title: $t('errors.unauthorized'),
-				message: 'You need to be a teacher to view course analytics'
+				message: $t('analyticsPage.teacherOnly')
 			});
 			return;
 		}
@@ -177,7 +188,7 @@
 			course = courseResponse;
 
 			// Verify user is the instructor
-			if (course.instructor?.uuid !== $currentUser.uuid && !$currentUser.is_staff) {
+			if (course.instructor?.id !== $currentUser.id && !$currentUser.is_staff) {
 				throw new Error('You are not authorized to view analytics for this course');
 			}
 
@@ -190,14 +201,13 @@
 			await loadProgressData();
 			await loadEngagementData();
 			await loadPerformanceMetrics();
-
 		} catch (err) {
 			console.error('Failed to load course analytics:', err);
-			error = err.message || 'Failed to load analytics data';
-			
+			error = err.message || $t('analyticsPage.loadFailed');
+
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Analytics Error',
+				title: $t('analyticsPage.analyticsError'),
 				message: error
 			});
 		} finally {
@@ -250,11 +260,14 @@
 
 	function startAutoRefresh() {
 		// Refresh analytics every 5 minutes
-		refreshInterval = setInterval(async () => {
-			if (!refreshing) {
-				await refreshAnalytics();
-			}
-		}, 5 * 60 * 1000);
+		refreshInterval = setInterval(
+			async () => {
+				if (!refreshing) {
+					await refreshAnalytics();
+				}
+			},
+			5 * 60 * 1000
+		);
 	}
 
 	async function refreshAnalytics() {
@@ -290,8 +303,8 @@
 		if (!printWindow) {
 			uiStore.showNotification({
 				type: 'error',
-				title: 'Export Error',
-				message: 'Please allow popups to export the PDF report'
+				title: $t('analyticsPage.exportError'),
+				message: $t('analyticsPage.allowPopups')
 			});
 			return;
 		}
@@ -408,25 +421,25 @@
 				<div class="subtitle">${course?.title || 'Course Title'}</div>
 				<div class="subtitle">Instructor: ${course?.instructor?.name || 'Unknown'}</div>
 				<div class="subtitle">Report Generated: ${currentDate} at ${currentTime}</div>
-				<div class="subtitle">Time Period: ${timeRanges.find(r => r.value === selectedTimeRange)?.label || selectedTimeRange}</div>
+				<div class="subtitle">Time Period: ${timeRanges.find((r) => r.value === selectedTimeRange)?.label || selectedTimeRange}</div>
 			</div>
 
 			<div class="stats-grid">
 				<div class="stat-card">
 					<div class="stat-value">${analytics.summary?.total_students || 0}</div>
-					<div class="stat-label">Total Students</div>
+					<div class="stat-label">{$t('analyticsPage.totalStudents')}</div>
 				</div>
 				<div class="stat-card">
 					<div class="stat-value">${averageProgress}%</div>
-					<div class="stat-label">Average Progress</div>
+					<div class="stat-label">{$t('analyticsPage.averageProgress')}</div>
 				</div>
 				<div class="stat-card">
 					<div class="stat-value">${completionRate}%</div>
-					<div class="stat-label">Completion Rate</div>
+					<div class="stat-label">{$t('analyticsPage.completionRate')}</div>
 				</div>
 				<div class="stat-card">
 					<div class="stat-value">${engagementRate}%</div>
-					<div class="stat-label">Engagement Rate</div>
+					<div class="stat-label">{$t('analyticsPage.engagementRate')}</div>
 				</div>
 			</div>
 
@@ -434,39 +447,44 @@
 				<h2>Progress Distribution</h2>
 				<table class="table">
 					<tr>
-						<th>Status</th>
-						<th>Students</th>
+						<th>{$t('analyticsPage.status')}</th>
+						<th>{$t('analyticsPage.students')}</th>
 						<th>Percentage</th>
 					</tr>
 					<tr>
-						<td>Not Started</td>
+						<td>{$t('analyticsPage.notStarted')}</td>
 						<td>${progressDistribution.not_started}</td>
 						<td>${Math.round((progressDistribution.not_started / (progressDistribution.not_started + progressDistribution.in_progress + progressDistribution.completed || 1)) * 100)}%</td>
 					</tr>
 					<tr>
-						<td>In Progress</td>
+						<td>{$t('analyticsPage.inProgress')}</td>
 						<td>${progressDistribution.in_progress}</td>
 						<td>${Math.round((progressDistribution.in_progress / (progressDistribution.not_started + progressDistribution.in_progress + progressDistribution.completed || 1)) * 100)}%</td>
 					</tr>
 					<tr>
-						<td>Completed</td>
+						<td>{$t('analyticsPage.completed')}</td>
 						<td>${progressDistribution.completed}</td>
 						<td>${Math.round((progressDistribution.completed / (progressDistribution.not_started + progressDistribution.in_progress + progressDistribution.completed || 1)) * 100)}%</td>
 					</tr>
 				</table>
 			</div>
 
-			${studentsData && studentsData.length > 0 ? `
+			${
+				studentsData && studentsData.length > 0
+					? `
 			<div class="section">
 				<h2>Student Details</h2>
 				<table class="table">
 					<tr>
-						<th>Student</th>
-						<th>Progress</th>
-						<th>Last Active</th>
-						<th>Status</th>
+						<th>{$t('analyticsPage.student')}</th>
+						<th>{$t('analyticsPage.progress')}</th>
+						<th>{$t('analyticsPage.lastActive')}</th>
+						<th>{$t('analyticsPage.status')}</th>
 					</tr>
-					${studentsData.slice(0, 20).map(student => `
+					${studentsData
+						.slice(0, 20)
+						.map(
+							(student) => `
 					<tr>
 						<td>${student.name || 'Anonymous'}</td>
 						<td>
@@ -478,17 +496,25 @@
 						<td>${student.last_active ? new Date(student.last_active).toLocaleDateString() : 'Never'}</td>
 						<td>${student.status || 'Active'}</td>
 					</tr>
-					`).join('')}
-					${studentsData.length > 20 ? `
+					`
+						)
+						.join('')}
+					${
+						studentsData.length > 20
+							? `
 					<tr>
 						<td colspan="4" style="text-align: center; font-style: italic; color: #6b7280;">
 							... and ${studentsData.length - 20} more students
 						</td>
 					</tr>
-					` : ''}
+					`
+							: ''
+					}
 				</table>
 			</div>
-			` : ''}
+			`
+					: ''
+			}
 
 			<div class="section">
 				<h2>Summary</h2>
@@ -518,57 +544,70 @@
 
 		uiStore.showNotification({
 			type: 'success',
-			title: 'PDF Export Ready',
-			message: 'PDF report has been generated. Use your browser\'s print dialog to save as PDF.'
+			title: $t('analyticsPage.pdfReady'),
+			message: "PDF report has been generated. Use your browser's print dialog to save as PDF."
 		});
 	}
 </script>
 
+<!-- front/src/routes/(app)/teacher/courses/[uuid]/analytics/+page.svelte -->
+
 <svelte:head>
-	<title>{course?.title ? `${course.title} - Analytics` : 'Course Analytics'} | E-Learning Platform</title>
+	<title
+		>{course?.title
+			? $t('analyticsPage.pageTitle', { title: course.title })
+			: $t('analyticsPage.courseAnalytics')}</title
+	>
 </svelte:head>
 
-<div class="min-h-screen bg-gray-50 dark:bg-gray-900">
-	<div class="container mx-auto max-w-7xl px-4 py-8">
+<div>
+	<div>
 		<!-- Header -->
 		{#if loading}
 			<div class="mb-8" in:fade={{ duration: 300 }}>
 				<div class="animate-pulse">
-					<div class="h-8 bg-gray-200 rounded-lg w-1/3 mb-4 dark:bg-gray-700"></div>
-					<div class="h-4 bg-gray-200 rounded w-1/2 dark:bg-gray-700"></div>
+					<div class="mb-4 h-8 w-1/3 rounded-lg bg-gray-200 dark:bg-gray-700"></div>
+					<div class="h-4 w-1/2 rounded bg-gray-200 dark:bg-gray-700"></div>
 				</div>
 			</div>
 		{:else if course}
 			<div class="mb-8" in:fade={{ duration: 600 }}>
-				<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+				<div class="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
 					<div>
-						<div class="flex items-center gap-4 mb-2">
+						<div class="mb-2 flex items-center gap-4">
 							<Button
 								href="/my-courses"
 								variant="ghost"
 								size="medium"
-								class="text-gray-600 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400"
+								class="hover:text-primary-600 dark:hover:text-primary-400 text-gray-600 dark:text-gray-400"
 							>
 								<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M15 19l-7-7 7-7"
+									></path>
 								</svg>
-								Back to My Courses
+								{$t('analyticsPage.backToMyCourses')}
 							</Button>
 						</div>
-						<h1 class="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+						<h1 class="mb-2 text-3xl font-bold text-gray-900 dark:text-white">
 							{course.title}
 						</h1>
 						<p class="text-gray-600 dark:text-gray-400">
-							Analytics Dashboard • Last updated {formatters.relativeTime(Date.now())}
+							{$t('analyticsPage.dashboardUpdated', {
+								time: formatters.relativeTime(Date.now(), $locale)
+							})}
 						</p>
 					</div>
 
-					<div class="flex flex-col sm:flex-row gap-3">
+					<div class="flex flex-col gap-3 sm:flex-row">
 						<!-- Time Range Selector -->
 						<select
 							bind:value={selectedTimeRange}
 							onchange={(e) => debouncedTimeRangeChange(e.target.value)}
-							class="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+							class="focus:border-primary-500 focus:ring-primary-500 rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-900 focus:ring-2 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
 						>
 							{#each timeRanges as range}
 								<option value={range.value}>{range.label}</option>
@@ -585,9 +624,14 @@
 								loading={refreshing}
 							>
 								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+									></path>
 								</svg>
-								Refresh
+								{$t('analyticsPage.refresh')}
 							</Button>
 
 							<Button
@@ -597,9 +641,14 @@
 								disabled={!analytics}
 							>
 								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+									></path>
 								</svg>
-								Export PDF
+								{$t('analyticsPage.exportPdf')}
 							</Button>
 						</div>
 					</div>
@@ -607,13 +656,14 @@
 
 				<!-- Tab Navigation -->
 				<div class="border-b border-gray-200 dark:border-gray-700">
-					<nav class="flex space-x-8">
+					<nav class="-mb-px flex scrollbar-thin gap-6 overflow-x-auto sm:gap-8">
 						{#each tabs as tab}
 							<button
 								onclick={() => handleTabChange(tab.id)}
-								class="py-4 px-1 border-b-2 font-medium text-sm transition-colors {selectedTab === tab.id
-									? 'border-blue-500 text-blue-600 dark:text-blue-400'
-									: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'}"
+								class="shrink-0 border-b-2 px-1 py-4 text-sm font-medium whitespace-nowrap transition-colors {selectedTab ===
+								tab.id
+									? 'border-primary-500 text-primary-600 dark:text-primary-400'
+									: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'}"
 							>
 								<span class="mr-2">{tab.icon}</span>
 								{tab.label}
@@ -626,26 +676,38 @@
 
 		<!-- Error State -->
 		{#if error}
-			<div class="text-center py-12" in:fade={{ duration: 300 }}>
+			<div class="py-12 text-center" in:fade={{ duration: 300 }}>
 				<div class="mb-4">
-					<svg class="mx-auto h-16 w-16 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+					<svg
+						class="mx-auto h-16 w-16 text-red-400"
+						fill="none"
+						stroke="currentColor"
+						viewBox="0 0 24 24"
+					>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+						></path>
 					</svg>
 				</div>
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Analytics Error</h3>
-				<p class="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
-				<Button onclick={loadCourseAnalytics} variant="primary" size="medium">
-					Try Again
-				</Button>
+				<h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">
+					{$t('analyticsPage.analyticsError')}
+				</h3>
+				<p class="mb-6 text-gray-600 dark:text-gray-400">{error}</p>
+				<Button onclick={loadCourseAnalytics} variant="primary" size="medium"
+					>{$t('analyticsPage.tryAgain')}</Button
+				>
 			</div>
 		{:else if loading}
-			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+			<div class="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
 				{#each Array(4) as _}
 					<div class="animate-pulse">
 						<Card class="p-6">
-							<div class="h-4 bg-gray-200 rounded w-1/2 mb-2 dark:bg-gray-700"></div>
-							<div class="h-8 bg-gray-200 rounded w-3/4 mb-2 dark:bg-gray-700"></div>
-							<div class="h-3 bg-gray-200 rounded w-1/3 dark:bg-gray-700"></div>
+							<div class="mb-2 h-4 w-1/2 rounded bg-gray-200 dark:bg-gray-700"></div>
+							<div class="mb-2 h-8 w-3/4 rounded bg-gray-200 dark:bg-gray-700"></div>
+							<div class="h-3 w-1/3 rounded bg-gray-200 dark:bg-gray-700"></div>
 						</Card>
 					</div>
 				{/each}
@@ -654,9 +716,9 @@
 			<!-- Overview Tab -->
 			<div in:fly={{ y: 20, delay: 100, duration: 600 }}>
 				<!-- Key Metrics -->
-				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+				<div class="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
 					<StatsCard
-						title="Total Students"
+						title={$t('analyticsPage.totalStudents')}
 						value={analytics.summary?.total_students || 0}
 						trend="+12%"
 						trendDirection="up"
@@ -664,7 +726,7 @@
 						color="blue"
 					/>
 					<StatsCard
-						title="Average Progress"
+						title={$t('analyticsPage.averageProgress')}
 						value="{averageProgress}%"
 						trend="+5%"
 						trendDirection="up"
@@ -672,7 +734,7 @@
 						color="green"
 					/>
 					<StatsCard
-						title="Completion Rate"
+						title={$t('analyticsPage.completionRate')}
 						value="{completionRate}%"
 						trend="+8%"
 						trendDirection="up"
@@ -680,7 +742,7 @@
 						color="purple"
 					/>
 					<StatsCard
-						title="Engagement Rate"
+						title={$t('analyticsPage.engagementRate')}
 						value="{engagementRate}%"
 						trend="-2%"
 						trendDirection="down"
@@ -690,15 +752,19 @@
 				</div>
 
 				<!-- Charts -->
-				<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+				<div class="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
 					<!-- Progress Distribution -->
-					<Card class="p-6 bg-gradient-to-br from-white to-blue-50 dark:from-gray-800 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
-						<div class="flex items-center justify-between mb-4">
+					<Card
+						class="to-primary-50 dark:to-primary-900/20 border-primary-200 dark:border-primary-800 bg-gradient-to-br from-white p-6 dark:from-gray-800"
+					>
+						<div class="mb-4 flex items-center justify-between">
 							<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-								📊 Progress Distribution
+								{$t('analyticsPage.progressDistribution')}
 							</h3>
 							<div class="text-sm text-gray-500 dark:text-gray-400">
-								{progressDistribution.not_started + progressDistribution.in_progress + progressDistribution.completed} total students
+								{progressDistribution.not_started +
+									progressDistribution.in_progress +
+									progressDistribution.completed} total students
 							</div>
 						</div>
 						{#if progressDistribution.not_started + progressDistribution.in_progress + progressDistribution.completed > 0}
@@ -724,7 +790,7 @@
 											titleColor: '#ffffff',
 											bodyColor: '#ffffff',
 											callbacks: {
-												label: function(context) {
+												label: function (context) {
 													const label = context.label || '';
 													const value = context.parsed;
 													const total = context.dataset.data.reduce((a, b) => a + b, 0);
@@ -743,28 +809,42 @@
 								height="300px"
 							/>
 						{:else}
-							<div class="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
+							<div class="flex h-64 items-center justify-center text-gray-500 dark:text-gray-400">
 								<div class="text-center">
-									<svg class="mx-auto h-12 w-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+									<svg
+										class="mx-auto mb-2 h-12 w-12"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+										></path>
 									</svg>
-									<p class="font-medium">No Student Data</p>
-									<p class="text-sm">Students will appear here once they enroll</p>
+									<p class="font-medium">{$t('analyticsPage.noStudentData')}</p>
+									<p class="text-sm">{$t('analyticsPage.studentsWillAppear')}</p>
 								</div>
 							</div>
 						{/if}
 					</Card>
 
 					<!-- Engagement Over Time -->
-					<Card class="p-6 bg-gradient-to-br from-white to-green-50 dark:from-gray-800 dark:to-green-900/20 border-green-200 dark:border-green-800">
-						<div class="flex items-center justify-between mb-4">
+					<Card
+						class="border-green-200 bg-gradient-to-br from-white to-green-50 p-6 dark:border-green-800 dark:from-gray-800 dark:to-green-900/20"
+					>
+						<div class="mb-4 flex items-center justify-between">
 							<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-								⚡ Student Engagement
+								{$t('analyticsPage.studentEngagement')}
 							</h3>
+
 							<div class="text-sm text-gray-500 dark:text-gray-400">
-								{timeRanges.find(r => r.value === selectedTimeRange)?.label || selectedTimeRange}
+								{timeRanges.find((r) => r.value === selectedTimeRange)?.label || selectedTimeRange}
 							</div>
 						</div>
+
 						{#if engagementData && engagementData.length > 0}
 							<ChartWrapper
 								type="line"
@@ -791,7 +871,9 @@
 													return formatters.fullDate(engagementData[context[0].dataIndex]?.date);
 												},
 												label: (context) => {
-													return `Active Students: ${context.parsed.y}`;
+													return $t('analyticsPage.activeStudentsValue', {
+														count: context.parsed.y
+													});
 												}
 											}
 										}
@@ -823,13 +905,23 @@
 								height="300px"
 							/>
 						{:else}
-							<div class="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
+							<div class="flex h-64 items-center justify-center text-gray-500 dark:text-gray-400">
 								<div class="text-center">
-									<svg class="mx-auto h-12 w-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+									<svg
+										class="mx-auto mb-2 h-12 w-12"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+										></path>
 									</svg>
-									<p class="font-medium">No Engagement Data</p>
-									<p class="text-sm">Data will appear as students interact with your course</p>
+									<p class="font-medium">{$t('analyticsPage.noEngagement')}</p>
+									<p class="text-sm">{$t('analyticsPage.dataWillAppear')}</p>
 								</div>
 							</div>
 						{/if}
@@ -838,25 +930,31 @@
 
 				<!-- Recent Activity -->
 				<Card class="p-6">
-					<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-						Recent Student Activity
+					<h3 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
+						{$t('analyticsPage.recentActivity')}
 					</h3>
 					{#if studentsData && studentsData.length > 0}
 						<div class="space-y-4">
 							{#each studentsData.slice(0, 5) as student}
-								<div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg dark:bg-gray-800/50">
+								<div
+									class="flex items-center justify-between rounded-lg bg-gray-50 p-4 dark:bg-gray-800/50"
+								>
 									<div class="flex items-center space-x-4">
-										<div class="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-											<span class="text-blue-600 dark:text-blue-400 font-medium">
+										<div
+											class="bg-primary-100 dark:bg-primary-900 flex h-10 w-10 items-center justify-center rounded-full"
+										>
+											<span class="text-primary-600 dark:text-primary-400 font-medium">
 												{student.name?.charAt(0)?.toUpperCase() || '?'}
 											</span>
 										</div>
 										<div>
 											<p class="font-medium text-gray-900 dark:text-white">
-												{student.name || 'Anonymous Student'}
+												{student.name || $t('analyticsPage.anonymousStudent')}
 											</p>
 											<p class="text-sm text-gray-500 dark:text-gray-400">
-												Last active: {formatters.relativeTime(student.last_active)}
+												{$t('analyticsPage.lastActiveValue', {
+													time: formatters.relativeTime(student.last_active, $locale)
+												})}
 											</p>
 										</div>
 									</div>
@@ -865,9 +963,9 @@
 											<p class="text-sm font-medium text-gray-900 dark:text-white">
 												{student.progress || 0}% Complete
 											</p>
-											<div class="w-24 bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+											<div class="h-2 w-24 rounded-full bg-gray-200 dark:bg-gray-700">
 												<div
-													class="bg-blue-600 h-2 rounded-full"
+													class="bg-primary-600 h-2 rounded-full"
 													style="width: {student.progress || 0}%"
 												></div>
 											</div>
@@ -883,8 +981,8 @@
 							{/each}
 						</div>
 					{:else}
-						<div class="text-center py-8 text-gray-500 dark:text-gray-400">
-							No student activity data available
+						<div class="py-8 text-center text-gray-500 dark:text-gray-400">
+							{$t('analyticsPage.noActivity')}
 						</div>
 					{/if}
 				</Card>
@@ -893,9 +991,9 @@
 			<!-- Students Tab -->
 			<div in:fly={{ y: 20, delay: 100, duration: 600 }}>
 				<Card class="p-6">
-					<div class="flex justify-between items-center mb-6">
+					<div class="mb-6 flex items-center justify-between">
 						<h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-							Student Management
+							{$t('analyticsPage.studentManagement')}
 						</h3>
 						<p class="text-sm text-gray-500 dark:text-gray-400">
 							{studentsData.length} students enrolled
@@ -907,45 +1005,57 @@
 							<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
 								<thead class="bg-gray-50 dark:bg-gray-800">
 									<tr>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-											Student
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400"
+										>
+											{$t('analyticsPage.student')}
 										</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-											Progress
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400"
+										>
+											{$t('analyticsPage.progress')}
 										</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-											Last Active
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400"
+										>
+											{$t('analyticsPage.lastActive')}
 										</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-											Status
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400"
+										>
+											{$t('analyticsPage.status')}
 										</th>
 									</tr>
 								</thead>
-								<tbody class="bg-white divide-y divide-gray-200 dark:bg-gray-900 dark:divide-gray-700">
+								<tbody
+									class="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-900"
+								>
 									{#each studentsData as student}
 										<tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
 											<td class="px-6 py-4 whitespace-nowrap">
 												<div class="flex items-center">
-													<div class="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-														<span class="text-blue-600 dark:text-blue-400 font-medium">
+													<div
+														class="bg-primary-100 dark:bg-primary-900 flex h-10 w-10 items-center justify-center rounded-full"
+													>
+														<span class="text-primary-600 dark:text-primary-400 font-medium">
 															{student.name?.charAt(0)?.toUpperCase() || '?'}
 														</span>
 													</div>
 													<div class="ml-4">
 														<div class="text-sm font-medium text-gray-900 dark:text-white">
-															{student.name || 'Anonymous Student'}
+															{student.name || $t('analyticsPage.anonymousStudent')}
 														</div>
 														<div class="text-sm text-gray-500 dark:text-gray-400">
-															{student.email || 'No email'}
+															{student.email || $t('analyticsPage.noEmail')}
 														</div>
 													</div>
 												</div>
 											</td>
 											<td class="px-6 py-4 whitespace-nowrap">
 												<div class="flex items-center">
-													<div class="w-16 bg-gray-200 rounded-full h-2 mr-3 dark:bg-gray-700">
+													<div class="mr-3 h-2 w-16 rounded-full bg-gray-200 dark:bg-gray-700">
 														<div
-															class="bg-blue-600 h-2 rounded-full"
+															class="bg-primary-600 h-2 rounded-full"
 															style="width: {student.progress || 0}%"
 														></div>
 													</div>
@@ -954,8 +1064,10 @@
 													</span>
 												</div>
 											</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-												{formatters.relativeTime(student.last_active)}
+											<td
+												class="px-6 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400"
+											>
+												{formatters.relativeTime(student.last_active, $locale)}
 											</td>
 											<td class="px-6 py-4 whitespace-nowrap">
 												<Badge
@@ -971,8 +1083,8 @@
 							</table>
 						</div>
 					{:else}
-						<div class="text-center py-8 text-gray-500 dark:text-gray-400">
-							No students enrolled in this course yet
+						<div class="py-8 text-center text-gray-500 dark:text-gray-400">
+							{$t('analyticsPage.noStudents')}
 						</div>
 					{/if}
 				</Card>
@@ -982,13 +1094,25 @@
 			<div in:fly={{ y: 20, delay: 100, duration: 600 }}>
 				<Card class="p-8 text-center">
 					<div class="mb-4">
-						<svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+						<svg
+							class="mx-auto h-16 w-16 text-gray-400"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+							></path>
 						</svg>
 					</div>
-					<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">
-						{tabs.find(t => t.id === selectedTab)?.label} Analytics
+
+					<h3 class="mb-2 text-lg font-medium text-gray-900 dark:text-white">
+						{tabs.find((t) => t.id === selectedTab)?.label} Analytics
 					</h3>
+
 					<p class="text-gray-600 dark:text-gray-400">
 						This section is coming soon with advanced {selectedTab} analytics.
 					</p>

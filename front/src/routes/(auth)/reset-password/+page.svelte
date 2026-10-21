@@ -1,19 +1,16 @@
-<!-- front/src/routes/(auth)/reset-password/+page.svelte -->
 <script>
-	import { page } from '$app/stores';
+	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { authApi } from '$lib/apis/auth.js';
-	import { uiStore } from '$lib/stores/ui.store.js';
-	import { t } from '$lib/i18n/index.js';
-	import { validators, validateForm } from '$lib/utils/validators.js';
-	import { classNames } from '$lib/utils/helpers.js';
-	import FormField from '$lib/components/auth/FormField.svelte';
-	import Button from '$lib/components/common/Button.svelte';
-	import Card from '$lib/components/common/Card.svelte';
-	import Logo from '$lib/components/common/Logo.svelte';
+	import { authApi } from '#lib/apis/auth.js';
+	import { uiStore } from '#lib/stores/ui.store.js';
+	import { t } from '#lib/i18n/index.js';
+	import { validators, validateForm } from '#lib/utils/validators.js';
+	import { classNames } from '#lib/utils/helpers.js';
+	import FormField from '#lib/components/auth/FormField.svelte';
+	import Button from '#lib/components/common/Button.svelte';
 
-	const email = $page.url.searchParams.get('email') || '';
-	const code = $page.url.searchParams.get('code') || '';
+	const email = page.url.searchParams.get('email') || '';
+	const code = page.url.searchParams.get('code') || '';
 
 	let formData = $state({
 		email,
@@ -40,7 +37,11 @@
 			{ validator: validators.minLength(8), message: $t('errors.passwordTooShort') }
 		],
 		confirm_password: [
-			{ validator: validators.required, message: $t('errors.requiredField') },
+			{
+				validator: validators.required,
+				message: $t('errors.requiredField')
+			},
+
 			{
 				validator: validators.matchField('new_password'),
 				message: $t('errors.passwordsDoNotMatch')
@@ -130,129 +131,101 @@
 	};
 </script>
 
-<svelte:head>
-	<title>{$t('auth.resetPassword')} - EduVerse</title>
-</svelte:head>
+<svelte:head><title>{$t('auth.resetPassword')} · Ilmora</title></svelte:head>
 
-<div class="flex min-h-screen items-center justify-center px-4 py-12 sm:px-6 lg:px-8">
-	<div class="w-full max-w-md">
-		<div class="mb-8 text-center">
-			<Logo size="large" showText={false} class="mx-auto mb-6" />
-			<h2 class="text-3xl font-bold text-gray-900 sm:text-4xl dark:text-white">
-				{$t('auth.resetPassword')}
-			</h2>
-			<p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-				{$t('auth.enterCodeAndNewPassword')}
-			</p>
-		</div>
+<h1 class="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
+	{$t('auth.resetPassword')}
+</h1>
+<p class="mt-2 text-sm text-gray-600 dark:text-gray-400">{$t('auth.enterCodeAndNewPassword')}</p>
 
-		<Card
-			variant="bordered"
-			padding="large"
-			class="bg-white/90 backdrop-blur-sm dark:bg-gray-800/90"
+<form onsubmit={handleSubmit} class="mt-8 space-y-5" novalidate>
+	{#if !email}
+		<FormField
+			type="email"
+			name="email"
+			label={$t('auth.email')}
+			bind:value={formData.email}
+			error={getFieldError('email')}
+			onblur={() => handleFieldBlur('email')}
+			required
+			placeholder={$t('auth.enterEmail')}
+		/>
+	{:else}
+		<div
+			class="rounded-xl bg-gray-50 p-3 ring-1 ring-gray-200/80 dark:bg-white/5 dark:ring-white/10"
 		>
-			<form onsubmit={handleSubmit} class="space-y-6">
-				{#if !email}
-					<FormField
-						type="email"
-						name="email"
-						label={$t('auth.email')}
-						bind:value={formData.email}
-						error={getFieldError('email')}
-						onblur={() => handleFieldBlur('email')}
-						required
-						placeholder={$t('auth.enterEmail')}
-						icon="<path stroke-linecap='round' stroke-linejoin='round' d='M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z' />"
-					/>
-				{:else}
-					<div class="rounded-lg bg-gray-50 p-4 dark:bg-gray-900/50">
-						<p class="text-sm text-gray-600 dark:text-gray-400">
-							{$t('auth.resettingPasswordFor')}:
-							<strong class="text-gray-900 dark:text-white">{email}</strong>
-						</p>
-					</div>
-				{/if}
-
-				<FormField
-					name="reset_code"
-					label={$t('auth.resetCode')}
-					bind:value={formData.reset_code}
-					error={getFieldError('reset_code')}
-					onblur={() => handleFieldBlur('reset_code')}
-					placeholder={$t('auth.enter6DigitCode')}
-					required
-					icon="<path stroke-linecap='round' stroke-linejoin='round' d='M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z' />"
-				/>
-
-				<div class="space-y-4">
-					<FormField
-						type="password"
-						name="new_password"
-						label={$t('auth.newPassword')}
-						bind:value={formData.new_password}
-						error={getFieldError('new_password')}
-						onblur={() => handleFieldBlur('new_password')}
-						required
-						placeholder={$t('auth.enterNewPassword')}
-						icon="<path stroke-linecap='round' stroke-linejoin='round' d='M15 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' />"
-					/>
-
-					{#if formData.new_password}
-						<div class="space-y-2">
-							<div class="flex items-center justify-between">
-								<span class="text-sm text-gray-600 dark:text-gray-400"
-									>{$t('auth.passwordStrength')}:</span
-								>
-								<span class="text-sm font-medium" style="color: {passwordStrength.color}">
-									{passwordStrength.text}
-								</span>
-							</div>
-							<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-								<div
-									class="h-2 rounded-full transition-all duration-500 ease-out"
-									style="width: {(passwordStrength.score / 5) *
-										100}%; background-color: {passwordStrength.color}"
-								></div>
-							</div>
-						</div>
-					{/if}
-
-					<FormField
-						type="password"
-						name="confirm_password"
-						label={$t('auth.confirmPassword')}
-						bind:value={formData.confirm_password}
-						error={getFieldError('confirm_password')}
-						onblur={() => handleFieldBlur('confirm_password')}
-						required
-						placeholder={$t('auth.reenterPassword')}
-						icon="<path stroke-linecap='round' stroke-linejoin='round' d='M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' />"
-					/>
-				</div>
-
-				<Button
-					type="submit"
-					variant="primary"
-					size="large"
-					fullWidth
-					{loading}
-					class="from-primary-600 to-primary-700 hover:from-primary-700 hover:to-primary-800 transform bg-gradient-to-r transition-all duration-300 hover:scale-[1.02]"
-				>
-					{loading ? $t('auth.resetting') : $t('auth.resetPassword')}
-				</Button>
-			</form>
-		</Card>
-
-		<div class="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-			<p>
-				{$t('auth.needHelp')}
-				<a
-					href="/help"
-					class="text-primary-600 hover:text-primary-500 dark:text-primary-400 font-medium transition-colors"
-				>
-					{$t('auth.contactSupport')}
-				</a>
+			<p class="text-sm text-gray-600 dark:text-gray-400">
+				{$t('auth.resettingPasswordFor')}:
+				<strong class="text-gray-900 dark:text-white">{email}</strong>
 			</p>
 		</div>
+	{/if}
+
+	<FormField
+		name="reset_code"
+		label={$t('auth.resetCode')}
+		bind:value={formData.reset_code}
+		error={getFieldError('reset_code')}
+		onblur={() => handleFieldBlur('reset_code')}
+		placeholder={$t('auth.enter6DigitCode')}
+		required
+	/>
+
+	<div class="space-y-4">
+		<FormField
+			type="password"
+			name="new_password"
+			label={$t('auth.newPassword')}
+			bind:value={formData.new_password}
+			error={getFieldError('new_password')}
+			onblur={() => handleFieldBlur('new_password')}
+			required
+			placeholder={$t('auth.enterNewPassword')}
+		/>
+
+		{#if formData.new_password}
+			<div class="space-y-2">
+				<div class="flex items-center justify-between">
+					<span class="text-sm text-gray-600 dark:text-gray-400"
+						>{$t('auth.passwordStrength')}:</span
+					>
+					<span class="text-sm font-medium" style="color: {passwordStrength.color}">
+						{passwordStrength.text}
+					</span>
+				</div>
+				<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+					<div
+						class="h-2 rounded-full transition-all duration-500 ease-out"
+						style="width: {(passwordStrength.score / 5) *
+							100}%; background-color: {passwordStrength.color}"
+					></div>
+				</div>
+			</div>
+		{/if}
+
+		<FormField
+			type="password"
+			name="confirm_password"
+			label={$t('auth.confirmPassword')}
+			bind:value={formData.confirm_password}
+			error={getFieldError('confirm_password')}
+			onblur={() => handleFieldBlur('confirm_password')}
+			required
+			placeholder={$t('auth.reenterPassword')}
+		/>
 	</div>
-</div>
+
+	<Button type="submit" variant="primary" size="large" fullWidth {loading}>
+		{loading ? $t('auth.resetting') : $t('auth.resetPassword')}
+	</Button>
+</form>
+
+<p class="mt-8 text-sm text-gray-600 dark:text-gray-400">
+	{$t('auth.rememberPassword')}
+	<a
+		href="/login"
+		class="text-primary-600 hover:text-primary-700 dark:text-primary-400 font-medium"
+	>
+		{$t('auth.login')}
+	</a>
+</p>

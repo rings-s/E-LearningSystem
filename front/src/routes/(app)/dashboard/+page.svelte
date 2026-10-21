@@ -1,23 +1,26 @@
 <!-- front/src/routes/(app)/dashboard/+page.svelte -->
 <script>
+	import { t } from '#lib/i18n/index.js';
 	import { onMount, onDestroy } from 'svelte';
 	import { fade, fly, scale } from 'svelte/transition';
-	import { currentUser, authStore } from '$lib/stores/auth.store.js';
-	import { analyticsService } from '$lib/services/analytics.service.js';
-	import { coreApi } from '$lib/apis/core.js';
-	import { coursesApi } from '$lib/apis/courses.js';
-	import { uiStore } from '$lib/stores/ui.store.js';
-	import { formatters } from '$lib/utils/formatters.js';
+	import { currentUser, authStore } from '#lib/stores/auth.store.js';
+	import { analyticsService } from '#lib/services/analytics.service.js';
+	import { coreApi } from '#lib/apis/core.js';
+	import { coursesApi } from '#lib/apis/courses.js';
+	import { uiStore } from '#lib/stores/ui.store.js';
+	import { formatters } from '#lib/utils/formatters.js';
 	import { goto } from '$app/navigation';
 
 	// Core Components
-	import Card from '$lib/components/common/Card.svelte';
-	import Button from '$lib/components/common/Button.svelte';
-	import Badge from '$lib/components/common/Badge.svelte';
-	
+	import Card from '#lib/components/common/Card.svelte';
+	import Button from '#lib/components/common/Button.svelte';
+	import Badge from '#lib/components/common/Badge.svelte';
+	import EmptyState from '#lib/components/common/EmptyState.svelte';
+	import Skeleton from '#lib/components/common/Skeleton.svelte';
+
 	// Dashboard Components
-	import UnifiedDashboard from '$lib/components/dashboard/UnifiedDashboard.svelte';
-	import DashboardHeader from '$lib/components/dashboard/DashboardHeader.svelte';
+	import UnifiedDashboard from '#lib/components/dashboard/UnifiedDashboard.svelte';
+	import DashboardHeader from '#lib/components/dashboard/DashboardHeader.svelte';
 
 	// State
 	let loading = $state(true);
@@ -26,16 +29,20 @@
 	let analyticsData = $state(null);
 	let coursesData = $state([]);
 	let refreshing = $state(false);
-	
+
 	// Auto-refresh
 	let refreshInterval;
 
 	// User role and permissions
 	const userRole = $derived($currentUser?.role || 'student');
-	const userName = $derived($currentUser?.first_name || $currentUser?.username || 'User');
+	const userName = $derived(
+		$currentUser?.first_name || $currentUser?.username || $t('dashboardHome.user')
+	);
 	const isStudent = $derived(userRole === 'student');
 	const isTeacher = $derived(userRole === 'teacher');
-	const isManager = $derived(userRole === 'manager' || userRole === 'admin' || $currentUser?.is_staff);
+	const isManager = $derived(
+		userRole === 'manager' || userRole === 'admin' || $currentUser?.is_staff
+	);
 
 	onMount(async () => {
 		await loadDashboard();
@@ -55,43 +62,45 @@
 		try {
 			// Load data in parallel for better performance
 			const promises = [];
-			
+
 			// Load role-specific analytics data
 			if (isStudent) {
 				promises.push(
-					analyticsService.getStudentAnalytics().catch(err => {
+					analyticsService.getStudentAnalytics().catch((err) => {
 						console.error('Failed to load student analytics:', err);
 						return analyticsService.getFallbackStudentAnalytics();
 					})
 				);
 				promises.push(
-					authStore.makeAuthenticatedRequest(() => coursesApi.getMyEnrollments()).catch(err => {
-						console.error('Failed to load enrollments:', err);
-						return [];
-					})
+					authStore
+						.makeAuthenticatedRequest(() => coursesApi.getMyEnrollments())
+						.catch((err) => {
+							console.error('Failed to load enrollments:', err);
+							return [];
+						})
 				);
 			} else if (isTeacher) {
 				promises.push(
-					analyticsService.getTeacherAnalytics().catch(err => {
+					analyticsService.getTeacherAnalytics().catch((err) => {
 						console.error('Failed to load teacher analytics:', err);
 						return analyticsService.getFallbackTeacherAnalytics();
 					})
 				);
 				promises.push(
-					coursesApi.getMyCourses().catch(err => {
+					coursesApi.getMyCourses().catch((err) => {
 						console.error('Failed to load teacher courses:', err);
 						return [];
 					})
 				);
 			} else if (isManager) {
 				promises.push(
-					analyticsService.getPlatformAnalytics().catch(err => {
+					analyticsService.getPlatformAnalytics().catch((err) => {
 						console.error('Failed to load platform analytics:', err);
 						return analyticsService.getFallbackPlatformAnalytics();
 					})
 				);
 				promises.push(
-					coursesApi.getCourses().catch(err => {
+					coursesApi.getCourses().catch((err) => {
 						console.error('Failed to load courses:', err);
 						return [];
 					})
@@ -100,21 +109,40 @@
 
 			// Wait for all promises to resolve
 			const results = await Promise.allSettled(promises);
-			
+
 			// Process results
 			if (results.length >= 2) {
-				analyticsData = results[0].status === 'fulfilled' ? results[0].value : getFallbackAnalytics();
+				analyticsData =
+					results[0].status === 'fulfilled' ? results[0].value : getFallbackAnalytics();
 				const coursesResult = results[1].status === 'fulfilled' ? results[1].value : [];
-				coursesData = Array.isArray(coursesResult) ? coursesResult : 
-				              Array.isArray(coursesResult?.results) ? coursesResult.results : [];
-				dashboardData = results[2]?.status === 'fulfilled' ? 
-				               (results[2].value?.data || results[2].value) : getFallbackData();
+				const courseList = Array.isArray(coursesResult)
+					? coursesResult
+					: Array.isArray(coursesResult?.results)
+						? coursesResult.results
+						: [];
+				// Student enrollments nest the course; flatten them so the dashboard reads course fields
+				coursesData = isStudent
+					? courseList.map((e) =>
+							e?.course
+								? {
+										...e.course,
+										progress: e.progress_percentage ?? 0,
+										enrollment_status: e.status,
+										enrolled_at: e.enrolled_at,
+										last_accessed: e.last_accessed
+									}
+								: e
+						)
+					: courseList;
+				dashboardData =
+					results[2]?.status === 'fulfilled'
+						? results[2].value?.data || results[2].value
+						: getFallbackData();
 			}
-
 		} catch (err) {
 			console.error('Failed to load dashboard:', err);
 			error = err.message || 'Failed to load dashboard data';
-			
+
 			// Use fallback data
 			dashboardData = getFallbackData();
 			analyticsData = getFallbackAnalytics();
@@ -126,11 +154,14 @@
 
 	function startAutoRefresh() {
 		// Refresh every 5 minutes for real-time updates
-		refreshInterval = setInterval(async () => {
-			if (!refreshing) {
-				await refreshDashboard();
-			}
-		}, 5 * 60 * 1000);
+		refreshInterval = setInterval(
+			async () => {
+				if (!refreshing) {
+					await refreshDashboard();
+				}
+			},
+			5 * 60 * 1000
+		);
 	}
 
 	async function refreshDashboard() {
@@ -206,19 +237,19 @@
 				goto('/certificates');
 				break;
 			case 'schedule':
-				goto('/schedule');
+				window.location.href = '/schedule'; // page not built yet
 				break;
 			case 'manage_courses':
-				goto('/admin/courses');
+				window.location.href = '/admin/courses'; // page not built yet
 				break;
 			case 'manage_users':
-				goto('/admin/users');
+				window.location.href = '/admin/users'; // page not built yet
 				break;
 			case 'platform_analytics':
-				goto('/admin/analytics');
+				window.location.href = '/admin/analytics'; // page not built yet
 				break;
 			case 'settings':
-				goto('/admin/settings');
+				window.location.href = '/admin/settings'; // page not built yet
 				break;
 			case 'view_analytics':
 				// Navigate to role-appropriate analytics page
@@ -237,99 +268,60 @@
 </script>
 
 <svelte:head>
-	<title>Dashboard - E-Learning Platform</title>
+	<title>{$t('dashboardHome.pageTitle')}</title>
 </svelte:head>
 
-<!-- Modern Dashboard Layout -->
-<div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-	<div class="container mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-		<!-- Dashboard Header -->
-		<DashboardHeader 
-			{userName} 
-			{userRole} 
-			{refreshing}
-			onRefresh={refreshDashboard}
-		/>
+<div class="space-y-8">
+	<DashboardHeader {userName} {userRole} {refreshing} onRefresh={refreshDashboard} />
 
-		{#if error && !loading}
-			<!-- Error State -->
-			<div class="text-center py-12" in:fade={{ duration: 300 }}>
-				<div class="mb-4">
-					<svg class="mx-auto h-16 w-16 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-					</svg>
-				</div>
-				<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Dashboard Error</h3>
-				<p class="text-gray-600 dark:text-gray-400 mb-6">{error}</p>
-				<Button onclick={loadDashboard} variant="primary" size="medium">
-					Try Again
-				</Button>
-			</div>
-		{:else if loading}
-			<!-- Loading State -->
-			<div class="space-y-6" in:fade={{ duration: 300 }}>
-				<!-- Loading Header -->
-				<div class="animate-pulse">
-					<div class="h-8 bg-gray-200 rounded-lg w-1/3 mb-4 dark:bg-gray-700"></div>
-					<div class="h-4 bg-gray-200 rounded w-1/2 dark:bg-gray-700"></div>
-				</div>
-
-				<!-- Loading Stats -->
-				<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-					{#each Array(4) as _}
-						<div class="animate-pulse">
-							<Card class="p-6">
-								<div class="h-4 bg-gray-200 rounded w-1/2 mb-3 dark:bg-gray-700"></div>
-								<div class="h-8 bg-gray-200 rounded w-3/4 mb-2 dark:bg-gray-700"></div>
-								<div class="h-3 bg-gray-200 rounded w-1/3 dark:bg-gray-700"></div>
-							</Card>
-						</div>
-					{/each}
-				</div>
-
-				<!-- Loading Content -->
-				<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-					{#each Array(2) as _}
-						<div class="animate-pulse">
-							<Card class="p-6">
-								<div class="h-6 bg-gray-200 rounded w-1/3 mb-4 dark:bg-gray-700"></div>
-								<div class="h-64 bg-gray-200 rounded dark:bg-gray-700"></div>
-							</Card>
-						</div>
-					{/each}
-				</div>
-			</div>
-		{:else}
-			<!-- Unified Dashboard Content -->
-			<div in:fly={{ y: 20, duration: 600 }}>
-				{#if $currentUser}
-					<UnifiedDashboard 
-						user={$currentUser}
-						data={dashboardData} 
-						analytics={analyticsData}
-						courses={coursesData}
-						onAction={handleQuickAction}
-					/>
-				{:else}
-					<!-- Default/Guest View -->
-					<Card class="p-8 text-center">
-						<div class="mb-4">
-							<svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-							</svg>
-						</div>
-						<h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">
-							Welcome to E-Learning Platform
-						</h3>
-						<p class="text-gray-600 dark:text-gray-400 mb-6">
-							Please complete your profile setup to access your personalized dashboard.
-						</p>
-						<Button href="/profile" variant="primary" size="medium">
-							Complete Profile
-						</Button>
+	{#if error && !loading}
+		<EmptyState
+			title={$t('dashboardHome.loadError')}
+			description={error}
+			icon={'<path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />'}
+		>
+			{#snippet actions()}
+				<Button onclick={loadDashboard}>{$t('dashboardHome.tryAgain')}</Button>
+			{/snippet}
+		</EmptyState>
+	{:else if loading}
+		<div class="space-y-6" aria-busy="true">
+			<div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+				{#each Array(4) as _}
+					<Card padding="small" class="space-y-3">
+						<Skeleton class="h-3 w-1/2" />
+						<Skeleton class="h-7 w-2/3" />
+						<Skeleton class="h-3 w-1/3" />
 					</Card>
-				{/if}
+				{/each}
 			</div>
-		{/if}
-	</div>
+			<div class="grid gap-6 lg:grid-cols-2">
+				{#each Array(2) as _}
+					<Card class="space-y-4">
+						<Skeleton class="h-5 w-1/3" />
+						<Skeleton class="h-56" />
+					</Card>
+				{/each}
+			</div>
+		</div>
+	{:else if $currentUser}
+		<div in:fade={{ duration: 200 }}>
+			<UnifiedDashboard
+				user={$currentUser}
+				data={dashboardData}
+				analytics={analyticsData}
+				courses={coursesData}
+				onAction={handleQuickAction}
+			/>
+		</div>
+	{:else}
+		<EmptyState
+			title={$t('dashboardHome.profileTitle')}
+			description={$t('dashboardHome.profileText')}
+		>
+			{#snippet actions()}
+				<Button href="/profile">{$t('dashboardHome.completeProfile')}</Button>
+			{/snippet}
+		</EmptyState>
+	{/if}
 </div>

@@ -1,5 +1,6 @@
 <script>
-	import ChartWrapper from '$lib/components/charts/ChartWrapper.svelte';
+	import { t } from '#lib/i18n/index.js';
+	import ChartWrapper from '#lib/components/charts/ChartWrapper.svelte';
 
 	let {
 		metrics = {
@@ -14,10 +15,16 @@
 	} = $props();
 
 	const chartData = $derived({
-		labels: ['Quizzes', 'Assignments', 'Participation', 'Completion', 'Consistency'],
+		labels: [
+			$t('analyticsPage.quizzes'),
+			$t('analyticsPage.assignments'),
+			$t('analyticsPage.participation'),
+			$t('analyticsPage.completion'),
+			$t('analyticsPage.consistency')
+		],
 		datasets: [
 			{
-				label: 'Performance',
+				label: $t('analyticsPage.performance'),
 				data: [
 					metrics.quizzes,
 					metrics.assignments,
@@ -25,12 +32,12 @@
 					metrics.completion,
 					metrics.consistency
 				],
-				borderColor: '#8b5cf6',
-				backgroundColor: 'rgba(139, 92, 246, 0.2)',
-				pointBackgroundColor: '#8b5cf6',
+				borderColor: '#5b4ff5',
+				backgroundColor: 'rgba(91, 79, 245, 0.15)',
+				pointBackgroundColor: '#5b4ff5',
 				pointBorderColor: '#fff',
 				pointHoverBackgroundColor: '#fff',
-				pointHoverBorderColor: '#8b5cf6',
+				pointHoverBorderColor: '#5b4ff5',
 				pointRadius: 5,
 				pointHoverRadius: 7
 			}

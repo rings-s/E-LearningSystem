@@ -1,123 +1,124 @@
 <!-- front/src/lib/components/layout/Sidebar.svelte -->
+<!-- Role-aware navigation, used as the desktop sidebar and inside the mobile drawer. -->
 <script>
-	import { page } from '$app/stores';
-	import { fade, fly } from 'svelte/transition';
-	import { uiStore } from '$lib/stores/ui.store.js';
-	import { currentUser, userRole } from '$lib/services/auth.service.js';
-	import { t } from '$lib/i18n/index.js';
-	import { classNames } from '$lib/utils/helpers.js';
+	import { page } from '$app/state';
+	import { currentUser } from '#lib/services/auth.service.js';
+	import { t } from '#lib/i18n/index.js';
+	import { classNames, isTeacher } from '#lib/utils/helpers.js';
+	import Logo from '#lib/components/common/Logo.svelte';
 
-	const navigation = $derived([
-		{ name: $t('navigation.dashboard'), href: '/dashboard', icon: 'grid' },
-		{ name: $t('navigation.courses'), href: '/courses', icon: 'book' },
-		{ name: $t('navigation.myCourses'), href: '/my-courses', icon: 'bookmark' },
-		...($userRole === 'teacher'
-			? [
-				{ name: $t('navigation.teacherCourses'), href: '/teacher/courses', icon: 'teaching' },
-				{ name: $t('navigation.teacherStudents'), href: '/teacher/students', icon: 'users' }
-			]
-			: []),
-		{ name: $t('navigation.forum'), href: '/forum', icon: 'chat' },
-		{ name: $t('navigation.certificates'), href: '/certificates', icon: 'award' }
-	]);
-
-	const isActive = (href) => {
-		return $page.url.pathname.startsWith(href);
-	};
+	let { onNavigate = () => {}, footer } = $props();
 
 	const icons = {
-		grid: `<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />`,
-		book: `<path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />`,
-		bookmark: `<path stroke-linecap="round" stroke-linejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />`,
-		academic: `<path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5" />`,
-		teaching: `<path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />`,
-		users: `<path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />`,
-		chat: `<path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />`,
-		award: `<path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 002.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 012.916.52 6.003 6.003 0 01-5.395 4.972m0 0a6.726 6.726 0 01-2.749 1.35m0 0a6.772 6.772 0 01-3.044 0" />`
+		home: 'M2.25 12l8.954-8.955a1.126 1.126 0 011.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25',
+		search: 'M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z',
+		book: 'M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25',
+		award:
+			'M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 01-.982-3.172M9.497 14.25a7.454 7.454 0 00.981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 007.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M7.73 9.728a6.726 6.726 0 002.748 1.35m8.272-6.842V4.5c0 2.108-.966 3.99-2.48 5.228m2.48-5.492a46.32 46.32 0 012.916.52 6.003 6.003 0 01-5.395 4.972m0 0a6.726 6.726 0 01-2.749 1.35m0 0a6.772 6.772 0 01-3.044 0',
+		chat: 'M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.131.094-1.976 1.057-1.976 2.192v4.286c0 .837.46 1.58 1.155 1.951m9.345-8.334V6.637c0-1.621-1.152-3.026-2.76-3.235A48.455 48.455 0 0011.25 3c-2.115 0-4.198.137-6.24.402-1.608.209-2.76 1.614-2.76 3.235v6.226c0 1.621 1.152 3.026 2.76 3.235.577.075 1.157.14 1.74.194V21l4.155-4.155',
+		teach:
+			'M4.26 10.147a60.436 60.436 0 00-.491 6.347A48.627 48.627 0 0112 20.904a48.627 48.627 0 018.232-4.41 60.46 60.46 0 00-.491-6.347m-15.482 0a50.57 50.57 0 00-2.658-.813A59.905 59.905 0 0112 3.493a59.902 59.902 0 0110.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.697 50.697 0 0112 13.489a50.702 50.702 0 017.74-3.342M6.75 15a.75.75 0 100-1.5.75.75 0 000 1.5zm0 0v-3.675A55.378 55.378 0 0112 8.443m-7.007 11.55A5.981 5.981 0 006.75 15.75v-1.5',
+		users:
+			'M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z',
+		plus: 'M12 4.5v15m7.5-7.5h-15'
+	};
+
+	const groups = $derived([
+		{
+			label: $t('navigation.learn'),
+			items: [
+				{ label: $t('navigation.dashboard'), href: '/dashboard', icon: 'home' },
+				{ label: $t('navigation.courses'), href: '/courses', icon: 'search', exact: true },
+				{ label: $t('navigation.myCourses'), href: '/my-courses', icon: 'book' },
+				{ label: $t('navigation.certificates'), href: '/certificates', icon: 'award' }
+			]
+		},
+		...(isTeacher($currentUser)
+			? [
+					{
+						label: $t('navigation.teach'),
+						items: [
+							{ label: $t('navigation.teaching'), href: '/teacher/courses', icon: 'teach' },
+							{ label: $t('navigation.students'), href: '/teacher/students', icon: 'users' },
+							{ label: $t('navigation.newCourse'), href: '/teacher/courses/create', icon: 'plus' }
+						]
+					}
+				]
+			: []),
+		{
+			label: $t('navigation.community'),
+			items: [{ label: $t('navigation.forum'), href: '/forum', icon: 'chat' }]
+		}
+	]);
+
+	const allHrefs = $derived(groups.flatMap((g) => g.items.map((i) => i.href)));
+
+	// Most specific match wins, so "/teacher/courses/create" doesn't also light up "/teacher/courses"
+	const isActive = (item) => {
+		const path = page.url.pathname;
+		if (item.exact) return path === item.href;
+		if (path !== item.href && !path.startsWith(item.href + '/')) return false;
+		return !allHrefs.some(
+			(h) => h.length > item.href.length && (path === h || path.startsWith(h + '/'))
+		);
 	};
 </script>
 
-<aside
-	class={classNames(
-		'fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-300 ease-in-out',
-		'border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800',
-		$uiStore.sidebarOpen ? 'translate-x-0' : '-translate-x-full',
-		'lg:static lg:inset-0 lg:translate-x-0'
-	)}
->
-	<div class="flex h-full flex-col">
-		<!-- Logo -->
-		<div class="flex h-16 items-center justify-between border-b px-6">
-			<div class="flex items-center space-x-3">
-				<div
-					class="from-primary-500 to-primary-600 flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br font-bold text-white"
-				>
-					E
-				</div>
-				<span class="text-lg font-semibold text-gray-900 dark:text-white">
-					{$t('common.appName')}
-				</span>
-			</div>
-		</div>
-
-		<!-- Navigation -->
-		<nav class="flex-1 space-y-1 px-4 py-6">
-			{#each navigation as item}
-				<a
-					href={item.href}
-					class={classNames(
-						'group flex items-center rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200',
-						isActive(item.href)
-							? 'bg-primary-50 dark:bg-primary-900/20 text-primary-700 dark:text-primary-400'
-							: 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
-					)}
-				>
-					<svg
-						class={classNames(
-							'mr-3 h-5 w-5 transition-colors',
-							isActive(item.href)
-								? 'text-primary-600 dark:text-primary-400'
-								: 'text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300'
-						)}
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2"
-						viewBox="0 0 24 24"
-					>
-						{@html icons[item.icon]}
-					</svg>
-					{item.name}
-				</a>
-			{/each}
-		</nav>
-
-		<!-- User Profile -->
-		<div class="border-t p-4">
-			<div class="flex items-center space-x-3 px-2">
-				<div class="flex-shrink-0">
-					{#if $currentUser?.avatar}
-						<img
-							src={$currentUser.avatar}
-							alt={$currentUser.full_name}
-							class="h-10 w-10 rounded-full object-cover"
-						/>
-					{:else}
-						<div
-							class="from-primary-400 to-primary-600 flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br font-medium text-white"
-						>
-							{$currentUser?.first_name?.[0]}{$currentUser?.last_name?.[0]}
-						</div>
-					{/if}
-				</div>
-				<div class="min-w-0 flex-1">
-					<p class="truncate text-sm font-medium text-gray-900 dark:text-white">
-						{$currentUser?.full_name || $currentUser?.email}
-					</p>
-					<p class="truncate text-xs text-gray-500 dark:text-gray-400">
-						{$t(`auth.${$currentUser?.role}`)}
-					</p>
-				</div>
-			</div>
-		</div>
+<div class="flex h-full flex-col">
+	<div class="flex h-16 shrink-0 items-center px-5">
+		<Logo href="/dashboard" size="small" />
 	</div>
-</aside>
+
+	<nav class="flex-1 scrollbar-thin space-y-6 overflow-y-auto px-3 py-4">
+		{#each groups as group}
+			<div>
+				<p
+					class="mb-1.5 px-3 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500"
+				>
+					{group.label}
+				</p>
+				<ul class="space-y-0.5">
+					{#each group.items as item}
+						{@const active = isActive(item)}
+						<li>
+							<a
+								href={item.href}
+								onclick={onNavigate}
+								aria-current={active ? 'page' : undefined}
+								class={classNames(
+									'group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors',
+									active
+										? 'bg-primary-50 text-primary-700 dark:bg-primary-400/10 dark:text-primary-300'
+										: 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white'
+								)}
+							>
+								<svg
+									class={classNames(
+										'size-5 shrink-0',
+										active
+											? 'text-primary-600 dark:text-primary-400'
+											: 'text-gray-400 group-hover:text-gray-600 dark:text-gray-500 dark:group-hover:text-gray-300'
+									)}
+									fill="none"
+									stroke="currentColor"
+									stroke-width="1.75"
+									viewBox="0 0 24 24"
+									aria-hidden="true"
+								>
+									<path stroke-linecap="round" stroke-linejoin="round" d={icons[item.icon]} />
+								</svg>
+								{item.label}
+							</a>
+						</li>
+					{/each}
+				</ul>
+			</div>
+		{/each}
+	</nav>
+
+	{#if footer}
+		<div class="flex items-center gap-1 border-t border-gray-200/80 p-3 dark:border-white/10">
+			{@render footer()}
+		</div>
+	{/if}
+</div>

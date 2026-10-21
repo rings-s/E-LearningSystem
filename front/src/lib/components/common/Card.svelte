@@ -1,11 +1,11 @@
 <!-- front/src/lib/components/common/Card.svelte -->
 <script>
-	import { classNames } from '$lib/utils/helpers.js';
+	import { classNames } from '#lib/utils/helpers.js';
 
 	let {
 		children,
-		variant = 'default', // 'default', 'bordered', 'elevated'
-		padding = 'default', // 'none', 'small', 'default', 'large'
+		variant = 'default', // 'default' | 'bordered' | 'elevated' | 'subtle'
+		padding = 'default', // 'none' | 'small' | 'default' | 'large'
 		hoverable = false,
 		onclick = null,
 		class: className = '',
@@ -13,47 +13,44 @@
 	} = $props();
 
 	const variants = {
-		default: 'bg-white dark:bg-gray-800',
-		bordered: 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700',
-		elevated: 'bg-white dark:bg-gray-800 shadow-lg'
+		default: 'bg-white ring-1 ring-gray-200/80 shadow-xs dark:bg-gray-900 dark:ring-white/10',
+		bordered: 'bg-white ring-1 ring-gray-200/80 shadow-xs dark:bg-gray-900 dark:ring-white/10',
+		elevated: 'bg-white ring-1 ring-gray-200/60 shadow-lg dark:bg-gray-900 dark:ring-white/10',
+		subtle: 'bg-gray-50 ring-1 ring-gray-200/60 dark:bg-white/5 dark:ring-white/5'
 	};
 
 	const paddings = {
 		none: '',
 		small: 'p-4',
-		default: 'p-6',
-		large: 'p-8'
+		default: 'p-5 sm:p-6',
+		large: 'p-6 sm:p-8'
 	};
 
-	const isInteractive = onclick !== null;
+	const classes = $derived(
+		classNames(
+			'rounded-2xl transition-[box-shadow,transform] duration-200',
+			variants[variant] ?? variants.default,
+			paddings[padding] ?? paddings.default,
+			(hoverable || onclick) && 'hover:-translate-y-0.5 hover:shadow-md',
+			className
+		)
+	);
 </script>
 
-{#if isInteractive}
+{#if onclick}
 	<button
+		type="button"
 		{onclick}
 		class={classNames(
-			'w-full rounded-xl text-left transition-all duration-200',
-			variants[variant],
-			paddings[padding],
-			hoverable && 'transform hover:scale-[1.01] hover:shadow-md dark:hover:shadow-lg',
-			isInteractive && 'focus:ring-primary-500 cursor-pointer focus:ring-2 focus:outline-none',
-			className
+			classes,
+			'focus-visible:outline-primary-500 w-full text-start focus-visible:outline-2 focus-visible:outline-offset-2'
 		)}
 		{...restProps}
 	>
-		{@render children()}
+		{@render children?.()}
 	</button>
 {:else}
-	<div
-		class={classNames(
-			'rounded-xl transition-all duration-200',
-			variants[variant],
-			paddings[padding],
-			hoverable && 'hover:shadow-md dark:hover:shadow-lg',
-			className
-		)}
-		{...restProps}
-	>
-		{@render children()}
+	<div class={classes} {...restProps}>
+		{@render children?.()}
 	</div>
 {/if}

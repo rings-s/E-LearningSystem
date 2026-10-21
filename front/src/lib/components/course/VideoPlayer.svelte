@@ -1,5 +1,6 @@
 <!-- front/src/lib/components/course/VideoPlayer.svelte -->
 <script>
+	import { t } from '#lib/i18n/index.js';
 	import { onMount } from 'svelte';
 	import YouTubePlayer from './YouTubePlayer.svelte';
 
@@ -22,7 +23,8 @@
 		if (!videoUrl) return { type: 'unknown', id: '' };
 
 		// YouTube detection
-		const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/)([^"&?\/\s]{11})|youtu\.be\/([^"&?\/\s]{11}))/;
+		const youtubeRegex =
+			/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/)([^"&?\/\s]{11})|youtu\.be\/([^"&?\/\s]{11}))/;
 		const youtubeMatch = videoUrl.match(youtubeRegex);
 		if (youtubeMatch) {
 			return {
@@ -62,7 +64,7 @@
 	// Handle progress updates from YouTube player
 	function handleYouTubeProgress(data) {
 		onProgress(data);
-		
+
 		// Auto-complete when video reaches 90%
 		if (data.progress >= 90) {
 			onComplete();
@@ -141,7 +143,7 @@
 	{#if videoType === 'youtube' && videoId}
 		<YouTubePlayer
 			bind:this={youtubePlayer}
-			videoId={videoId}
+			{videoId}
 			{autoplay}
 			{controls}
 			onProgress={handleYouTubeProgress}
@@ -150,7 +152,7 @@
 	{:else if videoType === 'direct' && videoId}
 		<div class="relative aspect-video w-full overflow-hidden rounded-lg bg-black">
 			<video
-				class="direct-video w-full h-full"
+				class="direct-video h-full w-full"
 				src={videoId}
 				{controls}
 				preload="metadata"
@@ -166,7 +168,7 @@
 				}}
 			>
 				<track kind="captions" />
-				Your browser does not support the video tag.
+				{$t('learn.noVideoTag')}
 			</video>
 		</div>
 	{:else if videoType === 'vimeo' && videoId}
@@ -178,11 +180,13 @@
 				frameborder="0"
 				allow="autoplay; fullscreen; picture-in-picture"
 				allowfullscreen
-				title="Vimeo video player"
+				title={$t('learn.vimeoPlayer')}
 			></iframe>
 		</div>
 	{:else}
-		<div class="flex aspect-video w-full items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-800">
+		<div
+			class="flex aspect-video w-full items-center justify-center rounded-lg bg-gray-200 dark:bg-gray-800"
+		>
 			<div class="text-center text-gray-500">
 				<svg class="mx-auto mb-4 h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path
@@ -192,9 +196,11 @@
 						d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
 					/>
 				</svg>
-				<p class="text-sm">Video format not supported</p>
-				<p class="text-xs text-gray-400 mt-1">
-					{videoType === 'unknown' ? 'Unknown video type' : `${videoType} videos are not yet supported`}
+				<p class="text-sm">{$t('learn.formatUnsupported')}</p>
+				<p class="mt-1 text-xs text-gray-400">
+					{videoType === 'unknown'
+						? $t('learn.unknownVideoType')
+						: `${videoType} videos are not yet supported`}
 				</p>
 			</div>
 		</div>

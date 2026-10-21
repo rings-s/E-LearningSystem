@@ -1,6 +1,7 @@
 <script>
-	import ChartWrapper from '$lib/components/charts/ChartWrapper.svelte';
-	import { formatters } from '$lib/utils/formatters.js';
+	import { t } from '#lib/i18n/index.js';
+	import ChartWrapper from '#lib/components/charts/ChartWrapper.svelte';
+	import { formatters } from '#lib/utils/formatters.js';
 
 	let { activities = [], days = 7, height = '250px', class: className = '' } = $props();
 
@@ -29,18 +30,18 @@
 			if (!activity || !activity.created_at) {
 				return;
 			}
-			
+
 			try {
 				// Validate the date string first
 				if (typeof activity.created_at !== 'string' || activity.created_at.trim() === '') {
 					return;
 				}
-				
+
 				const activityDate = new Date(activity.created_at);
 				if (isNaN(activityDate.getTime()) || !isFinite(activityDate.getTime())) {
 					return;
 				}
-				
+
 				const date = activityDate.toISOString().split('T')[0];
 				if (counts[date] !== undefined) {
 					counts[date]++;
@@ -60,13 +61,13 @@
 		labels: dayData.map((d) => d.label),
 		datasets: [
 			{
-				label: 'Activities',
+				label: $t('analyticsPage.activities'),
 				data: countActivitiesByDay(activities, dayData),
-				borderColor: '#6366f1',
-				backgroundColor: 'rgba(99, 102, 241, 0.1)',
+				borderColor: '#5b4ff5',
+				backgroundColor: 'rgba(91, 79, 245, 0.12)',
 				tension: 0.4,
 				fill: true,
-				pointBackgroundColor: '#6366f1',
+				pointBackgroundColor: '#5b4ff5',
 				pointBorderColor: '#fff',
 				pointBorderWidth: 2,
 				pointRadius: 4,

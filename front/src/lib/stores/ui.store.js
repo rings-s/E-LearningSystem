@@ -1,7 +1,7 @@
 // front/src/lib/stores/ui.store.js - Add showNotification method
 import { writable, derived } from 'svelte/store';
-import { browser } from '$app/environment';
-import { setLocale } from '$lib/i18n/index.js';
+import { browser } from '$app/env';
+import { setLocale } from '#lib/i18n/index.js';
 
 function createUIStore() {
 	const { subscribe, set, update } = writable({
@@ -19,7 +19,9 @@ function createUIStore() {
 		init() {
 			if (!browser) return;
 
-			const savedTheme = localStorage.getItem('theme') || 'light';
+			const savedTheme =
+				localStorage.getItem('theme') ||
+				(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 			const savedLanguage = localStorage.getItem('language') || 'en';
 			const savedSidebarState = localStorage.getItem('sidebarOpen') !== 'false';
 

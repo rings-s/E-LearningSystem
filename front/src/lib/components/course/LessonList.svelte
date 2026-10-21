@@ -1,9 +1,9 @@
 <!-- front/src/lib/components/course/LessonList.svelte -->
 <script>
 	import { fade } from 'svelte/transition';
-	import { t } from '$lib/i18n/index.js';
-	import { formatters } from '$lib/utils/formatters.js';
-	import { classNames } from '$lib/utils/helpers.js';
+	import { t } from '#lib/i18n/index.js';
+	import { formatters } from '#lib/utils/formatters.js';
+	import { classNames } from '#lib/utils/helpers.js';
 
 	let {
 		modules = [],
@@ -99,7 +99,7 @@
 							<!-- Lesson Icon -->
 							<div
 								class={classNames(
-									'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg',
+									'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg',
 									lesson.is_completed
 										? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400'
 										: isCurrent
